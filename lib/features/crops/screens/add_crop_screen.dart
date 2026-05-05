@@ -25,6 +25,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
   bool _isLoading = true;
   bool _isConfigLoading = true;
   bool _isEdit = false;
+  String? _userRole;
 
   List<Map<String, dynamic>> _masterCrops = [];
   List<Map<String, dynamic>> _farms = [];
@@ -66,6 +67,12 @@ class _AddCropScreenState extends State<AddCropScreen> {
       _isConfigLoading = true;
       _isLoading = true;
     });
+    
+    try {
+      final profile = await SupabaseService.getProfile();
+      _userRole = profile?['role'];
+    } catch (_) {}
+
     await Future.wait([
       _loadMasterData(),
       _loadDropdownUnits(),
@@ -639,6 +646,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                   validator: (v) => v == null ? 'Required' : null,
                                 ),
                                 if (_selectedCropId != null &&
+                                    _userRole == 'admin' &&
                                     (_masterCrops.firstWhere(
                                           (c) => c['id'] == _selectedCropId,
                                           orElse: () => {},

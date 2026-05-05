@@ -73,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<Map<String, dynamic>> _allCrops = [];
   List<Map<String, dynamic>> _allReports = [];
   List<Map<String, dynamic>> _allProducts = [];
+  List<Map<String, dynamic>> _allCollections = [];
   List<Map<String, dynamic>> _recentActivities = [];
   List<Map<String, dynamic>> _filteredTransactions = [];
   List<Map<String, dynamic>> _reminders = [];
@@ -111,17 +112,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     setState(() => _isLoading = true);
     try {
       final profile = await SupabaseService.getProfile();
+      SupabaseService.syncAllDropdownOptions(); // Cache all dropdowns for offline use
       final isAdmin = profile?['role'] == 'admin';
       final isManager = profile?['role'] == 'manager';
       final isExecutive = profile?['role'] == 'executive';
       final isTelecaller = profile?['role'] == 'telecaller';
       final attendance = await SupabaseService.getTodayAttendance();
-      
+
       Map<String, dynamic>? activeTrip;
-      if (isExecutive || isTelecaller || isManager) {
+      if (isExecutive || isTelecaller) {
         final userId = SupabaseService.client.auth.currentUser?.id;
         if (userId != null) {
-          activeTrip = await SupabaseService.getActiveExpenseForExecutive(userId);
+          activeTrip = await SupabaseService.getActiveExpenseForExecutive(
+            userId,
+          );
         }
       }
 
@@ -131,6 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       final reports = await SupabaseService.getReports();
       final remoteTransactions =
           await SupabaseService.getAllStockTransactions();
+      final collections = await SupabaseService.getAllCollections();
 
       List<Map<String, dynamic>> localTransactions = [];
       if (!kIsWeb) {
@@ -186,6 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           _allCrops = crops ?? [];
           _allReports = reports ?? [];
           _allTransactions = transactions ?? [];
+          _allCollections = collections ?? [];
           _allProducts = products ?? [];
           _salesTarget = (profile?['sales_target'] ?? 0.0).toDouble();
 
@@ -304,52 +310,30 @@ class _DashboardScreenState extends State<DashboardScreen>
     _totalItemsSold = itemsSold.toInt();
     _totalItemsReturned = itemsReturned.toInt();
 
-    // Calculate collections from ALL transactions in period (Collections happen on RECEIVED types)
-    totalCollection = _allTransactions
-        .where((tx) {
-          final isPeriod =
-              tx['created_at'] != null && _isInPeriod(tx, startDate, endDate);
-          final type = tx['transaction_type']?.toString().toUpperCase();
-          final isReceived = type == 'RECEIVED';
-
-          final txExecId = tx['executive_id']?.toString().toLowerCase();
-          final currentId = currentUserId?.toString().toLowerCase();
-          final isOwner =
-              txExecId == currentId ||
-              (tx['status'] == 'PENDING' && txExecId == null);
-
-          final isExecutive = _isAdmin ? true : isOwner;
-          return isPeriod && isReceived && isExecutive;
-        })
-        .fold(0.0, (sum, tx) {
-          // For RECEIVED (Payments), we prefer 'collected_amount' (local-only),
-          // but fallback to parsing the packed unit string "... {₹2000}" (Supabase)
-          double amt =
-              double.tryParse(tx['collected_amount']?.toString() ?? '0') ?? 0.0;
-
-          if (amt == 0 &&
-              tx['unit'] != null &&
-              tx['unit'].toString().contains('{₹')) {
-            try {
-              final unitStr = tx['unit'].toString();
-              final start = unitStr.indexOf('{₹') + 2;
-              final end = unitStr.indexOf('}', start);
-              if (end != -1) {
-                amt = double.tryParse(unitStr.substring(start, end)) ?? 0.0;
-              }
-            } catch (_) {}
+    // Calculate collections from dedicated farm_collections table
+    totalCollection = _allCollections
+        .where((c) {
+          final periodOk = _isInPeriod(c, startDate, endDate);
+          if (!_isAdmin) {
+            final creatorId = c['created_by']?.toString().toLowerCase();
+            final currentId = currentUserId?.toString().toLowerCase();
+            return periodOk && creatorId == currentId;
           }
-
-          return sum + amt;
-        });
+          return periodOk;
+        })
+        .fold(
+          0.0,
+          (sum, c) =>
+              sum + (double.tryParse(c['amount']?.toString() ?? '0') ?? 0.0),
+        );
 
     _totalCollection = totalCollection;
-    _totalOutstanding = revenue - totalCollection;
+    _totalOutstanding = _totalSalesRevenue - totalCollection;
 
     // Target Logic for field staff (Executive, Telecaller, Manager)
     if (!_isAdmin && (_isExecutive || _isTelecaller || _isManager)) {
       final now = DateTime.now();
-      
+
       // 1. Calculate working days in current month (excluding Sundays)
       int totalDaysInMonth = DateTime(now.year, now.month + 1, 0).day;
       int workingDaysInMonth = 0;
@@ -360,7 +344,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       // 2. Calculate daily target base
-      double dailyTarget = _salesTarget / (workingDaysInMonth > 0 ? workingDaysInMonth : 1);
+      double dailyTarget =
+          _salesTarget / (workingDaysInMonth > 0 ? workingDaysInMonth : 1);
 
       // 3. Determine target for the selected period
       double targetForPeriod;
@@ -375,10 +360,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       // 4. Calculate remaining target for the selected period
       // 'revenue' is already calculated for the selected period in the loop above
-      _salesToAchieve = (targetForPeriod - revenue).clamp(0, double.infinity).toDouble();
+      _salesToAchieve =
+          (targetForPeriod - revenue).clamp(0, double.infinity).toDouble();
     } else {
       // Admin or other: Show remaining monthly target vs selected period revenue
-      _salesToAchieve = (_salesTarget - revenue).clamp(0, double.infinity).toDouble();
+      _salesToAchieve =
+          (_salesTarget - revenue).clamp(0, double.infinity).toDouble();
     }
 
     _filteredTransactions = validTransactions;
@@ -440,21 +427,27 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       // Sort by date (oldest first for verification priority)
-      pending.sort((a, b) => (a['follow_up_date'] ?? '').compareTo(b['follow_up_date'] ?? ''));
+      pending.sort(
+        (a, b) =>
+            (a['follow_up_date'] ?? '').compareTo(b['follow_up_date'] ?? ''),
+      );
       _reminders = pending;
     } else {
       // Process Standard Reminders (Follow-up Dates from Reports) for Executives
       final reportsToProcess = _allReports ?? [];
-      _reminders = reportsToProcess.where((report) {
-        if (report['follow_up_date'] == null) return false;
-        try {
-          final followUp = DateTime.parse(report['follow_up_date']);
-          // Show if today or in the future
-          return followUp.isAfter(today.subtract(const Duration(seconds: 1)));
-        } catch (_) {
-          return false;
-        }
-      }).toList();
+      _reminders =
+          reportsToProcess.where((report) {
+            if (report['follow_up_date'] == null) return false;
+            try {
+              final followUp = DateTime.parse(report['follow_up_date']);
+              // Show if today or in the future
+              return followUp.isAfter(
+                today.subtract(const Duration(seconds: 1)),
+              );
+            } catch (_) {
+              return false;
+            }
+          }).toList();
 
       // Sort reminders by date (soonest first)
       _reminders.sort((a, b) {
@@ -677,8 +670,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 40),
               _buildStatsGrid(isWide: false),
               const SizedBox(height: 32),
-              if (_isAdmin)
-                ..._buildAdminSections(isWide: false),
+              if (_isAdmin) ..._buildAdminSections(isWide: false),
             ],
           ),
         ),
@@ -770,7 +762,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         // Top Line: Visits (Redirects to Reports History)
         StatCard(
-          title: _isTelecaller ? 'Total Calls' : 'Total Visits (Analysis History)',
+          title:
+              _isTelecaller ? 'Total Calls' : 'Total Visits (Analysis History)',
           value: _reportCount.toString(),
           icon: Icons.analytics_rounded,
           gradient: const [Color(0xFF673AB7), Color(0xFF4527A0)],
@@ -1005,7 +998,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const SizedBox(width: 4),
                     Icon(
-                      _isManager ? Icons.verified_user_rounded : Icons.calendar_month_rounded,
+                      _isManager
+                          ? Icons.verified_user_rounded
+                          : Icons.calendar_month_rounded,
                       color: AppColors.primary,
                       size: 14,
                     ),
@@ -1017,7 +1012,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         const SizedBox(height: 18),
         SizedBox(
-          height: 175, // INCREASED: To prevent bottom overflow while remaining compact
+          height:
+              175, // INCREASED: To prevent bottom overflow while remaining compact
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -1025,18 +1021,26 @@ class _DashboardScreenState extends State<DashboardScreen>
             itemBuilder: (context, index) {
               final reminder = _reminders[index];
               final date = DateTime.parse(reminder['follow_up_date']);
-              
+
               String title = reminder['title'] ?? 'Unknown';
               String subtitle = reminder['subtitle'] ?? 'Action Required';
               IconData mainIcon = Icons.eco_rounded;
-              
+
               if (_isManager) {
                 final type = reminder['reminder_type'];
                 switch (type) {
-                  case 'farmer': mainIcon = Icons.person_rounded; break;
-                  case 'farm': mainIcon = Icons.agriculture_rounded; break;
-                  case 'crop': mainIcon = Icons.eco_rounded; break;
-                  case 'report': mainIcon = Icons.assignment_rounded; break;
+                  case 'farmer':
+                    mainIcon = Icons.person_rounded;
+                    break;
+                  case 'farm':
+                    mainIcon = Icons.agriculture_rounded;
+                    break;
+                  case 'crop':
+                    mainIcon = Icons.eco_rounded;
+                    break;
+                  case 'report':
+                    mainIcon = Icons.assignment_rounded;
+                    break;
                 }
               } else {
                 final farm = _allFarms.firstWhere(
@@ -1052,7 +1056,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   orElse: () => <String, dynamic>{},
                 );
                 title = farmer['name'] ?? farm['name'] ?? 'Unknown Farmer';
-                subtitle = '${farm['name'] ?? 'Farm'} • ${crop['name'] ?? 'General Checkup'}';
+                subtitle =
+                    '${farm['name'] ?? 'Farm'} • ${crop['name'] ?? 'General Checkup'}';
               }
 
               return Container(
@@ -1108,13 +1113,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      _isManager ? Icons.pending_actions_rounded : Icons.history_toggle_off_rounded,
+                                      _isManager
+                                          ? Icons.pending_actions_rounded
+                                          : Icons.history_toggle_off_rounded,
                                       color: AppColors.primary,
                                       size: 14,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      _isManager ? reminder['reminder_type'].toString().toUpperCase() : _getReminderLabel(date),
+                                      _isManager
+                                          ? reminder['reminder_type']
+                                              .toString()
+                                              .toUpperCase()
+                                          : _getReminderLabel(date),
                                       style: const TextStyle(
                                         color: AppColors.primary,
                                         fontSize: 11,
@@ -1149,7 +1160,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           Row(
                             children: [
                               Icon(
-                                _isManager ? Icons.info_outline_rounded : Icons.eco_outlined,
+                                _isManager
+                                    ? Icons.info_outline_rounded
+                                    : Icons.eco_outlined,
                                 color: AppColors.accent,
                                 size: 14,
                               ),
@@ -1176,7 +1189,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   height: 36,
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
-                                      colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                                      colors: [
+                                        Color(0xFF1B5E20),
+                                        Color(0xFF2E7D32),
+                                      ],
                                     ),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
@@ -1188,21 +1204,34 @@ class _DashboardScreenState extends State<DashboardScreen>
                                         Widget target;
                                         switch (type) {
                                           case 'farmer':
-                                            target = FarmerDetailScreen(farmer: data);
+                                            target = FarmerDetailScreen(
+                                              farmer: data,
+                                            );
                                             break;
                                           case 'farm':
-                                            target = FarmDetailScreen(farm: data);
+                                            target = FarmDetailScreen(
+                                              farm: data,
+                                            );
                                             break;
                                           case 'crop':
-                                            target = CropDetailScreen(crop: data);
+                                            target = CropDetailScreen(
+                                              crop: data,
+                                            );
                                             break;
                                           case 'report':
-                                            target = ReportGeneratorScreen(report: data);
+                                            target = ReportGeneratorScreen(
+                                              report: data,
+                                            );
                                             break;
                                           default:
                                             return;
                                         }
-                                        Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => target,
+                                          ),
+                                        );
                                       } else {
                                         // Executive logic for reminders (visits)
                                         // ... navigate to visit or report creation
@@ -1218,7 +1247,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       ),
                                     ),
                                     child: Text(
-                                      _isManager ? 'Review & Verify' : 'View Details',
+                                      _isManager
+                                          ? 'Review & Verify'
+                                          : 'View Details',
                                       style: GoogleFonts.outfit(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
@@ -1263,9 +1294,81 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Future<String?> _captureAndUpload(String bucketId) async {
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50,
+    );
+    if (photo != null) {
+      final bytes = await photo.readAsBytes();
+      final extension = photo.path.split('.').last;
+      final fileName = '${const Uuid().v4()}.$extension';
+
+      try {
+        return await SupabaseService.uploadImage(bytes, fileName, bucketId);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Upload failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+    return null;
+  }
+
+  void _showStartTripDialog() {
+    if (_activeTrip == null) {
+      // Step 1: Create the trip record if it doesn't exist
+      SupabaseService.startExecutiveTrip().then((_) => _loadDashboardData());
+      return;
+    }
+
+    // Step 2: Show the odometer form
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => StartTripForm(
+              expenseId: _activeTrip!['id'],
+              onStarted: () {
+                Navigator.pop(context);
+                _loadDashboardData();
+              },
+              onCapture: () => _captureAndUpload('expense-documents'),
+            ),
+      ),
+    );
+  }
+
+  void _showEndTripDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => EndTripDialogContent(
+            expenseId: _activeTrip!['id'],
+            startOdometer:
+                double.tryParse(
+                  _activeTrip!['start_odometer_reading']?.toString() ?? '0',
+                ) ??
+                0.0,
+            onEnded: _loadDashboardData,
+            onCapture: () => _captureAndUpload('expense-documents'),
+          ),
+    );
+  }
 
   Widget _buildPremiumHeader() {
     String greeting = 'Hi ${_userName.split(' ')[0]}';
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final bool showLabels = screenWidth > 400;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
@@ -1273,7 +1376,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -1301,10 +1404,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               // Profile & Greeting
               Expanded(
                 child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                  ).then((_) => _loadDashboardData()),
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
+                      ).then((_) => _loadDashboardData()),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1312,15 +1418,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                         alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.primary, width: 1),
+                              border: Border.all(
+                                color: AppColors.primary,
+                                width: 1,
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.primary.withOpacity(0.2),
-                                  blurRadius: 10,
+                                  blurRadius: 8,
                                 ),
                               ],
                             ),
@@ -1328,30 +1437,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                           Hero(
                             tag: 'top_profile_avatar',
                             child: CircleAvatar(
-                              radius: 16,
+                              radius: 15,
                               backgroundColor: AppColors.secondary,
-                              backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                              child: _avatarUrl.isEmpty
-                                  ? const Icon(Icons.person, size: 16, color: AppColors.primary)
-                                  : null,
-                            ),
-                          ),
-                          Positioned(
-                            right: -1,
-                            bottom: -1,
-                            child: Container(
-                              padding: const EdgeInsets.all(1.5),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
-                              ),
-                              child: const Icon(Icons.verified_rounded, size: 10, color: Colors.blue),
+                              backgroundImage:
+                                  _avatarUrl.isNotEmpty
+                                      ? NetworkImage(_avatarUrl)
+                                      : null,
+                              child:
+                                  _avatarUrl.isEmpty
+                                      ? const Icon(
+                                        Icons.person,
+                                        size: 14,
+                                        color: AppColors.primary,
+                                      )
+                                      : null,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Flexible(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1361,9 +1465,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                               'Good ${_getGreeting()}',
                               style: GoogleFonts.outfit(
                                 color: AppColors.textGray.withOpacity(0.6),
-                                fontSize: 9,
+                                fontSize: 8,
                                 fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1371,10 +1474,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                             Text(
                               greeting,
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF2E3440), // Darker charcoal
-                                fontSize: 15,
+                                color: const Color(0xFF2E3440),
+                                fontSize: 13,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: -0.2,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1386,65 +1488,81 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               // Action Hub
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _headerActionIcon(
                     icon: Icons.search_rounded,
                     backgroundColor: Colors.blueGrey.shade50.withOpacity(0.5),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const FarmerListScreen()),
-                    ),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FarmerListScreen(),
+                          ),
+                        ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   // Premium Attendance Button
-                  if (!_isAdmin)
+                  if (!_isManager)
                     GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const AttendanceScreen()),
-                      ).then((_) => _loadDashboardData()),
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AttendanceScreen(),
+                            ),
+                          ).then((_) => _loadDashboardData()),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: showLabels ? 12 : 10,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2E7D32), // Forest Green
-                              Color(0xFF1B5E20), // Deep Nature Green
-                            ],
+                            colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF1B5E20).withOpacity(0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              color: const Color(0xFF1B5E20).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 15),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Check In',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.2,
-                              ),
+                            const Icon(
+                              Icons.camera_enhance_rounded,
+                              color: Colors.white,
+                              size: 14,
                             ),
+                            if (showLabels) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                'Check In',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
+                  // Trip/Odometer Action
+                  if (_isExecutive || _isTelecaller)
+                    _buildTripActionButton(showLabels),
+                  const SizedBox(width: 4),
                   _headerActionIcon(
                     icon: Icons.power_settings_new_rounded,
                     color: Colors.redAccent,
@@ -1457,11 +1575,136 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ),
-      );
+    );
   }
 
-  Widget _headerActionIcon(
-      {required IconData icon, required VoidCallback onTap, Color? color, Color? backgroundColor}) {
+  Widget _buildTripActionButton(bool showLabels) {
+    bool hasActiveTrip = _activeTrip != null;
+    bool needsOdometer =
+        hasActiveTrip && _activeTrip!['start_odometer_reading'] == null;
+    bool tripInProgress =
+        hasActiveTrip &&
+        _activeTrip!['start_odometer_reading'] != null &&
+        _activeTrip!['end_odometer_reading'] == null;
+
+    IconData icon;
+    String label;
+    VoidCallback onTap;
+    List<Color> gradientColors;
+
+    if (!hasActiveTrip) {
+      icon = Icons.play_arrow_rounded;
+      label = 'Start Trip';
+      onTap = () {
+        if (_todayAttendance == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please Check In first to start a trip'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        _showStartTripDialog();
+      };
+      gradientColors = [
+        const Color(0xFF1976D2),
+        const Color(0xFF0D47A1),
+      ]; // Blue
+    } else if (needsOdometer) {
+      icon = Icons.speed_rounded;
+      label = 'Enter Odo';
+      onTap = () {
+        if (_todayAttendance == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please Check In first to enter odometer'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        _showStartTripDialog();
+      };
+      gradientColors = [
+        const Color(0xFFFFA000),
+        const Color(0xFFFF6F00),
+      ]; // Orange
+    } else if (tripInProgress) {
+      icon = Icons.stop_rounded;
+      label = 'End Trip';
+      onTap = () {
+        if (_todayAttendance == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please Check In first to end your trip'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        _showEndTripDialog();
+      };
+      gradientColors = [
+        const Color(0xFFD32F2F),
+        const Color(0xFFB71C1C),
+      ]; // Red
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: showLabels ? 10 : 10,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors[1].withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 14),
+            if (showLabels) ...[
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _headerActionIcon({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? color,
+    Color? backgroundColor,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1473,7 +1716,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: color ?? AppColors.textBlack.withOpacity(0.7), size: 20),
+          child: Icon(
+            icon,
+            color: color ?? AppColors.textBlack.withOpacity(0.7),
+            size: 20,
+          ),
         ),
       ),
     );
@@ -1481,7 +1728,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _handleLogout() async {
     // Check if the user is currently checked in (has a today record but no check-out time)
-    final bool isCurrentlyCheckedIn = _todayAttendance != null && _todayAttendance!['check_out_time'] == null;
+    final bool isCurrentlyCheckedIn =
+        _todayAttendance != null && _todayAttendance!['check_out_time'] == null;
 
     if (isCurrentlyCheckedIn && !_isAdmin && !_isManager) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1500,30 +1748,44 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('Logout', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to exit?', style: GoogleFonts.outfit()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textGray.withOpacity(0.6))),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade50,
-              foregroundColor: Colors.red,
-              elevation: 0,
-              minimumSize: const Size(100, 45),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-            child: const Text('Logout'),
+            title: Text(
+              'Logout',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Are you sure you want to exit?',
+              style: GoogleFonts.outfit(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textGray.withOpacity(0.6)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade50,
+                  foregroundColor: Colors.red,
+                  elevation: 0,
+                  minimumSize: const Size(100, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Logout'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirm == true) {
@@ -1647,97 +1909,97 @@ class _DashboardScreenState extends State<DashboardScreen>
           );
         },
         borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            children: [
-              // Elite Nature Masterpiece Background (FIXED: Added Positioned.fill)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF1A237E), // Deep Indigo
-                        Color(0xFF1B5E20), // Forest Green
-                        Color(0xFF2E7D32), // Nature Green
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1B5E20).withOpacity(0.4),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
-                      ),
+        child: Stack(
+          children: [
+            // Elite Nature Masterpiece Background (FIXED: Added Positioned.fill)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF1A237E), // Deep Indigo
+                      Color(0xFF1B5E20), // Forest Green
+                      Color(0xFF2E7D32), // Nature Green
                     ],
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.5,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1B5E20).withOpacity(0.4),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
                     ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1.5,
                   ),
                 ),
               ),
-              // Decorative Layer: Glowing Orbs
-              Positioned(
-                left: -40,
-                top: -40,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFF3F51B5).withOpacity(0.2),
-                        Colors.transparent,
-                      ],
-                    ),
+            ),
+            // Decorative Layer: Glowing Orbs
+            Positioned(
+              left: -40,
+              top: -40,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF3F51B5).withOpacity(0.2),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
-              Positioned(
-                right: -20,
-                top: 20,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFF81C784).withOpacity(0.15),
-                        Colors.transparent,
-                      ],
-                    ),
+            ),
+            Positioned(
+              right: -20,
+              top: 20,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF81C784).withOpacity(0.15),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
-              // Eco-Watermark / Pattern Layer
-              Positioned(
-                right: -10,
-                bottom: -10,
-                child: Opacity(
-                  opacity: 0.05,
-                  child: Transform.rotate(
-                    angle: -0.2,
-                    child: const Icon(
-                      Icons.eco_rounded,
-                      size: 180,
-                      color: Colors.white,
-                    ),
+            ),
+            // Eco-Watermark / Pattern Layer
+            Positioned(
+              right: -10,
+              bottom: -10,
+              child: Opacity(
+                opacity: 0.05,
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: const Icon(
+                    Icons.eco_rounded,
+                    size: 180,
+                    color: Colors.white,
                   ),
                 ),
               ),
-              // Content Layer
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child:
-                    _isAdmin
-                        ? _buildAdminSalesContent(currencyFormat)
-                        : _buildExecutiveSalesContent(currencyFormat),
-              ),
-            ],
-          ),
+            ),
+            // Content Layer
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child:
+                  _isAdmin
+                      ? _buildAdminSalesContent(currencyFormat)
+                      : _buildExecutiveSalesContent(currencyFormat),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1836,12 +2098,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FarmSalesListScreen(
-                      initialTransactions: _allTransactions,
-                      allProducts: _allProducts,
-                      allFarms: _allFarms,
-                      mode: 'SALES',
-                    ),
+                    builder:
+                        (context) => FarmSalesListScreen(
+                          initialTransactions: _allTransactions,
+                          allProducts: _allProducts,
+                          allFarms: _allFarms,
+                          mode: 'SALES',
+                        ),
                   ),
                 );
               },
@@ -1857,11 +2120,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FarmSalesListScreen(
-                      initialTransactions: _allTransactions,
-                      allProducts: _allProducts,
-                      mode: 'SALES',
-                    ),
+                    builder:
+                        (context) => FarmSalesListScreen(
+                          initialTransactions: _allTransactions,
+                          initialCollections: _allCollections,
+                          allProducts: _allProducts,
+                          allFarms: _allFarms,
+                          mode: 'SALES',
+                        ),
                   ),
                 );
               },
@@ -1881,12 +2147,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FarmSalesListScreen(
-                      initialTransactions: _allTransactions,
-                      allProducts: _allProducts,
-                      allFarms: _allFarms,
-                      mode: 'OUTSTANDING',
-                    ),
+                    builder:
+                        (context) => FarmSalesListScreen(
+                          initialTransactions: _allTransactions,
+                          initialCollections: _allCollections,
+                          allProducts: _allProducts,
+                          allFarms: _allFarms,
+                          mode: 'OUTSTANDING',
+                        ),
                   ),
                 );
               },
@@ -1902,12 +2170,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FarmSalesListScreen(
-                      initialTransactions: _allTransactions,
-                      allProducts: _allProducts,
-                      allFarms: _allFarms,
-                      mode: 'COLLECTION',
-                    ),
+                    builder:
+                        (context) => FarmSalesListScreen(
+                          initialTransactions: _allTransactions,
+                          initialCollections: _allCollections,
+                          allProducts: _allProducts,
+                          allFarms: _allFarms,
+                          mode: 'COLLECTION',
+                        ),
                   ),
                 );
               },
@@ -1986,7 +2256,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: Text(
                     currencyFormat.format(value.isFinite ? value : 0.0),
                     style: GoogleFonts.outfit(
-                      color: color.withOpacity(0.95), // Vibrant Color restoration
+                      color: color.withOpacity(
+                        0.95,
+                      ), // Vibrant Color restoration
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
@@ -1996,10 +2268,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
-                        Shadow(
-                          color: color.withOpacity(0.4),
-                          blurRadius: 10,
-                        ),
+                        Shadow(color: color.withOpacity(0.4), blurRadius: 10),
                       ],
                     ),
                   ),

@@ -10,12 +10,12 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 12;
+  static const int _databaseVersion = 13;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
     if (_database != null) return _database!;
-    
+
     // Prevent multiple simultaneous initializations
     _initFuture ??= _initDatabase();
     _database = await _initFuture;
@@ -35,18 +35,34 @@ class LocalDatabaseService {
     );
   }
 
-  static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  static Future<void> _onUpgrade(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     debugPrint('DB: Upgrading from $oldVersion to $newVersion');
     if (oldVersion < 2) {
       // Migration from 1 to 2
       try {
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_in_photo BLOB');
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_out_photo BLOB');
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_in_location_lat REAL');
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_in_location_lng REAL');
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_out_location_lat REAL');
-        await db.execute('ALTER TABLE attendance ADD COLUMN check_out_location_lng REAL');
-        
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_in_photo BLOB',
+        );
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_out_photo BLOB',
+        );
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_in_location_lat REAL',
+        );
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_in_location_lng REAL',
+        );
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_out_location_lat REAL',
+        );
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN check_out_location_lng REAL',
+        );
+
         await db.execute('ALTER TABLE reports ADD COLUMN photo BLOB');
         await db.execute('ALTER TABLE reports ADD COLUMN location_lat REAL');
         await db.execute('ALTER TABLE reports ADD COLUMN location_lng REAL');
@@ -59,26 +75,42 @@ class LocalDatabaseService {
       // Migration to version 3
       try {
         // Update crops table
-        final List<String> cropColumns = ['age', 'life', 'count', 'acre', 'expected_yield'];
+        final List<String> cropColumns = [
+          'age',
+          'life',
+          'count',
+          'acre',
+          'expected_yield',
+        ];
         for (var col in cropColumns) {
           try {
             await db.execute('ALTER TABLE crops ADD COLUMN $col TEXT');
-          } catch (_) { /* Column might already exist if migration partially failed */ }
+          } catch (_) {
+            /* Column might already exist if migration partially failed */
+          }
         }
 
         // Update farms table
         final List<String> farmColumns = [
-          'place', 'area', 'soil_type', 'irrigation_type', 
-          'water_source', 'water_quantity', 'power_source', 'report_url'
+          'place',
+          'area',
+          'soil_type',
+          'irrigation_type',
+          'water_source',
+          'water_quantity',
+          'power_source',
+          'report_url',
         ];
         for (var col in farmColumns) {
           try {
             if (col == 'area') {
-               await db.execute('ALTER TABLE farms ADD COLUMN $col REAL');
+              await db.execute('ALTER TABLE farms ADD COLUMN $col REAL');
             } else {
-               await db.execute('ALTER TABLE farms ADD COLUMN $col TEXT');
+              await db.execute('ALTER TABLE farms ADD COLUMN $col TEXT');
             }
-          } catch (_) { /* Column might already exist */ }
+          } catch (_) {
+            /* Column might already exist */
+          }
         }
       } catch (e) {
         debugPrint('DB Upgrade Error (v3): $e');
@@ -117,7 +149,9 @@ class LocalDatabaseService {
     if (oldVersion < 6) {
       // Migration to version 6: Add collected_amount to stock_transactions
       try {
-        await db.execute('ALTER TABLE stock_transactions ADD COLUMN collected_amount REAL');
+        await db.execute(
+          'ALTER TABLE stock_transactions ADD COLUMN collected_amount REAL',
+        );
       } catch (e) {
         debugPrint('DB Upgrade Error (v6): $e');
       }
@@ -158,10 +192,14 @@ class LocalDatabaseService {
         final tables = ['farmers', 'farms', 'crops', 'reports'];
         for (var table in tables) {
           try {
-            await db.execute('ALTER TABLE $table ADD COLUMN is_verified INTEGER DEFAULT 0');
+            await db.execute(
+              'ALTER TABLE $table ADD COLUMN is_verified INTEGER DEFAULT 0',
+            );
             await db.execute('ALTER TABLE $table ADD COLUMN verified_by TEXT');
             await db.execute('ALTER TABLE $table ADD COLUMN verified_at TEXT');
-          } catch (_) { /* Progressively add columns */ }
+          } catch (_) {
+            /* Progressively add columns */
+          }
         }
       } catch (e) {
         debugPrint('DB Upgrade Error (v9): $e');
@@ -176,14 +214,18 @@ class LocalDatabaseService {
         await db.execute('ALTER TABLE farms ADD COLUMN intercrop TEXT');
       } catch (_) {}
       try {
-        await db.execute('ALTER TABLE store_transactions ADD COLUMN updated_at TEXT');
+        await db.execute(
+          'ALTER TABLE store_transactions ADD COLUMN updated_at TEXT',
+        );
       } catch (_) {}
     }
 
     if (oldVersion < 11) {
       // Version 11: Safety check for updated_at column
       try {
-        await db.execute('ALTER TABLE store_transactions ADD COLUMN updated_at TEXT');
+        await db.execute(
+          'ALTER TABLE store_transactions ADD COLUMN updated_at TEXT',
+        );
       } catch (_) {}
     }
 
@@ -204,6 +246,21 @@ class LocalDatabaseService {
         ''');
       } catch (e) {
         debugPrint('DB Upgrade Error (v12): $e');
+      }
+    }
+
+    if (oldVersion < 13) {
+      // Version 13: Add universal cache table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS cached_data (
+            cache_key TEXT PRIMARY KEY,
+            payload TEXT,
+            cached_at TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v13): $e');
       }
     }
   }
@@ -388,6 +445,14 @@ class LocalDatabaseService {
         sync_status TEXT DEFAULT 'pending'
       )
     ''');
+    // Cached Data table (universal local cache for read-only remote data)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS cached_data (
+        cache_key TEXT PRIMARY KEY,
+        payload TEXT,
+        cached_at TEXT
+      )
+    ''');
   }
 
   // Generic Save and Queue method
@@ -398,16 +463,19 @@ class LocalDatabaseService {
   }) async {
     final db = await database;
     if (db == null) return;
-    
+
     final id = data['id'] ?? const Uuid().v4();
-    
+
     // 1. Save locally
     final localData = {...data, 'id': id};
-    
+
     // Convert Map fields to JSON string for local storage (SQLite doesn't support Maps)
     if (tableName == 'reports' && localData['_local_images'] != null) {
       if (localData['_local_images'] is Map) {
-        localData['_local_images'] = jsonEncode(localData['_local_images'], toEncodable: (o) => o is Uint8List ? o.toList() : o);
+        localData['_local_images'] = jsonEncode(
+          localData['_local_images'],
+          toEncodable: (o) => o is Uint8List ? o.toList() : o,
+        );
       }
     }
 
@@ -419,7 +487,11 @@ class LocalDatabaseService {
     }
 
     if (operation == 'INSERT') {
-      await db.insert(tableName, localData, conflictAlgorithm: ConflictAlgorithm.replace);
+      await db.insert(
+        tableName,
+        localData,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     } else if (operation == 'UPDATE') {
       await db.update(tableName, localData, where: 'id = ?', whereArgs: [id]);
     }
@@ -429,7 +501,10 @@ class LocalDatabaseService {
       'table_name': tableName,
       'record_id': id,
       'operation': operation,
-      'payload': jsonEncode(localData, toEncodable: (o) => o is Uint8List ? o.toList() : o),
+      'payload': jsonEncode(
+        localData,
+        toEncodable: (o) => o is Uint8List ? o.toList() : o,
+      ),
       'status': 'PENDING',
       'created_at': DateTime.now().toIso8601String(),
     });
@@ -460,33 +535,61 @@ class LocalDatabaseService {
   // Get local data
   static Future<List<Map<String, dynamic>>> getData(
     String tableName, {
-    String? where, 
-    List<dynamic>? whereArgs, 
+    String? where,
+    List<dynamic>? whereArgs,
     List<String>? columns,
   }) async {
     final db = await database;
     if (db == null) return [];
     List<String>? selectedColumns = columns;
-    
+
     // Safety Blanket: Automatically exclude massive binary columns for specific tables if not explicitly requested
     if (selectedColumns == null) {
       if (tableName == 'reports') {
-        selectedColumns = ['id', 'farm_id', 'crop_id', 'problem', 'previous_inputs', 'recommendations', 'estimated_cost', 'signature_url', 'created_by', 'created_at', 'is_verified'];
+        selectedColumns = [
+          'id',
+          'farm_id',
+          'crop_id',
+          'problem',
+          'previous_inputs',
+          'recommendations',
+          'estimated_cost',
+          'signature_url',
+          'created_by',
+          'created_at',
+          'is_verified',
+        ];
       } else if (tableName == 'attendance') {
-        selectedColumns = ['id', 'user_id', 'check_in_time', 'check_out_time', 'check_in_location', 'check_out_location', 'check_in_location_lat', 'check_in_location_lng', 'check_out_location_lat', 'check_out_location_lng', 'status', 'created_at'];
+        selectedColumns = [
+          'id',
+          'user_id',
+          'check_in_time',
+          'check_out_time',
+          'check_in_location',
+          'check_out_location',
+          'check_in_location_lat',
+          'check_in_location_lng',
+          'check_out_location_lat',
+          'check_out_location_lng',
+          'status',
+          'created_at',
+        ];
       }
     }
 
     return await db.query(
-      tableName, 
-      where: where, 
-      whereArgs: whereArgs, 
+      tableName,
+      where: where,
+      whereArgs: whereArgs,
       columns: selectedColumns,
-      orderBy: 'created_at DESC'
+      orderBy: 'created_at DESC',
     );
   }
 
-  static Future<Map<String, dynamic>?> getDataById(String tableName, String id) async {
+  static Future<Map<String, dynamic>?> getDataById(
+    String tableName,
+    String id,
+  ) async {
     final db = await database;
     if (db == null) return null;
     final results = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
@@ -494,12 +597,24 @@ class LocalDatabaseService {
     return results.first;
   }
 
+  static Future<void> deleteData(String tableName, String id) async {
+    final db = await database;
+    if (db == null) return;
+    await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+  }
+
   static Future<Map<String, dynamic>?> getTodayAttendance() async {
     final db = await database;
     if (db == null) return null;
-    
-    final startOfDay = DateTime.now().copyWith(hour: 0, minute: 0, second: 0, millisecond: 0, microsecond: 0);
-    
+
+    final startOfDay = DateTime.now().copyWith(
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+      microsecond: 0,
+    );
+
     final results = await db.query(
       'attendance',
       where: 'created_at >= ?',
@@ -507,7 +622,7 @@ class LocalDatabaseService {
       orderBy: 'created_at DESC',
       limit: 1,
     );
-    
+
     if (results.isEmpty) return null;
     return results.first;
   }
@@ -515,10 +630,23 @@ class LocalDatabaseService {
   static Future<List<Map<String, dynamic>>> getAllAttendanceLogs() async {
     final db = await database;
     if (db == null) return [];
-    
+
     return await db.query(
       'attendance',
-      columns: ['id', 'user_id', 'check_in_time', 'check_out_time', 'check_in_location', 'check_out_location', 'check_in_location_lat', 'check_in_location_lng', 'check_out_location_lat', 'check_out_location_lng', 'status', 'created_at'],
+      columns: [
+        'id',
+        'user_id',
+        'check_in_time',
+        'check_out_time',
+        'check_in_location',
+        'check_out_location',
+        'check_in_location_lat',
+        'check_in_location_lng',
+        'check_out_location_lat',
+        'check_out_location_lng',
+        'status',
+        'created_at',
+      ],
       orderBy: 'check_in_time DESC',
     );
   }
@@ -529,18 +657,23 @@ class LocalDatabaseService {
     if (db == null) return [];
     // WARNING: This can fail with "Row too big" if a payload is very large (>2MB).
     // Use getPendingSyncIds and getSyncItem for better robustness.
-    return await db.query('sync_queue', where: 'status = ?', whereArgs: ['PENDING'], orderBy: 'id ASC');
+    return await db.query(
+      'sync_queue',
+      where: 'status = ?',
+      whereArgs: ['PENDING'],
+      orderBy: 'id ASC',
+    );
   }
 
   static Future<List<int>> getPendingSyncIds() async {
     final db = await database;
     if (db == null) return [];
     final results = await db.query(
-      'sync_queue', 
-      columns: ['id'], 
-      where: 'status = ? OR status = ?', 
-      whereArgs: ['PENDING', 'FAILED'], 
-      orderBy: 'id ASC'
+      'sync_queue',
+      columns: ['id'],
+      where: 'status = ? OR status = ?',
+      whereArgs: ['PENDING', 'FAILED'],
+      orderBy: 'id ASC',
     );
     return results.map((r) => r['id'] as int).toList();
   }
@@ -548,17 +681,129 @@ class LocalDatabaseService {
   static Future<Map<String, dynamic>?> getSyncItem(int id) async {
     final db = await database;
     if (db == null) return null;
-    final results = await db.query('sync_queue', where: 'id = ?', whereArgs: [id]);
+    final results = await db.query(
+      'sync_queue',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     if (results.isEmpty) return null;
     return results.first;
   }
 
-  static Future<void> updateSyncStatus(int queueId, String status, {String? error}) async {
+  static Future<void> updateSyncStatus(
+    int queueId,
+    String status, {
+    String? error,
+  }) async {
     final db = await database;
     if (db == null) return;
-    await db.update('sync_queue', {
-      'status': status,
-      'error': error,
-    }, where: 'id = ?', whereArgs: [queueId]);
+    await db.update(
+      'sync_queue',
+      {'status': status, 'error': error},
+      where: 'id = ?',
+      whereArgs: [queueId],
+    );
+  }
+
+  // ============================================================
+  // Universal Cache Helpers
+  // ============================================================
+
+  /// Save a list of records to the local cache under a given key.
+  static Future<void> saveCache(
+    String key,
+    List<Map<String, dynamic>> data,
+  ) async {
+    final db = await database;
+    if (db == null) return;
+    await db.insert('cached_data', {
+      'cache_key': key,
+      'payload': jsonEncode(data),
+      'cached_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Retrieve cached records by key. Returns null if no cache exists.
+  static Future<List<Map<String, dynamic>>?> getCache(String key) async {
+    final db = await database;
+    if (db == null) return null;
+    final results = await db.query(
+      'cached_data',
+      where: 'cache_key = ?',
+      whereArgs: [key],
+    );
+    if (results.isEmpty) return null;
+    final raw = results.first['payload'] as String?;
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw) as List;
+      return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the ISO timestamp of when the cache was last written.
+  static Future<String?> getCacheTimestamp(String key) async {
+    final db = await database;
+    if (db == null) return null;
+    final results = await db.query(
+      'cached_data',
+      columns: ['cached_at'],
+      where: 'cache_key = ?',
+      whereArgs: [key],
+    );
+    return results.firstOrNull?['cached_at'] as String?;
+  }
+
+  /// Merges a list of remote/cached records with any local pending records
+  /// from the SQLite table. Local pending records overwrite base records
+  /// if they share an ID.
+  static Future<List<Map<String, dynamic>>> mergeWithPending(
+    String tableName,
+    List<Map<String, dynamic>> baseData,
+  ) async {
+    if (kIsWeb) return baseData;
+
+    try {
+      final localData = await getData(tableName);
+      if (localData.isEmpty) return baseData;
+
+      final Map<String, Map<String, dynamic>> merged = {};
+
+      // 1. Add base data
+      for (var item in baseData) {
+        if (item['id'] != null) {
+          merged[item['id'].toString()] = item;
+        }
+      }
+
+      // 2. Overwrite/add local pending data
+      for (var item in localData) {
+        if (item['id'] != null) {
+          merged[item['id'].toString()] = {
+            ...?merged[item['id'].toString()],
+            ...item,
+          };
+        }
+      }
+
+      // 3. Convert back to list and sort descending by created_at
+      final result = merged.values.toList();
+      result.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB =
+            DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA); // Descending
+      });
+
+      return result;
+    } catch (e) {
+      debugPrint('Error merging pending data for $tableName: $e');
+      return baseData;
+    }
   }
 }

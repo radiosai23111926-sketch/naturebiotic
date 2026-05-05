@@ -9,6 +9,8 @@ import 'package:nature_biotic/features/profile/screens/profile_screen.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/features/expenses/screens/executive_expenses_screen.dart';
 import 'package:nature_biotic/features/expenses/screens/manager_expenses_screen.dart';
+import 'package:nature_biotic/core/widgets/offline_banner.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class BottomNav extends StatefulWidget {
   const BottomNav({super.key});
@@ -37,10 +39,32 @@ class _BottomNavState extends State<BottomNav> {
           _isLoading = false;
         });
       }
+      // Startup prefetch — cache critical data while online
+      if (!kIsWeb) _prefetchCriticalData();
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  /// Silently pre-cache all critical data needed for offline use.
+  Future<void> _prefetchCriticalData() async {
+    try {
+      await Future.wait([
+        SupabaseService.getFarmers(),
+        SupabaseService.getFarms(),
+        SupabaseService.getAllCrops(),
+        SupabaseService.getReports(),
+        SupabaseService.getHierarchicalDropdownOptions('product_name'),
+        SupabaseService.getHierarchicalDropdownOptions('product_vendor_map'),
+        SupabaseService.getAllStockTransactions(),
+        SupabaseService.getMasterCrops(),
+        SupabaseService.syncAllDropdownOptions(),
+      ]);
+      debugPrint('PREFETCH: Critical data cached successfully.');
+    } catch (e) {
+      debugPrint('PREFETCH: Failed (likely offline): $e');
     }
   }
 
@@ -112,22 +136,24 @@ class _BottomNavState extends State<BottomNav> {
     if (isWide) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: Row(
-          children: [
-            _buildDesktopSidebar(screens),
-            Expanded(
-              child: Container(
-                color: Colors.blue.withOpacity(0.1), // Debug background
-                child: screens[safeIndex],
+        body: OfflineAwareBanner(
+          child: Row(
+            children: [
+              _buildDesktopSidebar(screens),
+              Expanded(
+                child: Container(
+                  color: Colors.blue.withOpacity(0.1),
+                  child: screens[safeIndex],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
-      body: screens[safeIndex],
+      body: OfflineAwareBanner(child: screens[safeIndex]),
       bottomNavigationBar:
           screens.length <= 1
               ? null

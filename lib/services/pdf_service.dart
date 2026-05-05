@@ -32,16 +32,6 @@ class PdfService {
       boldFont,
     );
 
-    pw.Widget? signatureImage;
-    if (report['signature_url'] != null) {
-      try {
-        final img = await networkImage(report['signature_url']);
-        signatureImage = pw.Image(img, height: 40);
-      } catch (e) {
-        debugPrint('Error loading signature image: $e');
-      }
-    }
-
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -65,7 +55,7 @@ class PdfService {
               _buildSectionTitle('Product Requirements & Estimations'),
               _buildCostTable(report['estimated_cost'] ?? ''),
               pw.Spacer(),
-              _buildFooter(signatureImage),
+              _buildFooter(),
             ],
       ),
     );
@@ -732,6 +722,8 @@ class PdfService {
   static Future<void> generateStockChallan({
     required List<Map<String, dynamic>> items,
     required String farmName,
+    required String farmerName,
+    required String cropName,
     required String transactionType,
     required DateTime date,
   }) async {
@@ -769,7 +761,7 @@ class PdfService {
                           ),
                         ),
                         pw.Text(
-                          'Stock Movement Challan',
+                          'Delivery Challan',
                           style: const pw.TextStyle(
                             fontSize: 12,
                             color: PdfColors.grey700,
@@ -784,17 +776,6 @@ class PdfService {
                           'Date: $dateStr',
                           style: const pw.TextStyle(fontSize: 9),
                         ),
-                        pw.Text(
-                          'Type: ${transactionType.toUpperCase()}',
-                          style: pw.TextStyle(
-                            fontSize: 11,
-                            fontWeight: pw.FontWeight.bold,
-                            color:
-                                transactionType == 'RECEIVED'
-                                    ? PdfColors.green900
-                                    : PdfColors.orange900,
-                          ),
-                        ),
                       ],
                     ),
                   ],
@@ -807,25 +788,15 @@ class PdfService {
             (context) => [
               pw.Row(
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'RECIPIENT / FARM:',
-                        style: const pw.TextStyle(
-                          fontSize: 8,
-                          color: PdfColors.grey600,
-                        ),
+                      pw.Row(
+                        children: [
+                          _infoItem('FARMER NAME', farmerName),
+                          pw.SizedBox(width: 32),
+                          _infoItem('FARM NAME', farmName),
+                          pw.SizedBox(width: 32),
+                          _infoItem('CROP NAME', cropName),
+                        ],
                       ),
-                      pw.Text(
-                        farmName,
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
               pw.SizedBox(height: 20),
@@ -942,39 +913,21 @@ class PdfService {
     );
   }
 
-  static pw.Widget _buildFooter(pw.Widget? signature) {
+  static pw.Widget _buildFooter() {
     return pw.Column(
       children: [
         pw.Divider(thickness: 1, color: PdfColors.grey),
         pw.SizedBox(height: 10),
         pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'Nature Biotic Executive Signature',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-                pw.SizedBox(height: 5),
-                if (signature != null)
-                  pw.Container(height: 30, child: signature)
-                else
-                  pw.SizedBox(height: 30),
-                pw.Container(
-                  width: 150,
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(
-                      bottom: pw.BorderSide(color: PdfColors.grey300),
-                    ),
-                  ),
-                ),
-              ],
-            ),
             pw.Text(
               'Thank you for choosing Nature Biotic for a sustainable future.',
-              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontStyle: pw.FontStyle.italic,
+                color: PdfColors.grey700,
+              ),
             ),
           ],
         ),

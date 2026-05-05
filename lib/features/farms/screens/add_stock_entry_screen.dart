@@ -10,11 +10,15 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class AddStockEntryScreen extends StatefulWidget {
   final String farmId;
   final String farmName;
+  final String? farmerName;
+  final String? cropName;
 
   const AddStockEntryScreen({
     super.key,
     required this.farmId,
     required this.farmName,
+    this.farmerName,
+    this.cropName,
   });
 
   @override
@@ -247,7 +251,21 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Record Stock Activity')),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('New Sales Entry', style: TextStyle(fontSize: 16)),
+            Text(
+              '${widget.farmerName ?? 'Farmer'} • ${widget.farmName}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
       body:
           _isDataLoading
               ? const Center(child: CircularProgressIndicator())
@@ -258,23 +276,26 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Activity for ${widget.farmName}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: AppColors.textGray,
+                      if (widget.cropName != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Crop: ${widget.cropName}',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      const Text(
-                        'Transaction Type',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildTypeSelector(),
-                      const SizedBox(height: 24),
 
                       ListView.separated(
                         shrinkWrap: true,
@@ -327,7 +348,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                  : const Text('Save Stock Record'),
+                                  : const Text('Save Sales Record'),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -339,240 +360,147 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
   }
 
   Widget _buildItemRow(int index, StockItemRow row) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadow.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Product #${index + 1}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              if (_itemRows.length > 1)
-                IconButton(
-                  onPressed: () => _removeRow(index),
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Colors.red,
-                    size: 20,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 4,
+              child: DropdownButtonFormField<String>(
+                value: row.selectedItem,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Item Name',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  visualDensity: VisualDensity.compact,
                 ),
-            ],
-          ),
-          const Divider(),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: row.selectedItem,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Select Stock Item',
-              hintText: 'Search product...',
-            ),
-            items:
-                _itemOptions
-                    .map(
-                      (e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e, style: const TextStyle(fontSize: 14)),
-                      ),
-                    )
-                    .toList(),
-            onChanged: (v) {
-              setState(() {
-                row.selectedItem = v;
-                row.selectedUnit = null;
-                row.selectedPrice = 0.0;
-                _updateRowPacketOptions(row);
-              });
-            },
-            validator: (v) => v == null ? 'Required' : null,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  controller: row.qtyController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    hintText: 'Qty',
-                  ),
-                  onChanged:
-                      (_) => setState(
-                        () {},
-                      ), // Trigger total recalculation if needed
-                  validator:
-                      (v) => (v == null || v.isEmpty) ? 'Required' : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: DropdownButtonFormField<String>(
-                  initialValue: row.selectedUnit,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Packet Size'),
-                  items:
-                      row.packetSizeOptions
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(
-                                e,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 13),
-                              ),
+                items:
+                    _itemOptions
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          )
-                          .toList(),
-                  onChanged: (v) {
-                    setState(() {
-                      row.selectedUnit = v;
-                      _updateRowPrice(row);
-                    });
-                  },
-                  validator: (v) => v == null ? 'Required' : null,
-                ),
-              ),
-            ],
-          ),
-          if (row.selectedPrice > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    'Rate: ₹${row.selectedPrice}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textGray,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'Amount: ₹${(row.selectedPrice * (double.tryParse(row.qtyController.text) ?? 0)).toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
+                          ),
+                        )
+                        .toList(),
+                onChanged: (v) {
+                  setState(() {
+                    row.selectedItem = v;
+                    row.selectedUnit = null;
+                    row.selectedPrice = 0.0;
+                    _updateRowPacketOptions(row);
+                  });
+                },
+                validator: (v) => v == null ? 'Req' : null,
               ),
             ),
-          if (row.selectedItem != null && row.selectedUnit != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 14,
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 3,
+              child: DropdownButtonFormField<String>(
+                value: row.selectedUnit,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Size',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                items:
+                    row.packetSizeOptions
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 11),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                onChanged: (v) {
+                  setState(() {
+                    row.selectedUnit = v;
+                    _updateRowPrice(row);
+                  });
+                },
+                validator: (v) => v == null ? 'Req' : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: row.qtyController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'Qty',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+                validator: (v) => (v == null || v.isEmpty) ? 'Req' : null,
+              ),
+            ),
+            if (_itemRows.length > 1)
+              IconButton(
+                onPressed: () => _removeRow(index),
+                icon: const Icon(
+                  Icons.remove_circle_outline,
+                  color: Colors.red,
+                  size: 20,
+                ),
+                padding: const EdgeInsets.only(top: 10, left: 4),
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
+        if (row.selectedItem != null && row.selectedUnit != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: Row(
+              children: [
+                Text(
+                  'Avl: ${(_myStock[row.selectedItem]?[row.selectedUnit] ?? 0.0).toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                     color:
                         (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) > 0
                             ? Colors.green
                             : Colors.red,
                   ),
-                  const SizedBox(width: 4),
+                ),
+                const Spacer(),
+                if (row.selectedPrice > 0)
                   Text(
-                    'Available: ${(_myStock[row.selectedItem]?[row.selectedUnit] ?? 0.0).toStringAsFixed(1)}',
-                    style: TextStyle(
-                      fontSize: 12,
+                    'Amt: ₹${(row.selectedPrice * (double.tryParse(row.qtyController.text) ?? 0)).toStringAsFixed(2)}',
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color:
-                          (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) >
-                                  0
-                              ? Colors.green
-                              : Colors.red,
+                      fontSize: 11,
+                      color: AppColors.primary,
                     ),
                   ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeSelector() {
-    return Row(
-      children: [
-        _typeOption('RECEIVED', Colors.green, Icons.download_rounded),
-        if (_userRole != 'executive' && _userRole != 'telecaller') ...[
-          const SizedBox(width: 8),
-          _typeOption('DELIVERED', Colors.orange, Icons.upload_rounded),
-          const SizedBox(width: 8),
-          _typeOption(
-            'RETURN',
-            Colors.blue,
-            Icons.settings_backup_restore_rounded,
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _typeOption(String type, Color color, IconData icon) {
-    final bool isSelected = _transactionType == type;
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => setState(() => _transactionType = type),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: isSelected ? color.withOpacity(0.1) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected ? color : AppColors.secondary,
-                width: 2,
-              ),
-            ),
-            child: Column(
-              children: [
-                Icon(icon, color: isSelected ? color : AppColors.textGray),
-                const SizedBox(height: 4),
-                Text(
-                  type == 'RECEIVED'
-                      ? 'Received'
-                      : (type == 'DELIVERED' ? 'Delivered' : 'Return'),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? color : AppColors.textGray,
-                  ),
-                ),
               ],
             ),
           ),
-        ),
-      ),
+        const Divider(height: 24),
+      ],
     );
   }
 
@@ -616,7 +544,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'Stock Recorded!',
+                  'Sales Recorded!',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -631,6 +559,8 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                     PdfService.generateStockChallan(
                       items: itemsForChallan,
                       farmName: widget.farmName,
+                      farmerName: widget.farmerName ?? 'N/A',
+                      cropName: widget.cropName ?? 'N/A',
                       transactionType: _transactionType,
                       date: now,
                     );

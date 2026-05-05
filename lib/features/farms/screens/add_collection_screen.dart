@@ -62,6 +62,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
         'notes': _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        'created_by': SupabaseService.client.auth.currentUser?.id,
         'created_at': DateTime.now().toIso8601String(),
       };
 

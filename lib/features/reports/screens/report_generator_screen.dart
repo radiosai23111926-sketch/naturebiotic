@@ -132,7 +132,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
       backgroundColor: const Color(
         0xFFF5F5F5,
       ), // Slightly grayish to make the "paper" pop
-      appBar: AppBar(title: const Text('Report Analysis')),
+      appBar: AppBar(title: const Text('Visit Report')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -185,7 +185,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                         _buildCostTable(report['estimated_cost'] ?? ''),
 
                         const SizedBox(height: 48),
-                        _buildFooter(report['signature_url']),
+                        _buildFooter(),
                       ],
                     ),
                   ),
@@ -461,50 +461,12 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
 
       for (var item in problemItems) {
         if (item.trim().isEmpty) continue;
-
-        if (item.contains('{img:')) {
-          final itemName = item.split('{img:')[0].trim();
-          final imageUrl = item.split('{img:')[1].replaceAll('}', '').trim();
-
-          problemWidgets.add(
-            Container(
-              width: 260,
-              margin: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    itemName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageUrl,
-                      height: 160,
-                      width: 260,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 150,
-                        width: 250,
-                        color: Colors.grey[100],
-                        child: const Icon(Icons.image_not_supported_rounded, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        } else {
-          problemWidgets.add(
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text('• ${item.trim()}', style: const TextStyle(fontSize: 14)),
-            ),
-          );
-        }
+        problemWidgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _parseTextWithImages('• ${item.trim()}', fontSize: 14),
+          ),
+        );
       }
 
       cropSections.add(
@@ -562,8 +524,8 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
             borderRadius: BorderRadius.circular(8),
             child: Image.network(
               url,
-              height: 120,
-              width: 200,
+              height: 200,
+              width: 300,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.grey),
             ),
@@ -917,34 +879,14 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
     );
   }
 
-  Widget _buildFooter(String? signatureUrl) {
+  Widget _buildFooter() {
     return Column(
       children: [
         const Divider(thickness: 1),
         const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Nature Biotic Executive Signature',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                if (signatureUrl != null)
-                  Image.network(
-                    signatureUrl,
-                    height: 50,
-                    width: 150,
-                    fit: BoxFit.contain,
-                  )
-                else
-                  const SizedBox(height: 50),
-                Container(width: 150, height: 1, color: Colors.grey[400]),
-              ],
-            ),
             const Expanded(
               child: Text(
                 'Thank you for choosing Nature Biotic for a sustainable future.',

@@ -36,39 +36,13 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
   Future<void> _loadCollections() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch remote collections
-      List<Map<String, dynamic>> remoteCollections = [];
-      try {
-        remoteCollections = await SupabaseService.getFarmCollections(widget.farmId);
-      } catch (_) {}
-
-      // Fetch local collections (offline support)
-      List<Map<String, dynamic>> localCollections = [];
-      if (!kIsWeb) {
-        localCollections = await LocalDatabaseService.getData(
-          'farm_collections',
-          where: 'farm_id = ?',
-          whereArgs: [widget.farmId],
-        );
-      }
-
-      // Merge and de-duplicate by ID
-      final Map<String, Map<String, dynamic>> combined = {};
-      for (var c in localCollections) {
-        combined[c['id'].toString()] = c;
-      }
-      for (var c in remoteCollections) {
-        combined[c['id'].toString()] = c;
-      }
-
-      final all = combined.values.toList();
-      all.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
-
+      final all = await SupabaseService.getFarmCollections(widget.farmId);
+      
       final total = all.fold(
         0.0,
         (sum, c) => sum + (double.tryParse(c['amount'].toString()) ?? 0.0),
       );
-
+      
       if (mounted) {
         setState(() {
           _collections = all;
@@ -77,6 +51,7 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
         });
       }
     } catch (e) {
+      debugPrint('Error in _loadCollections: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }

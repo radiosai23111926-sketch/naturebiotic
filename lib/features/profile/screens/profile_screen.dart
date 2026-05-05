@@ -293,6 +293,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     MaterialPageRoute(builder: (context) => const AttendanceHistoryScreen())
                   );
                 }),
+                _profileOption(Icons.sync_rounded, 'Sync Offline Data', onTap: () async {
+                  setState(() => _isLoading = true);
+                  await SupabaseService.syncAllDropdownOptions();
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Offline data synchronized successfully'),
+                        backgroundColor: AppColors.primary,
+                      ),
+                    );
+                  }
+                }),
                 _profileOption(Icons.help_outline_rounded, 'Help & Support', onTap: () {
                   showModalBottomSheet(
                     context: context,

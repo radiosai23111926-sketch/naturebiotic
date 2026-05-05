@@ -513,45 +513,6 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
                         _infoCard(Icons.waves_rounded, 'Source', _farm['water_source'] ?? 'N/A'),
                         _infoCard(Icons.inventory_2_rounded, 'Qty', _farm['water_quantity'] ?? 'N/A'),
                         _infoCard(Icons.bolt_rounded, 'Power', _farm['power_source'] ?? 'N/A'),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => StockManagementScreen(
-                                  farmId: _farm['id'].toString(),
-                                  farmName: _farm['name'] ?? 'This Farm',
-                                ),
-                              ),
-                            );
-                          },
-                          child: _infoCard(
-                            Icons.inventory_rounded, 
-                            'Inventory', 
-                            'Stock Mgt',
-                            isLink: true,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CollectionHistoryScreen(
-                                  farmId: _farm['id'].toString(),
-                                  farmName: _farm['name'] ?? 'This Farm',
-                                  farmerName: _farmer?['name'],
-                                ),
-                              ),
-                            );
-                          },
-                          child: _infoCard(
-                            Icons.account_balance_wallet_rounded, 
-                            'Payments', 
-                            'Collections',
-                            isLink: true,
-                          ),
-                        ),
                         if (_farm['report_url'] != null && _farm['report_url'].toString().isNotEmpty)
                           GestureDetector(
                             onTap: () async {

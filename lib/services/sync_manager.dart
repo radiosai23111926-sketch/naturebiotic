@@ -14,17 +14,34 @@ class SyncManager {
   bool _syncRequestedAgain = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
+  /// Reactive connectivity state — listen to show/hide the offline banner
+  final ValueNotifier<bool> isOnline = ValueNotifier(true);
+
+  /// Reactive pending sync count — shows how many items are queued
+  final ValueNotifier<int> pendingCount = ValueNotifier(0);
+
+  /// Timestamp of last successful sync pass (null if never synced this session)
+  final ValueNotifier<DateTime?> lastSyncedAt = ValueNotifier(null);
+
   void initialize() {
     if (kIsWeb) return;
+
+    // Set initial connectivity state immediately
+    Connectivity().checkConnectivity().then((results) {
+      isOnline.value = results.any((r) => r != ConnectivityResult.none);
+    });
+
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
       results,
     ) {
-      if (results.any((r) => r != ConnectivityResult.none)) {
-        sync();
-      }
+      final nowOnline = results.any((r) => r != ConnectivityResult.none);
+      isOnline.value = nowOnline;
+      if (nowOnline) sync();
     });
-    // Initial sync attempt
+
+    // Initial sync attempt + populate pending count
     sync();
+    _updatePendingCount();
   }
 
   void dispose() {
@@ -51,7 +68,16 @@ class SyncManager {
     } while (_syncRequestedAgain);
 
     _isSyncing = false;
+    await _updatePendingCount();
     debugPrint('SYNC: All synchronization passes finished.');
+  }
+
+  Future<void> _updatePendingCount() async {
+    if (kIsWeb) return;
+    final ids = await LocalDatabaseService.getPendingSyncIds();
+    pendingCount.value = ids.length;
+    // Mark the last time we completed a sync check
+    if (ids.isEmpty) lastSyncedAt.value = DateTime.now();
   }
 
   Future<void> _performSync() async {
@@ -98,6 +124,16 @@ class SyncManager {
           debugPrint('SYNC: Executing $operation for $tableName:$recordId');
           await _processSyncItem(tableName, operation, payload);
           await LocalDatabaseService.updateSyncStatus(queueId, 'SYNCED');
+
+          // CRITICAL: If this was an INSERT, delete the temporary local record from the source table
+          // so that the next fetch gets the authoritative synced version from Supabase.
+          if (operation == 'INSERT') {
+            await LocalDatabaseService.deleteData(tableName, recordId);
+            debugPrint(
+              'SYNC: Deleted local temporary record $tableName:$recordId',
+            );
+          }
+
           debugPrint('SYNC SUCCESS: $tableName:$recordId');
         } catch (e) {
           debugPrint('SYNC FAILURE: $tableName:$recordId: $e');
@@ -168,39 +204,66 @@ class SyncManager {
       if (cleanPayload.containsKey('_local_images') &&
           cleanPayload['_local_images'] != null) {
         Map<String, dynamic> localImages;
-        if (cleanPayload['_local_images'] is String) {
-          localImages = Map<String, dynamic>.from(
-            jsonDecode(cleanPayload['_local_images']),
-          );
-        } else {
-          localImages = Map<String, dynamic>.from(
-            cleanPayload['_local_images'],
-          );
+        try {
+          if (cleanPayload['_local_images'] is String) {
+            localImages = Map<String, dynamic>.from(
+              jsonDecode(cleanPayload['_local_images']),
+            );
+          } else {
+            localImages = Map<String, dynamic>.from(
+              cleanPayload['_local_images'],
+            );
+          }
+        } catch (e) {
+          debugPrint('SYNC: Error decoding _local_images: $e');
+          localImages = {};
         }
 
         Map<String, String> uploadedUrls = {};
+        String problemStr = cleanPayload['problem'] ?? '';
 
         for (var entry in localImages.entries) {
           if (entry.value != null) {
             final List<int> bytes = List<int>.from(entry.value);
-            final fileName = 'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
-            final url = await SupabaseService.uploadImage(
-              Uint8List.fromList(bytes),
-              fileName,
-              'reports',
-            );
-            uploadedUrls[entry.key] = url;
+            final fileName =
+                'img_${DateTime.now().millisecondsSinceEpoch}_${entry.key.hashCode}.jpg';
+
+            // Individual image retry logic
+            String? url;
+            int retries = 0;
+            while (url == null && retries < 3) {
+              try {
+                debugPrint(
+                  'SYNC: Uploading image ${entry.key} (Attempt ${retries + 1})...',
+                );
+                url = await SupabaseService.uploadImage(
+                  Uint8List.fromList(bytes),
+                  fileName,
+                  'reports',
+                ).timeout(const Duration(seconds: 60));
+              } catch (e) {
+                retries++;
+                debugPrint('SYNC: Image upload failed (${entry.key}): $e');
+                if (retries >= 3) break;
+                await Future.delayed(Duration(seconds: 2 * retries));
+              }
+            }
+
+            if (url != null) {
+              uploadedUrls[entry.key] = url;
+              // Replace in string immediately to be safe
+              final displayKey =
+                  entry.key.contains('_')
+                      ? entry.key.split('_').last
+                      : entry.key;
+              problemStr = problemStr.replaceAll(
+                entry.key,
+                '$displayKey {img: $url}',
+              );
+            }
           }
         }
 
-        // Reconstruct problem string with remote URLs
-        String problemStr = cleanPayload['problem'] ?? '';
-        for (var entry in uploadedUrls.entries) {
-          problemStr = problemStr.replaceFirst(
-            RegExp(r'\{img: .*?\}'),
-            '{img: ${entry.value}}',
-          );
-        }
         cleanPayload['problem'] = problemStr;
         cleanPayload.remove('_local_images');
       } else {
@@ -235,17 +298,16 @@ class SyncManager {
           await SupabaseService.updateFarm(cleanPayload['id'], cleanPayload);
         break;
       case 'crops':
-        if (operation == 'INSERT') {
-          await SupabaseService.addCrop(cleanPayload);
-        } else if (operation == 'UPDATE') {
-          await SupabaseService.updateCrop(cleanPayload['id'], cleanPayload);
-        }
+        if (operation == 'INSERT') await SupabaseService.addCrop(cleanPayload);
+        if (operation == 'UPDATE')
+          await SupabaseService.updateCrop(
+            cleanPayload['id'].toString(),
+            cleanPayload,
+          );
         break;
       case 'reports':
         if (operation == 'INSERT') {
           await SupabaseService.addReport(cleanPayload);
-        } else if (operation == 'UPDATE') {
-          await SupabaseService.updateReport(cleanPayload['id'], cleanPayload);
         }
         break;
       case 'attendance':
@@ -269,11 +331,22 @@ class SyncManager {
       case 'store_transactions':
         if (operation == 'INSERT') {
           await SupabaseService.addStoreTransaction(cleanPayload);
+        } else if (operation == 'UPDATE') {
+          await SupabaseService.updateStoreTransaction(
+            cleanPayload['id'].toString(),
+            cleanPayload,
+          );
         }
         break;
       case 'farm_collections':
         if (operation == 'INSERT') {
           await SupabaseService.addFarmCollection(cleanPayload);
+        } else if (operation == 'UPDATE') {
+          // Generic fallback: push the entire payload to Supabase
+          await SupabaseService.client
+              .from('farm_collections')
+              .update(cleanPayload)
+              .eq('id', cleanPayload['id'].toString());
         }
         break;
     }

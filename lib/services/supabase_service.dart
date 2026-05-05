@@ -10,6 +10,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class SupabaseService {
+  static Future<bool> isOffline() async {
+    if (kIsWeb) return false;
+    try {
+      final res = await Connectivity().checkConnectivity();
+      return res.every((r) => r == ConnectivityResult.none);
+    } catch (_) {
+      return false;
+    }
+  }
+
   static const String _supabaseUrl = 'https://utujkxrobmzlvudpvapc.supabase.co';
   static const String _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0dWpreHJvYm16bHZ1ZHB2YXBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MzA2NjQsImV4cCI6MjA5MDUwNjY2NH0.REckx5fsLJMEJFnQVJdjyfNHC0seokVfPYkhOr5fxCw';
   
@@ -62,6 +72,7 @@ class SupabaseService {
       email = '$identifier@naturebiotic.local';
     }
     
+    _cachedProfile = null; // Clear any previous user's profile cache
     return await client.auth.signInWithPassword(
       email: email,
       password: password,
@@ -180,9 +191,13 @@ class SupabaseService {
     });
   }
 
+  static Map<String, dynamic>? _cachedProfile;
+
   // Get current user profile
   static Future<Map<String, dynamic>?> getProfile() async {
     try {
+      if (_cachedProfile != null) return _cachedProfile;
+      
       final user = client.auth.currentUser;
       if (user == null) return null;
 
@@ -190,10 +205,23 @@ class SupabaseService {
           .from('profiles')
           .select('*, registered_device_id') // Ensure we fetch this
           .eq('id', user.id)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
       
+      if (response != null) {
+        _cachedProfile = response;
+        if (!kIsWeb) await LocalDatabaseService.saveCache('user_profile_${user.id}', [response]);
+      }
       return response;
     } catch (e) {
+      final user = client.auth.currentUser;
+      if (user != null && !kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('user_profile_${user.id}');
+        if (cached != null && cached.isNotEmpty) {
+          _cachedProfile = cached.first;
+          return _cachedProfile;
+        }
+      }
       return null;
     }
   }
@@ -382,18 +410,28 @@ class SupabaseService {
 
   static Future<List<Map<String, dynamic>>> getFarmers() async {
     try {
+      if (await isOffline()) throw 'Offline';
       final profile = await getProfile();
       var query = client.from('farmers').select();
       
       final role = profile?['role'];
       if (role == 'executive' || role == 'telecaller') {
-        // For executives and telecallers, show only farmers they created
         query = query.eq('created_by', client.auth.currentUser!.id);
       }
       
-      return await query.order('created_at');
+      final data = List<Map<String, dynamic>>.from(await query.order('created_at').timeout(const Duration(seconds: 4)));
+      // Cache on success
+      if (!kIsWeb) await LocalDatabaseService.saveCache('farmers_${role ?? 'all'}', data);
+      return LocalDatabaseService.mergeWithPending('farmers', data);
     } catch (e) {
       debugPrint('Error in getFarmers: $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cached = await LocalDatabaseService.getCache('farmers_${role ?? 'all'}');
+        if (cached != null) return LocalDatabaseService.mergeWithPending('farmers', cached);
+      }
       return [];
     }
   }
@@ -483,24 +521,33 @@ class SupabaseService {
 
   // Farm CRUD
   static Future<List<Map<String, dynamic>>> getFarms() async {
-    final user = client.auth.currentUser;
-    final profile = await getProfile();
-    var query = client.from('farms').select('*, farmers(name)');
-    
-    print('DEBUG: getFarms - User ID: ${user?.id}');
-    print('DEBUG: getFarms - Role: ${profile?['role']}');
-    
-    final role = profile?['role'];
-    if (role == 'executive' || role == 'telecaller') {
-      final userId = user!.id;
-      print('DEBUG: getFarms - Filtering by assigned_to: $userId');
-      // THE NEW WORKFLOW: Executives/Telecallers ONLY see farms assigned to them
-      query = query.eq('assigned_to', userId);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final user = client.auth.currentUser;
+      final profile = await getProfile();
+      var query = client.from('farms').select('*, farmers(name)');
+
+      final role = profile?['role'];
+      if (role == 'executive' || role == 'telecaller') {
+        final userId = user!.id;
+        query = query.eq('assigned_to', userId);
+      }
+
+      final data = List<Map<String, dynamic>>.from(await query.order('created_at').timeout(const Duration(seconds: 4)));
+      // Cache on success
+      if (!kIsWeb) await LocalDatabaseService.saveCache('farms_${role ?? 'all'}', data);
+      return LocalDatabaseService.mergeWithPending('farms', data);
+    } catch (e) {
+      debugPrint('Error in getFarms: $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cached = await LocalDatabaseService.getCache('farms_${role ?? 'all'}');
+        if (cached != null) return LocalDatabaseService.mergeWithPending('farms', cached);
+      }
+      return [];
     }
-    
-    final response = await query.order('created_at');
-    print('DEBUG: getFarms - Found ${response.length} farms');
-    return List<Map<String, dynamic>>.from(response);
   }
 
   static Future<void> addFarm(Map<String, dynamic> farmData) async {
@@ -519,12 +566,39 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getFarmsByFarmer(dynamic farmerId) async {
-    final response = await client
-        .from('farms')
-        .select()
-        .eq('farmer_id', farmerId)
-        .order('created_at');
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('farms')
+          .select()
+          .eq('farmer_id', farmerId)
+          .order('created_at');
+      final data = List<Map<String, dynamic>>.from(response);
+      
+      if (!kIsWeb) await LocalDatabaseService.saveCache('farms_by_farmer_$farmerId', data);
+      
+      final merged = await LocalDatabaseService.mergeWithPending('farms', data);
+      return merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+    } catch (e) {
+      debugPrint('Error in getFarmsByFarmer: $e');
+      if (!kIsWeb) {
+        var cached = await LocalDatabaseService.getCache('farms_by_farmer_$farmerId');
+        if (cached == null || cached.isEmpty) {
+          final roles = ['all', 'executive', 'admin', 'manager', 'telecaller'];
+          for (final role in roles) {
+            final global = await LocalDatabaseService.getCache('farms_$role');
+            if (global != null && global.isNotEmpty) {
+              cached = global.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+              break;
+            }
+          }
+        }
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('farms', baseData);
+        return merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+      }
+      return [];
+    }
   }
 
   // Assign farm to executive
@@ -554,34 +628,79 @@ class SupabaseService {
 
   // Crop CRUD
   static Future<List<Map<String, dynamic>>> getCrops(dynamic farmId) async {
-    final response = await client
-        .from('crops')
-        .select()
-        .eq('farm_id', farmId)
-        .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('crops')
+          .select()
+          .eq('farm_id', farmId)
+          .order('created_at', ascending: false);
+      final data = List<Map<String, dynamic>>.from(response);
+
+      if (!kIsWeb) await LocalDatabaseService.saveCache('crops_by_farm_$farmId', data);
+
+      final merged = await LocalDatabaseService.mergeWithPending('crops', data);
+      return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+    } catch (e) {
+      debugPrint('Error in getCrops: $e');
+      if (!kIsWeb) {
+        var cached = await LocalDatabaseService.getCache('crops_by_farm_$farmId');
+        if (cached == null || cached.isEmpty) {
+          final roles = ['all', 'executive', 'admin', 'manager', 'telecaller'];
+          for (final role in roles) {
+            final global = await LocalDatabaseService.getCache('crops_$role');
+            if (global != null && global.isNotEmpty) {
+              cached = global.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+              break;
+            }
+          }
+        }
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('crops', baseData);
+        return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+      }
+      return [];
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getAllCrops() async {
-    final user = client.auth.currentUser;
-    final profile = await getProfile();
-    
-    final role = profile?['role'];
-    if ((role == 'executive' || role == 'telecaller') && user != null) {
-      // Executives/Telecallers see crops for farms assigned to them
-      final response = await client
-          .from('crops')
-          .select('*, farms!inner(name, assigned_to, farmers(name))')
-          .eq('farms.assigned_to', user.id)
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
-    } else {
-      // Admins see all crops
-      final response = await client
-          .from('crops')
-          .select('*, farms(name, farmers(name))')
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
+    try {
+      final user = client.auth.currentUser;
+      final profile = await getProfile();
+      final role = profile?['role'];
+      List<Map<String, dynamic>> data;
+
+      if ((role == 'executive' || role == 'telecaller') && user != null) {
+        final response = await client
+            .from('crops')
+            .select('*, farms!inner(name, assigned_to, farmers(name))')
+            .eq('farms.assigned_to', user.id)
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        data = List<Map<String, dynamic>>.from(response);
+      } else {
+        final response = await client
+            .from('crops')
+            .select('*, farms(name, farmers(name))')
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        data = List<Map<String, dynamic>>.from(response);
+      }
+      // Cache on success
+      if (!kIsWeb) await LocalDatabaseService.saveCache('crops_${role ?? 'all'}', data);
+      return LocalDatabaseService.mergeWithPending('crops', data);
+    } catch (e) {
+      debugPrint('Error in getAllCrops: $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cached = await LocalDatabaseService.getCache('crops_${role ?? 'all'}');
+        if (cached != null) return LocalDatabaseService.mergeWithPending('crops', cached);
+        // Last resort: SQLite local table
+        return await LocalDatabaseService.getData('crops');
+      }
+      return [];
     }
   }
 
@@ -602,34 +721,72 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getStockTransactions(String farmId) async {
-    final response = await client
-        .from('stock_transactions')
-        .select()
-        .eq('farm_id', farmId)
-        .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('stock_transactions')
+          .select()
+          .eq('farm_id', farmId)
+          .order('created_at', ascending: false);
+      final data = List<Map<String, dynamic>>.from(response);
+      
+      if (!kIsWeb) await LocalDatabaseService.saveCache('stock_transactions_farm_$farmId', data);
+      
+      final merged = await LocalDatabaseService.mergeWithPending('stock_transactions', data);
+      return merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+    } catch (e) {
+      debugPrint('Error in getStockTransactions: $e');
+      if (!kIsWeb) {
+        var cached = await LocalDatabaseService.getCache('stock_transactions_farm_$farmId');
+        if (cached == null || cached.isEmpty) {
+          final global = await LocalDatabaseService.getCache('all_stock_transactions');
+          if (global != null && global.isNotEmpty) {
+            cached = global.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+          }
+        }
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('stock_transactions', baseData);
+        return merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+      }
+      return [];
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getAllStockTransactions() async {
-    final response = await client
-        .from('stock_transactions')
-        .select('*, farms(name)')
-        .order('created_at', ascending: false);
-    
-    final data = List<Map<String, dynamic>>.from(response);
-    for (var item in data) {
-      if (item['unit'] != null && item['unit'].toString().contains('{₹')) {
-        item['unit'] = item['unit'].toString().split('{₹')[0].trim();
+    try {
+      final response = await client
+          .from('stock_transactions')
+          .select('*, farms(name)')
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 4));
+      
+      final data = List<Map<String, dynamic>>.from(response);
+      for (var item in data) {
+        if (item['unit'] != null && item['unit'].toString().contains('{₹')) {
+          item['unit'] = item['unit'].toString().split('{₹')[0].trim();
+        }
       }
+      // Cache on success
+      if (!kIsWeb) await LocalDatabaseService.saveCache('all_stock_transactions', data);
+      return LocalDatabaseService.mergeWithPending('stock_transactions', data);
+    } catch (e) {
+      debugPrint('Error in getAllStockTransactions: $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('all_stock_transactions');
+        if (cached != null) return LocalDatabaseService.mergeWithPending('stock_transactions', cached);
+        return await LocalDatabaseService.getData('stock_transactions');
+      }
+      return [];
     }
-    return data;
   }
 
   static Future<List<Map<String, dynamic>>> getStoreTransactions() async {
     try {
       final response = await client.from('store_transactions')
           .select('*, profiles!store_transactions_executive_id_fkey(full_name)')
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 4));
       
       if (response == null) return [];
       final data = List<Map<String, dynamic>>.from(response);
@@ -638,9 +795,17 @@ class SupabaseService {
           item['unit'] = item['unit'].toString().split('{₹')[0].trim();
         }
       }
-      return data;
+      // Cache on success
+      if (!kIsWeb) await LocalDatabaseService.saveCache('store_transactions', data);
+      return LocalDatabaseService.mergeWithPending('store_transactions', data);
     } catch (e) {
       debugPrint('Error in getStoreTransactions: $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('store_transactions');
+        if (cached != null) return LocalDatabaseService.mergeWithPending('store_transactions', cached);
+        return await LocalDatabaseService.getData('store_transactions');
+      }
       return [];
     }
   }
@@ -680,35 +845,81 @@ class SupabaseService {
     String? cropName,
     String? farmId,
   }) async {
-    if (cropName != null && cropName.isNotEmpty && farmId != null) {
-      // Show reports where this crop is the primary crop OR mentioned in a
-      // multi-crop analysis, but ALWAYS scoped to the same farm to prevent
-      // same-named crops on different farms from leaking into each other.
-      final response = await client
-          .from('reports')
-          .select()
-          .eq('farm_id', farmId)
-          .or('crop_id.eq.$cropId,problem.ilike.%--- Crop: $cropName ---%')
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
-    } else {
-      // Fallback: filter strictly by crop_id only
-      final response = await client
-          .from('reports')
-          .select()
-          .eq('crop_id', cropId)
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
+    try {
+      List<Map<String, dynamic>> data;
+      if (cropName != null && cropName.isNotEmpty && farmId != null) {
+        final response = await client
+            .from('reports')
+            .select()
+            .eq('farm_id', farmId)
+            .or('crop_id.eq.$cropId,problem.ilike.%--- Crop: $cropName ---%')
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        data = List<Map<String, dynamic>>.from(response);
+      } else {
+        final response = await client
+            .from('reports')
+            .select()
+            .eq('crop_id', cropId)
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        data = List<Map<String, dynamic>>.from(response);
+      }
+      
+      if (!kIsWeb) await LocalDatabaseService.saveCache('reports_crop_$cropId', data);
+      final merged = await LocalDatabaseService.mergeWithPending('reports', data);
+      if (farmId != null) {
+        return merged.where((r) => r['crop_id'].toString() == cropId.toString() || r['farm_id'].toString() == farmId.toString()).toList();
+      }
+      return merged.where((r) => r['crop_id'].toString() == cropId.toString()).toList();
+    } catch (e) {
+      debugPrint('Error in getReportsForCrop: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('reports_crop_$cropId');
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('reports', baseData);
+        if (farmId != null) {
+          return merged.where((r) => r['crop_id'].toString() == cropId.toString() || r['farm_id'].toString() == farmId.toString()).toList();
+        }
+        return merged.where((r) => r['crop_id'].toString() == cropId.toString()).toList();
+      }
+      return [];
     }
   }
 
   static Future<List<Map<String, dynamic>>> getReportsForFarm(String farmId) async {
-    final response = await client
-        .from('reports')
-        .select()
-        .eq('farm_id', farmId)
-        .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('reports')
+          .select()
+          .eq('farm_id', farmId)
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 4));
+      final data = List<Map<String, dynamic>>.from(response);
+      if (!kIsWeb) await LocalDatabaseService.saveCache('reports_farm_$farmId', data);
+      final merged = await LocalDatabaseService.mergeWithPending('reports', data);
+      return merged.where((r) => r['farm_id'].toString() == farmId.toString()).toList();
+    } catch (e) {
+      debugPrint('Error in getReportsForFarm: $e');
+      if (!kIsWeb) {
+        var cached = await LocalDatabaseService.getCache('reports_farm_$farmId');
+        if (cached == null || cached.isEmpty) {
+          final roles = ['admin', 'executive', 'manager', 'telecaller'];
+          for (final role in roles) {
+            final global = await LocalDatabaseService.getCache('all_reports_$role');
+            if (global != null && global.isNotEmpty) {
+              cached = global.where((r) => r['farm_id'].toString() == farmId.toString()).toList();
+              break;
+            }
+          }
+        }
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('reports', baseData);
+        return merged.where((r) => r['farm_id'].toString() == farmId.toString()).toList();
+      }
+      return [];
+    }
   }
 
   // ── Farm Collections ─────────────────────────────────────────────────────
@@ -721,17 +932,53 @@ class SupabaseService {
     });
   }
 
+  /// Fetch all collection entries for all farms, newest first.
+  static Future<List<Map<String, dynamic>>> getAllCollections() async {
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('farm_collections')
+          .select()
+          .order('created_at', ascending: false);
+      final data = List<Map<String, dynamic>>.from(response);
+
+      if (!kIsWeb) await LocalDatabaseService.saveCache('all_collections', data);
+
+      return await LocalDatabaseService.mergeWithPending('farm_collections', data);
+    } catch (e) {
+      debugPrint('Error in getAllCollections: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('all_collections');
+        final baseData = cached ?? [];
+        return await LocalDatabaseService.mergeWithPending('farm_collections', baseData);
+      }
+      return [];
+    }
+  }
+
   /// Fetch all collection entries for a specific farm, newest first.
   static Future<List<Map<String, dynamic>>> getFarmCollections(String farmId) async {
     try {
+      if (await isOffline()) throw 'Offline';
       final response = await client
           .from('farm_collections')
           .select()
           .eq('farm_id', farmId)
           .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response);
+      final data = List<Map<String, dynamic>>.from(response);
+
+      if (!kIsWeb) await LocalDatabaseService.saveCache('collections_farm_$farmId', data);
+
+      final merged = await LocalDatabaseService.mergeWithPending('farm_collections', data);
+      return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
     } catch (e) {
       debugPrint('Error in getFarmCollections: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('collections_farm_$farmId');
+        final baseData = cached ?? [];
+        final merged = await LocalDatabaseService.mergeWithPending('farm_collections', baseData);
+        return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+      }
       return [];
     }
   }
@@ -758,21 +1005,33 @@ class SupabaseService {
             .from('reports')
             .select(columns ?? '*, farms(name, assigned_to, farmers(name)), crops(name)')
             .eq('created_by', user.id)
-            .order('created_at', ascending: false);
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
         
         final reportsList = List<Map<String, dynamic>>.from(response);
         debugPrint('DEBUG: getReports - FALLBACK fetch by created_by returned ${reportsList.length} reports');
-        return reportsList;
+        if (!kIsWeb) await LocalDatabaseService.saveCache('all_reports_${role}', reportsList);
+        return LocalDatabaseService.mergeWithPending('reports', reportsList);
       } else {
         // Admins see all reports
         final response = await client
             .from('reports')
             .select(columns ?? '*, farms(name, farmers(name)), crops(name)')
-            .order('created_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response);
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        final reportsList = List<Map<String, dynamic>>.from(response);
+        if (!kIsWeb) await LocalDatabaseService.saveCache('all_reports_admin', reportsList);
+        return LocalDatabaseService.mergeWithPending('reports', reportsList);
       }
     } catch (e) {
       debugPrint('Error in getReports: $e');
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cacheKey = (role == 'executive' || role == 'telecaller') ? 'all_reports_${role}' : 'all_reports_admin';
+        final cached = await LocalDatabaseService.getCache(cacheKey);
+        if (cached != null) return LocalDatabaseService.mergeWithPending('reports', cached);
+      }
       return [];
     }
   }
@@ -933,26 +1192,60 @@ class SupabaseService {
 
   // Dropdown Options CRUD
   static Future<List<Map<String, dynamic>>> getDropdownOptions(String type, {int? parentId}) async {
-    var query = client.from('dropdown_options').select().eq('type', type);
-    if (parentId != null) {
-      query = query.eq('parent_id', parentId);
+    try {
+      if (await isOffline()) throw 'Offline';
+      var query = client.from('dropdown_options').select().eq('type', type);
+      if (parentId != null) {
+        query = query.eq('parent_id', parentId);
+      }
+      
+      final response = await query.order('label').timeout(const Duration(seconds: 4));
+      final List<Map<String, dynamic>> options = List<Map<String, dynamic>>.from(response);
+
+      // Reorder to keep 'Others' or 'Other' at the last
+      final otherIndex = options.indexWhere((opt) {
+        final label = opt['label'].toString().toLowerCase();
+        return label == 'others' || label == 'other';
+      });
+
+      if (otherIndex != -1) {
+        final otherItem = options.removeAt(otherIndex);
+        options.add(otherItem);
+      }
+
+      if (!kIsWeb) await LocalDatabaseService.saveCache('dropdown_options_${type}_${parentId ?? "none"}', options);
+      return options;
+    } catch (e) {
+      debugPrint('Error in getDropdownOptions ($type): $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('dropdown_options_${type}_${parentId ?? "none"}');
+        if (cached != null && cached.isNotEmpty) return cached;
+
+        // Secondary fallback to global dropdown cache
+        final allOptions = await LocalDatabaseService.getCache('all_dropdown_options');
+        if (allOptions != null) {
+          var filtered = allOptions.where((o) => o['type'] == type).toList();
+          if (parentId != null) {
+            filtered = filtered.where((o) => o['parent_id'] == parentId).toList();
+          }
+          
+          if (filtered.isNotEmpty) {
+            // Reorder to keep 'Others' or 'Other' at the last
+            final otherIndex = filtered.indexWhere((opt) {
+              final label = opt['label'].toString().toLowerCase();
+              return label == 'others' || label == 'other';
+            });
+
+            if (otherIndex != -1) {
+              final otherItem = filtered.removeAt(otherIndex);
+              filtered.add(otherItem);
+            }
+            return filtered;
+          }
+        }
+      }
+      return [];
     }
-    
-    final response = await query.order('label');
-    final List<Map<String, dynamic>> options = List<Map<String, dynamic>>.from(response);
-
-    // Reorder to keep 'Others' or 'Other' at the last
-    final otherIndex = options.indexWhere((opt) {
-      final label = opt['label'].toString().toLowerCase();
-      return label == 'others' || label == 'other';
-    });
-
-    if (otherIndex != -1) {
-      final otherItem = options.removeAt(otherIndex);
-      options.add(otherItem);
-    }
-
-    return options;
   }
 
   // --- Store Management Methods ---
@@ -1080,19 +1373,62 @@ class SupabaseService {
   static Future<Map<String, double>> getUnifiedStoreStock() async {
     try {
       final transactions = await getUnifiedStoreTransactions();
-      return _calculateStock(transactions);
+      final result = _calculateStock(transactions);
+      // Cache the flattened result for offline use
+      if (!kIsWeb) {
+        final serializable = result.entries
+            .map((e) => {'item': e.key, 'qty': e.value})
+            .toList();
+        await LocalDatabaseService.saveCache('unified_store_stock', serializable);
+      }
+      return result;
     } catch (e) {
       debugPrint('Error in getUnifiedStoreStock: $e');
-      return await getStoreStock(); 
+      // Fallback to cached stock
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('unified_store_stock');
+        if (cached != null) {
+          return Map.fromEntries(
+            cached.map((e) => MapEntry(e['item'].toString(), (e['qty'] as num).toDouble())),
+          );
+        }
+      }
+      return await getStoreStock();
     }
   }
 
   static Future<Map<String, Map<String, double>>> getDetailedStoreStock() async {
     try {
       final transactions = await getUnifiedStoreTransactions();
-      return _calculateDetailedStock(transactions);
+      final result = _calculateDetailedStock(transactions);
+      // Cache the nested result — serialized as flat list
+      if (!kIsWeb) {
+        final serializable = result.entries.expand((outer) {
+          return outer.value.entries.map((inner) => {
+            'item': outer.key,
+            'unit': inner.key,
+            'qty': inner.value,
+          });
+        }).toList();
+        await LocalDatabaseService.saveCache('detailed_store_stock', serializable);
+      }
+      return result;
     } catch (e) {
       debugPrint('Error in getDetailedStoreStock: $e');
+      // Fallback to cached detailed stock
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('detailed_store_stock');
+        if (cached != null) {
+          final Map<String, Map<String, double>> rebuilt = {};
+          for (var row in cached) {
+            final item = row['item'].toString();
+            final unit = row['unit'].toString();
+            final qty = (row['qty'] as num).toDouble();
+            rebuilt.putIfAbsent(item, () => {})[unit] = qty;
+          }
+          return rebuilt;
+        }
+      }
       return {};
     }
   }
@@ -1188,22 +1524,87 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getHierarchicalDropdownOptions(String type) async {
-    final response = await client
-        .from('dropdown_options')
-        .select('*, variants:dropdown_options(*)')
-        .eq('type', type)
-        .filter('parent_id', 'is', null)
-        .order('label');
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('dropdown_options')
+          .select('*, variants:dropdown_options(*)')
+          .eq('type', type)
+          .filter('parent_id', 'is', null)
+          .order('label')
+          .timeout(const Duration(seconds: 4));
+      final data = List<Map<String, dynamic>>.from(response);
+      // Cache — this is critical for offline report creation
+      if (!kIsWeb) await LocalDatabaseService.saveCache('dropdown_$type', data);
+      return data;
+    } catch (e) {
+      debugPrint('Error in getHierarchicalDropdownOptions ($type): $e');
+      // Fallback to cache
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('dropdown_$type');
+        if (cached != null && cached.isNotEmpty) return cached;
+
+        // Secondary fallback to global dropdown cache
+        final allOptions = await LocalDatabaseService.getCache('all_dropdown_options');
+        if (allOptions != null) {
+          final filtered = allOptions
+              .where((o) => o['type'] == type && o['parent_id'] == null)
+              .toList();
+          
+          if (filtered.isNotEmpty) {
+            for (var item in filtered) {
+              item['variants'] = allOptions
+                  .where((o) => o['parent_id'] == item['id'])
+                  .toList();
+            }
+            return filtered;
+          }
+        }
+      }
+      return [];
+    }
+  }
+
+  static Future<void> syncAllDropdownOptions() async {
+    try {
+      if (await isOffline()) return;
+      
+      // Fetch all dropdown options
+      final dropResponse = await client.from('dropdown_options').select().order('label');
+      final dropData = List<Map<String, dynamic>>.from(dropResponse);
+      if (!kIsWeb) await LocalDatabaseService.saveCache('all_dropdown_options', dropData);
+
+      // Fetch all crop-problem mappings
+      final mapResponse = await client.from('crop_problem_mapping').select('*, dropdown_options(*)');
+      final mapData = List<Map<String, dynamic>>.from(mapResponse);
+      if (!kIsWeb) await LocalDatabaseService.saveCache('all_crop_problem_mappings', mapData);
+      
+      debugPrint('SYNC: All dropdowns and mappings cached.');
+    } catch (e) {
+      debugPrint('Error syncing all dropdown options: $e');
+    }
   }
 
   // Master Crop CRUD
   static Future<List<Map<String, dynamic>>> getMasterCrops() async {
-    final response = await client
-        .from('master_crops')
-        .select('*, master_crop_varieties(*)')
-        .order('name');
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('master_crops')
+          .select('*, master_crop_varieties(*)')
+          .order('name')
+          .timeout(const Duration(seconds: 4));
+      final data = List<Map<String, dynamic>>.from(response);
+      if (!kIsWeb) await LocalDatabaseService.saveCache('master_crops', data);
+      return data;
+    } catch (e) {
+      debugPrint('Error in getMasterCrops: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('master_crops');
+        if (cached != null) return cached;
+      }
+      return [];
+    }
   }
 
   static Future<void> addMasterCrop(String name) async {
@@ -1243,11 +1644,24 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getProblemsByCrop(int cropId) async {
-    final response = await client
-        .from('crop_problem_mapping')
-        .select('*, dropdown_options(*)')
-        .eq('crop_id', cropId);
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('crop_problem_mapping')
+          .select('*, dropdown_options(*)')
+          .eq('crop_id', cropId)
+          .timeout(const Duration(seconds: 4));
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error in getProblemsByCrop: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('all_crop_problem_mappings');
+        if (cached != null) {
+          return cached.where((m) => m['crop_id'] == cropId).toList();
+        }
+      }
+      return [];
+    }
   }
 
   static Future<void> updateCropProblemMappings(int problemId, List<int> cropIds) async {
@@ -1489,6 +1903,7 @@ class SupabaseService {
 
   // Sign out
   static Future<void> signOut() async {
+    _cachedProfile = null; // Clear cached profile on sign out
     await client.auth.signOut();
   }
 
