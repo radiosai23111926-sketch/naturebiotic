@@ -153,19 +153,30 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
           _farmSales[id]!['farm_name'] = farm['name'] ?? 'Unknown Farm';
           _farmSales[id]!['farmer_name'] = farm['farmers']?['name'] ?? 'No Farmer';
           _farmSales[id]!['location'] = farm['location'] ?? 'No Location';
+          _farmSales[id]!['crop_name'] = farm['crops']?['name'] ?? 'No Crop';
         }
       }
     });
   }
 
   Future<void> _loadFarmNames() async {
-    final farms = await SupabaseService.getFarms();
-    if (mounted) {
-      setState(() {
-        _availableFarms = farms;
-      });
+    try {
+      final response = await SupabaseService.client
+          .from('farms')
+          .select('*, farmers(name), crops(name)')
+          .order('created_at');
+      final farms = List<Map<String, dynamic>>.from(response);
+      if (mounted) {
+        setState(() {
+          _availableFarms = farms;
+        });
+      }
+      _applyFarmData(farms);
+    } catch (e) {
+      debugPrint('Error loading farm names: $e');
+      final farms = await SupabaseService.getFarms();
+      _applyFarmData(farms);
     }
-    _applyFarmData(farms);
   }
 
   @override
@@ -209,7 +220,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
           ? FloatingActionButton.extended(
               onPressed: () => _showFarmSelectionDialog(context),
               icon: const Icon(Icons.add_rounded),
-              label: Text(widget.mode == 'COLLECTION' ? 'Add Collection' : 'Record Stock'),
+              label: Text(widget.mode == 'COLLECTION' ? 'Add Collection' : 'New Sales'),
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             )
@@ -246,6 +257,8 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                 builder: (context) => AddStockEntryScreen(
                   farmId: farm['id'].toString(),
                   farmName: farm['name'] ?? 'Unknown Farm',
+                  farmerName: farmer['name'],
+                  cropName: crop?['name'],
                 ),
               ),
             ).then((_) => _processData());
@@ -317,6 +330,8 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                   builder: (context) => StockManagementScreen(
                     farmId: data['farm_id'],
                     farmName: data['farm_name'],
+                    farmerName: data['farmer_name'],
+                    cropName: data['crop_name'],
                   ),
                 ),
               ).then((_) => _processData());
@@ -344,11 +359,11 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        data['farm_name'],
+                        '${data['farmer_name']} • ${data['farm_name']}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
-                        '${data['farmer_name']} • ${data['location']}',
+                        '${data['crop_name'] ?? 'No Crop'} • ${data['location']}',
                         style: const TextStyle(color: AppColors.textGray, fontSize: 12),
                       ),
                       const SizedBox(height: 8),

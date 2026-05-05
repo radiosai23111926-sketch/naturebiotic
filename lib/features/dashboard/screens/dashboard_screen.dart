@@ -1306,6 +1306,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildPremiumHeader() {
     String greeting = 'Hi ${_userName.split(' ')[0]}';
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final bool showLabels = screenWidth > 400;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
@@ -1313,7 +1315,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -1352,15 +1354,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                         alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: AppColors.primary, width: 1),
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.primary.withOpacity(0.2),
-                                  blurRadius: 10,
+                                  blurRadius: 8,
                                 ),
                               ],
                             ),
@@ -1368,30 +1370,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                           Hero(
                             tag: 'top_profile_avatar',
                             child: CircleAvatar(
-                              radius: 16,
+                              radius: 15,
                               backgroundColor: AppColors.secondary,
                               backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
                               child: _avatarUrl.isEmpty
-                                  ? const Icon(Icons.person, size: 16, color: AppColors.primary)
+                                  ? const Icon(Icons.person, size: 14, color: AppColors.primary)
                                   : null,
-                            ),
-                          ),
-                          Positioned(
-                            right: -1,
-                            bottom: -1,
-                            child: Container(
-                              padding: const EdgeInsets.all(1.5),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
-                              ),
-                              child: const Icon(Icons.verified_rounded, size: 10, color: Colors.blue),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Flexible(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1401,9 +1390,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                               'Good ${_getGreeting()}',
                               style: GoogleFonts.outfit(
                                 color: AppColors.textGray.withOpacity(0.6),
-                                fontSize: 9,
+                                fontSize: 8,
                                 fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1411,10 +1399,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                             Text(
                               greeting,
                               style: GoogleFonts.outfit(
-                                color: const Color(0xFF2E3440), // Darker charcoal
-                                fontSize: 15,
+                                color: const Color(0xFF2E3440),
+                                fontSize: 13,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: -0.2,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1426,9 +1413,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               // Action Hub
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _headerActionIcon(
                     icon: Icons.search_rounded,
@@ -1438,7 +1426,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       MaterialPageRoute(builder: (context) => const FarmerListScreen()),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   // Premium Attendance Button
                   if (!_isManager)
                     GestureDetector(
@@ -1447,48 +1435,49 @@ class _DashboardScreenState extends State<DashboardScreen>
                         MaterialPageRoute(builder: (context) => const AttendanceScreen()),
                       ).then((_) => _loadDashboardData()),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: showLabels ? 12 : 10,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2E7D32), // Forest Green
-                              Color(0xFF1B5E20), // Deep Nature Green
-                            ],
+                            colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF1B5E20).withOpacity(0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              color: const Color(0xFF1B5E20).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 15),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Check In',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.2,
+                            const Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 14),
+                            if (showLabels) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                'Check In',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   // Trip/Odometer Action
                   if (_isExecutive || _isTelecaller)
-                    _buildTripActionButton(),
-                  const SizedBox(width: 6),
+                    _buildTripActionButton(showLabels),
+                  const SizedBox(width: 4),
                   _headerActionIcon(
                     icon: Icons.power_settings_new_rounded,
                     color: Colors.redAccent,
@@ -1504,7 +1493,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildTripActionButton() {
+  Widget _buildTripActionButton(bool showLabels) {
     bool hasActiveTrip = _activeTrip != null;
     bool needsOdometer = hasActiveTrip && _activeTrip!['start_odometer_reading'] == null;
     bool tripInProgress = hasActiveTrip && _activeTrip!['start_odometer_reading'] != null && _activeTrip!['end_odometer_reading'] == null;
@@ -1572,36 +1561,40 @@ class _DashboardScreenState extends State<DashboardScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: showLabels ? 10 : 10,
+          vertical: 10,
+        ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: gradientColors,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: gradientColors[1].withOpacity(0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: gradientColors[1].withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 15),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
+            Icon(icon, color: Colors.white, size: 14),
+            if (showLabels) ...[
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

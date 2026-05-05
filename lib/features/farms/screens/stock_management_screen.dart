@@ -9,11 +9,15 @@ import 'add_stock_entry_screen.dart';
 class StockManagementScreen extends StatefulWidget {
   final String farmId;
   final String farmName;
+  final String? farmerName;
+  final String? cropName;
 
   const StockManagementScreen({
     super.key,
     required this.farmId,
     required this.farmName,
+    this.farmerName,
+    this.cropName,
   });
 
   @override
@@ -111,7 +115,16 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Stock: ${widget.farmName}'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Sales History', style: TextStyle(fontSize: 16)),
+            Text(
+              '${widget.farmerName ?? 'Farmer'} • ${widget.farmName}${widget.cropName != null ? ' • ${widget.cropName}' : ''}',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _loadData,
@@ -146,7 +159,7 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 40),
                             child: Text(
-                              'No stock activities recorded yet.',
+                              'No sales activities recorded yet.',
                               style: TextStyle(color: AppColors.textGray),
                             ),
                           ),
@@ -177,6 +190,8 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
                   (context) => AddStockEntryScreen(
                     farmId: widget.farmId,
                     farmName: widget.farmName,
+                    farmerName: widget.farmerName,
+                    cropName: widget.cropName,
                   ),
             ),
           );
@@ -447,6 +462,8 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
     await PdfService.generateStockChallan(
       items: itemsForChallan,
       farmName: widget.farmName,
+      farmerName: widget.farmerName ?? 'N/A',
+      cropName: widget.cropName ?? 'N/A',
       transactionType: tx['transaction_type'],
       date: createdAt,
     );
@@ -455,11 +472,11 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
   String _formatType(String type) {
     switch (type) {
       case 'RECEIVED':
-        return 'STOCK RECEIVED';
+        return 'SALES RECEIVED';
       case 'DELIVERED':
-        return 'STOCK DELIVERED';
+        return 'SALES DELIVERED';
       case 'RETURN':
-        return 'STOCK RETURN';
+        return 'SALES RETURN';
       default:
         return type;
     }

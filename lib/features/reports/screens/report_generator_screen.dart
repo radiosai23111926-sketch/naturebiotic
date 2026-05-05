@@ -131,7 +131,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
       backgroundColor: const Color(
         0xFFF5F5F5,
       ), // Slightly grayish to make the "paper" pop
-      appBar: AppBar(title: const Text('Report Analysis')),
+      appBar: AppBar(title: const Text('Visit Report')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -184,7 +184,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                         _buildCostTable(report['estimated_cost'] ?? ''),
 
                         const SizedBox(height: 48),
-                        _buildFooter(report['signature_url']),
+                        _buildFooter(),
                       ],
                     ),
                   ),
@@ -857,34 +857,14 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
     );
   }
 
-  Widget _buildFooter(String? signatureUrl) {
+  Widget _buildFooter() {
     return Column(
       children: [
         const Divider(thickness: 1),
         const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Nature Biotic Executive Signature',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                if (signatureUrl != null)
-                  Image.network(
-                    signatureUrl,
-                    height: 50,
-                    width: 150,
-                    fit: BoxFit.contain,
-                  )
-                else
-                  const SizedBox(height: 50),
-                Container(width: 150, height: 1, color: Colors.grey[400]),
-              ],
-            ),
             const Expanded(
               child: Text(
                 'Thank you for choosing Nature Biotic for a sustainable future.',
