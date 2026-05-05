@@ -59,13 +59,16 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
       if (options.isNotEmpty) {
         setState(() {
           _categories = options.map((e) => e['label'].toString()).toList();
+          // Safety check: if current selection is not in new list, reset it
           if (_selectedCategory != null &&
               !_categories.contains(_selectedCategory)) {
             _selectedCategory = _categories.first;
           }
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+    }
   }
 
   Future<void> _handleSubmit() async {
@@ -122,7 +125,8 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
             backgroundColor: AppColors.primary,
           ),
         );
-        Navigator.pop(context, true); // Return true to indicate refresh needed
+        // Return the updated data map so the detail screen can update immediately
+        Navigator.pop(context, offlineData);
       }
     } catch (e) {
       if (mounted) {
@@ -491,7 +495,10 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _selectedCategory,
+                          value: (_selectedCategory != null &&
+                                  _categories.contains(_selectedCategory))
+                              ? _selectedCategory
+                              : null,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                             fillColor: Colors.white,

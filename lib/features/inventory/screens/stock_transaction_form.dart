@@ -225,25 +225,29 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
       final List<Map<String, dynamic>> transactionList = [];
       
+      int itemIndex = 0;
       for (var item in _items) {
-        final transactionId = const Uuid().v4();
+        final newTransactionId = const Uuid().v4();
         transactionList.add({
-          'id': widget.initialData?['id'] ?? transactionId,
+          'id': (widget.initialData != null && itemIndex == 0) ? widget.initialData!['id'] : newTransactionId,
           'item_name': item.product?['label'] ?? '',
           'transaction_type': widget.transactionType,
           'quantity': double.parse(item.quantityController.text),
           'unit': item.unitController.text,
           'executive_id': isDirectPurchase ? null : _selectedExecutiveId,
           'vendor_name':
-              isDirectPurchase
-                  ? _buyerNameController.text.trim()
-                  : item.vendorController.text.trim(),
+              widget.transactionType == 'REQUEST' 
+                  ? 'Store'
+                  : (isDirectPurchase
+                      ? _buyerNameController.text.trim()
+                      : item.vendorController.text.trim()),
           'status': (widget.transactionType == 'PURCHASE' || isDirectPurchase) ? 'ACCEPTED' : 'PENDING',
           'created_by': user?.id,
           'created_at': widget.initialData?['created_at'] ?? DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
           if (isDirectPurchase) 'accepted_at': DateTime.now().toIso8601String(),
         });
+        itemIndex++;
       }
 
       if (kIsWeb) {
@@ -255,12 +259,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           }
         }
       } else {
+        int dbItemIndex = 0;
         for (var data in transactionList) {
           await LocalDatabaseService.saveAndQueue(
             tableName: 'store_transactions',
             data: data,
-            operation: widget.initialData != null ? 'UPDATE' : 'INSERT',
+            operation: widget.initialData != null && dbItemIndex == 0 ? 'UPDATE' : 'INSERT',
           );
+          dbItemIndex++;
         }
         // Trigger immediate sync to push the transaction to Supabase for the receiver
         SyncManager().sync();
@@ -288,6 +294,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
     if (widget.transactionType == 'PURCHASE') title = 'Stock Purchase';
     if (widget.transactionType == 'DELIVERY') title = 'Stock Delivery';
     if (widget.transactionType == 'RETURN') title = 'Stock Return';
+    if (widget.transactionType == 'REQUEST') title = 'Request Product';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -394,9 +401,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                                   strokeWidth: 2,
                                 ),
                               )
-                              : const Text(
-                                'Record Transaction',
-                                style: TextStyle(
+                              : Text(
+                                widget.transactionType == 'REQUEST' ? 'Submit Request' : 'Record Transaction',
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -524,7 +531,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         subtitle: Text(
-          '${variantName.isNotEmpty ? "$variantName • " : ""}$vendor',
+          widget.transactionType == 'REQUEST' 
+              ? (variantName.isNotEmpty ? variantName : "")
+              : '${variantName.isNotEmpty ? "$variantName • " : ""}$vendor',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         trailing: Row(
@@ -624,7 +633,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           const SizedBox(height: 16),
           _buildProductDropdownFor(item),
           const SizedBox(height: 12),
-          _buildVendorFieldFor(item),
+          if (widget.transactionType != 'REQUEST') ...[
+            _buildVendorFieldFor(item),
+            const SizedBox(height: 12),
+          ],
           if (item.product != null) ...[
             const SizedBox(height: 12),
             _buildVariantDropdownFor(item),

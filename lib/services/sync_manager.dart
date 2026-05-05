@@ -235,11 +235,17 @@ class SyncManager {
           await SupabaseService.updateFarm(cleanPayload['id'], cleanPayload);
         break;
       case 'crops':
-        if (operation == 'INSERT') await SupabaseService.addCrop(cleanPayload);
+        if (operation == 'INSERT') {
+          await SupabaseService.addCrop(cleanPayload);
+        } else if (operation == 'UPDATE') {
+          await SupabaseService.updateCrop(cleanPayload['id'], cleanPayload);
+        }
         break;
       case 'reports':
         if (operation == 'INSERT') {
           await SupabaseService.addReport(cleanPayload);
+        } else if (operation == 'UPDATE') {
+          await SupabaseService.updateReport(cleanPayload['id'], cleanPayload);
         }
         break;
       case 'attendance':

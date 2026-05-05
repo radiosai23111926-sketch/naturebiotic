@@ -78,10 +78,10 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
 
         // Merge and De-duplicate using 'id'
         final Map<String, Map<String, dynamic>> combined = {};
-        for (var r in transformedLocal) {
+        for (var r in remoteReports) {
           combined[r['id'].toString()] = r;
         }
-        for (var r in remoteReports) {
+        for (var r in transformedLocal) {
           combined[r['id'].toString()] = r;
         }
 
@@ -286,9 +286,26 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                     ],
                   ],
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.primary,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_userRole == 'admin' || (_userRole != 'manager' && report['is_verified'] != true))
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CreateReportScreen(existingReport: report),
+                            ),
+                          ).then((_) => _loadReports());
+                        },
+                      ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ],
                 ),
                 onTap: () {
                   Navigator.push(

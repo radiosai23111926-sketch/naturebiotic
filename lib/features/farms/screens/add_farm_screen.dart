@@ -646,7 +646,7 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
             backgroundColor: AppColors.primary,
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -1113,7 +1113,7 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
     Function(String?) onChanged,
   ) {
     return DropdownButtonFormField<String>(
-      value: value,
+      value: (value != null && (items ?? []).contains(value)) ? value : null,
       decoration: InputDecoration(labelText: label, fillColor: Colors.white),
       items:
           (items ?? []).map((String item) {

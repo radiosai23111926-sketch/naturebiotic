@@ -14,7 +14,7 @@ class FarmSalesListScreen extends StatefulWidget {
   final String mode; // 'SALES', 'COLLECTION', 'OUTSTANDING'
 
   const FarmSalesListScreen({
-    super.key, 
+    super.key,
     required this.initialTransactions,
     required this.allProducts,
     this.allFarms = const [],
@@ -26,7 +26,11 @@ class FarmSalesListScreen extends StatefulWidget {
 }
 
 class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
-  final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(
+    locale: 'en_IN',
+    symbol: '₹',
+    decimalDigits: 0,
+  );
   Map<String, Map<String, dynamic>> _farmSales = {};
   List<Map<String, dynamic>> _availableFarms = [];
   bool _isLoading = true;
@@ -44,7 +48,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       final type = tx['transaction_type']?.toString().toUpperCase();
       final farmId = tx['farm_id']?.toString();
       if (farmId == null) continue;
-      
+
       if (!grouped.containsKey(farmId)) {
         grouped[farmId] = {
           'farm_id': farmId,
@@ -74,8 +78,9 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
           (v) => v['label']?.toString().trim().toLowerCase() == unit,
           orElse: () => {},
         );
-        
-        final price = double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
+
+        final price =
+            double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
         final amount = price * qty;
 
         if (type == 'RECEIVED') {
@@ -90,8 +95,11 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
       // Calculate Collection (for COLLECTION and OUTSTANDING)
       if (type == 'RECEIVED') {
-        double amt = double.tryParse(tx['collected_amount']?.toString() ?? '0') ?? 0.0;
-        if (amt == 0 && tx['unit'] != null && tx['unit'].toString().contains('{₹')) {
+        double amt =
+            double.tryParse(tx['collected_amount']?.toString() ?? '0') ?? 0.0;
+        if (amt == 0 &&
+            tx['unit'] != null &&
+            tx['unit'].toString().contains('{₹')) {
           try {
             final unitStr = tx['unit'].toString();
             final start = unitStr.indexOf('{₹') + 2;
@@ -109,13 +117,13 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       _farmSales = grouped;
       _isLoading = false;
     });
-    
+
     // First try to resolve from passed allFarms
     if (widget.allFarms.isNotEmpty) {
       _availableFarms = widget.allFarms;
       _applyFarmData(widget.allFarms);
     }
-    
+
     // Then fetch fresh data
     _loadFarmNames();
   }
@@ -127,7 +135,8 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         final id = farm['id'].toString();
         if (_farmSales.containsKey(id)) {
           _farmSales[id]!['farm_name'] = farm['name'] ?? 'Unknown Farm';
-          _farmSales[id]!['farmer_name'] = farm['farmers']?['name'] ?? 'No Farmer';
+          _farmSales[id]!['farmer_name'] =
+              farm['farmers']?['name'] ?? 'No Farmer';
           _farmSales[id]!['location'] = farm['location'] ?? 'No Location';
         }
       }
@@ -147,17 +156,33 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   @override
   Widget build(BuildContext context) {
     var list = _farmSales.values.toList();
-    
+
     // Filter based on mode
     if (widget.mode == 'SALES') {
       list = list.where((f) => f['total_revenue'] > 0).toList();
-      list.sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
+      list.sort(
+        (a, b) => (b['total_revenue'] as double).compareTo(
+          a['total_revenue'] as double,
+        ),
+      );
     } else if (widget.mode == 'COLLECTION') {
       list = list.where((f) => f['total_collection'] > 0).toList();
-      list.sort((a, b) => (b['total_collection'] as double).compareTo(a['total_collection'] as double));
+      list.sort(
+        (a, b) => (b['total_collection'] as double).compareTo(
+          a['total_collection'] as double,
+        ),
+      );
     } else if (widget.mode == 'OUTSTANDING') {
-      list = list.where((f) => (f['total_revenue'] - f['total_collection']).abs() > 0.1).toList();
-      list.sort((a, b) => ((b['total_revenue'] - b['total_collection']) as double).compareTo((a['total_revenue'] - a['total_collection']) as double));
+      list =
+          list
+              .where(
+                (f) => (f['total_revenue'] - f['total_collection']).abs() > 0.1,
+              )
+              .toList();
+      list.sort(
+        (a, b) => ((b['total_revenue'] - b['total_collection']) as double)
+            .compareTo((a['total_revenue'] - a['total_collection']) as double),
+      );
     }
 
     String title = 'Sales by Farm';
@@ -166,30 +191,36 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: () async => _processData(),
-              child: list.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: list.length,
-                      itemBuilder: (context, index) => _buildFarmCard(list[index]),
-                    ),
-            ),
-      floatingActionButton: (widget.mode == 'COLLECTION' || widget.mode == 'SALES')
-          ? FloatingActionButton.extended(
-              onPressed: () => _showFarmSelectionDialog(context),
-              icon: const Icon(Icons.add_rounded),
-              label: Text(widget.mode == 'COLLECTION' ? 'Add Collection' : 'Record Stock'),
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            )
-          : null,
+      appBar: AppBar(title: Text(title)),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: () async => _processData(),
+                child:
+                    list.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: list.length,
+                          itemBuilder:
+                              (context, index) => _buildFarmCard(list[index]),
+                        ),
+              ),
+      floatingActionButton:
+          (widget.mode == 'COLLECTION' || widget.mode == 'SALES')
+              ? FloatingActionButton.extended(
+                onPressed: () => _showFarmSelectionDialog(context),
+                icon: const Icon(Icons.add_rounded),
+                label: Text(
+                  widget.mode == 'COLLECTION'
+                      ? 'Add Collection'
+                      : 'Record Stock',
+                ),
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              )
+              : null,
     );
   }
 
@@ -198,36 +229,39 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _SelectionFlow(
-        mode: widget.mode,
-        onComplete: (farmer, farm, crop) {
-          Navigator.pop(context); // close bottom sheet
-          if (widget.mode == 'COLLECTION') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddCollectionScreen(
-                  farmId: farm['id'].toString(),
-                  farmName: farm['name'] ?? 'Unknown Farm',
-                  farmerName: farmer['name'],
-                  cropId: crop?['id']?.toString(),
-                  cropName: crop?['name']?.toString(),
-                ),
-              ),
-            ).then((_) => _processData());
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddStockEntryScreen(
-                  farmId: farm['id'].toString(),
-                  farmName: farm['name'] ?? 'Unknown Farm',
-                ),
-              ),
-            ).then((_) => _processData());
-          }
-        },
-      ),
+      builder:
+          (context) => _SelectionFlow(
+            mode: widget.mode,
+            onComplete: (farmer, farm, crop) {
+              Navigator.pop(context); // close bottom sheet
+              if (widget.mode == 'COLLECTION') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => AddCollectionScreen(
+                          farmId: farm['id'].toString(),
+                          farmName: farm['name'] ?? 'Unknown Farm',
+                          farmerName: farmer['name'],
+                          cropId: crop?['id']?.toString(),
+                          cropName: crop?['name']?.toString(),
+                        ),
+                  ),
+                ).then((_) => _processData());
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => AddStockEntryScreen(
+                          farmId: farm['id'].toString(),
+                          farmName: farm['name'] ?? 'Unknown Farm',
+                        ),
+                  ),
+                ).then((_) => _processData());
+              }
+            },
+          ),
     );
   }
 
@@ -240,7 +274,11 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.receipt_long_rounded, size: 64, color: AppColors.textGray),
+          const Icon(
+            Icons.receipt_long_rounded,
+            size: 64,
+            color: AppColors.textGray,
+          ),
           const SizedBox(height: 16),
           Text(message, style: const TextStyle(color: AppColors.textGray)),
         ],
@@ -279,21 +317,23 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CollectionHistoryScreen(
-                    farmId: data['farm_id'],
-                    farmName: data['farm_name'],
-                    farmerName: data['farmer_name'],
-                  ),
+                  builder:
+                      (context) => CollectionHistoryScreen(
+                        farmId: data['farm_id'],
+                        farmName: data['farm_name'],
+                        farmerName: data['farmer_name'],
+                      ),
                 ),
               ).then((_) => _processData());
             } else {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => StockManagementScreen(
-                    farmId: data['farm_id'],
-                    farmName: data['farm_name'],
-                  ),
+                  builder:
+                      (context) => StockManagementScreen(
+                        farmId: data['farm_id'],
+                        farmName: data['farm_name'],
+                      ),
                 ),
               ).then((_) => _processData());
             }
@@ -310,8 +350,10 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    widget.mode == 'COLLECTION' ? Icons.payments_rounded : Icons.agriculture_rounded, 
-                    color: valueColor
+                    widget.mode == 'COLLECTION'
+                        ? Icons.payments_rounded
+                        : Icons.agriculture_rounded,
+                    color: valueColor,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -321,33 +363,41 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                     children: [
                       Text(
                         data['farm_name'],
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                       Text(
                         '${data['farmer_name']} • ${data['location']}',
-                        style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+                        style: const TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING')
+                          if (widget.mode == 'SALES' ||
+                              widget.mode == 'OUTSTANDING')
                             _buildMiniBadge(
-                              Icons.inventory_2_outlined, 
-                              '${data['total_items'].toInt()} Items', 
-                              Colors.blueGrey
+                              Icons.inventory_2_outlined,
+                              '${data['total_items'].toInt()} Items',
+                              Colors.blueGrey,
                             ),
-                          if (data['total_returned'] > 0 && widget.mode == 'SALES')
+                          if (data['total_returned'] > 0 &&
+                              widget.mode == 'SALES')
                             _buildMiniBadge(
-                              Icons.replay_circle_filled_rounded, 
-                              '${data['total_returned'].toInt()} Returned', 
-                              Colors.redAccent
+                              Icons.replay_circle_filled_rounded,
+                              '${data['total_returned'].toInt()} Returned',
+                              Colors.redAccent,
                             ),
                           _buildMiniBadge(
-                            Icons.description_outlined, 
-                            'View Details', 
-                            valueColor
+                            Icons.description_outlined,
+                            'View Details',
+                            valueColor,
                           ),
                         ],
                       ),
@@ -365,7 +415,13 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                         color: valueColor,
                       ),
                     ),
-                    Text(label, style: const TextStyle(color: AppColors.textGray, fontSize: 10)),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 10,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -391,7 +447,11 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -401,7 +461,12 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
 class _SelectionFlow extends StatefulWidget {
   final String mode;
-  final Function(Map<String, dynamic> farmer, Map<String, dynamic> farm, Map<String, dynamic>? crop) onComplete;
+  final Function(
+    Map<String, dynamic> farmer,
+    Map<String, dynamic> farm,
+    Map<String, dynamic>? crop,
+  )
+  onComplete;
 
   const _SelectionFlow({required this.mode, required this.onComplete});
 
@@ -414,7 +479,7 @@ class _SelectionFlowState extends State<_SelectionFlow> {
   List<Map<String, dynamic>> _farmers = [];
   List<Map<String, dynamic>> _farms = [];
   List<Map<String, dynamic>> _crops = [];
-  
+
   Map<String, dynamic>? _selectedFarmer;
   Map<String, dynamic>? _selectedFarm;
   bool _isLoading = true;
@@ -479,21 +544,31 @@ class _SelectionFlowState extends State<_SelectionFlow> {
               children: [
                 if (_step != 'FARMER')
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                    ),
                     onPressed: () {
                       setState(() {
-                        if (_step == 'CROP') _step = 'FARM';
-                        else if (_step == 'FARM') _step = 'FARMER';
+                        if (_step == 'CROP') {
+                          _step = 'FARM';
+                        } else if (_step == 'FARM')
+                          _step = 'FARMER';
                       });
                     },
                   ),
                 Expanded(
-                  child: Text(title, 
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textBlack)
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textBlack,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded), 
+                  icon: const Icon(Icons.close_rounded),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -502,9 +577,7 @@ class _SelectionFlowState extends State<_SelectionFlow> {
           if (_isLoading)
             const Expanded(child: Center(child: CircularProgressIndicator()))
           else
-            Expanded(
-              child: _buildList(),
-            ),
+            Expanded(child: _buildList()),
         ],
       ),
     );
@@ -562,14 +635,20 @@ class _SelectionFlowState extends State<_SelectionFlow> {
             title: crop['name'] ?? 'Unknown Crop',
             subtitle: '${crop['area'] ?? '-'} ${crop['area_unit'] ?? ''}',
             icon: Icons.eco_rounded,
-            onTap: () => widget.onComplete(_selectedFarmer!, _selectedFarm!, crop),
+            onTap:
+                () => widget.onComplete(_selectedFarmer!, _selectedFarm!, crop),
           );
         },
       );
     }
   }
 
-  Widget _selectionTile({required String title, required String subtitle, required IconData icon, required VoidCallback onTap}) {
+  Widget _selectionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -585,8 +664,14 @@ class _SelectionFlowState extends State<_SelectionFlow> {
           ),
           child: Icon(icon, color: AppColors.primary, size: 20),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textGray, fontSize: 13)),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: AppColors.textGray, fontSize: 13),
+        ),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
       ),

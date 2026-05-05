@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/pdf_service.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
+import 'package:nature_biotic/features/reports/screens/create_report_screen.dart';
 
 class ReportGeneratorScreen extends StatefulWidget {
   final Map<String, dynamic>? report;
@@ -231,6 +232,27 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                 ],
 
                 // Action Buttons
+                if (_userRole == 'admin' || (_userRole != 'manager' && !_isVerified)) ...[
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateReportScreen(existingReport: report),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Edit This Analysis'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      minimumSize: const Size(double.infinity, 54),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 ElevatedButton.icon(
                   onPressed: () async {
                     // Construct a modified report map that includes the combined history for the PDF

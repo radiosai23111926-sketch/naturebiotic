@@ -9,6 +9,8 @@ import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:nature_biotic/features/expenses/widgets/trip_widgets.dart';
+import 'package:uuid/uuid.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -25,6 +27,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   File? _image;
   final _picker = ImagePicker();
   bool _isSubmitting = false;
+  Map<String, dynamic>? _activeTrip;
+  bool _isExecutive = false;
+  bool _isTelecaller = false;
+  bool _isManager = false;
 
   @override
   void initState() {
@@ -35,8 +41,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
+      final profile = await SupabaseService.getProfile();
+      _isExecutive = profile?['role'] == 'executive';
+      _isTelecaller = profile?['role'] == 'telecaller';
+      _isManager = profile?['role'] == 'manager';
+
       // 1. Try fetching from remote
       _todayAttendance = await SupabaseService.getTodayAttendance();
+
+      if (_isExecutive || _isTelecaller || _isManager) {
+        final userId = SupabaseService.client.auth.currentUser?.id;
+        if (userId != null) {
+          _activeTrip = await SupabaseService.getActiveExpenseForExecutive(userId);
+        }
+      }
 
       // 2. If remote is null (sync pending), check local
       if (_todayAttendance == null && !kIsWeb) {
@@ -157,6 +175,71 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  Future<String?> _captureAndUpload(String bucketId) async {
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50,
+    );
+    if (photo != null) {
+      final bytes = await photo.readAsBytes();
+      final extension = photo.path.split('.').last;
+      final fileName = '${const Uuid().v4()}.$extension';
+
+      try {
+        return await SupabaseService.uploadImage(bytes, fileName, bucketId);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Upload failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+    return null;
+  }
+
+  void _showStartTripDialog() async {
+    if (_activeTrip == null) {
+      await SupabaseService.startExecutiveTrip();
+      await _loadData();
+    }
+
+    if (!mounted || _activeTrip == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StartTripForm(
+          expenseId: _activeTrip!['id'],
+          onStarted: () {
+            Navigator.pop(context);
+            _loadData();
+          },
+          onCapture: () => _captureAndUpload('expense-documents'),
+        ),
+      ),
+    );
+  }
+
+  void _showEndTripDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => EndTripDialogContent(
+        expenseId: _activeTrip!['id'],
+        startOdometer: double.tryParse(_activeTrip!['start_odometer_reading']?.toString() ?? '0') ?? 0.0,
+        onEnded: _loadData,
+        onCapture: () => _captureAndUpload('expense-documents'),
+      ),
+    );
+  }
+
   Future<void> _handleSubmit() async {
     if (_image == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -240,8 +323,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           data: attendanceData,
           operation: isCheckIn ? 'INSERT' : 'UPDATE',
         );
-        // Attempt to sync in background
         SyncManager().sync();
+      }
+
+      if (isCheckIn) {
+        // After Check-In: Trigger trip start for field staff and managers
+        if (_isExecutive || _isTelecaller || _isManager) {
+          _showStartTripDialog();
+        }
       }
 
       if (mounted) {
@@ -275,6 +364,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _todayAttendance != null && _todayAttendance!['check_out_time'] == null;
     final isCompleted =
         _todayAttendance != null && _todayAttendance!['check_out_time'] != null;
+
+    // Trip Status Logic for Field Staff and Managers
+    bool needsOdometer = false;
+    bool tripInProgress = false;
+    if (isCheckedIn && (_isExecutive || _isTelecaller || _isManager)) {
+      needsOdometer = _activeTrip != null && _activeTrip!['start_odometer_reading'] == null;
+      tripInProgress = _activeTrip != null && 
+                       _activeTrip!['start_odometer_reading'] != null && 
+                       _activeTrip!['end_odometer_reading'] == null;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -320,7 +419,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
                         // Photo Area
                         GestureDetector(
-                          onTap: isCompleted ? null : _takePhoto,
+                          onTap: (isCompleted || needsOdometer || tripInProgress) ? null : _takePhoto,
                           child: Container(
                             width: double.infinity,
                             height: 250,
@@ -344,6 +443,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     : isCompleted
                                     ? const Center(
                                       child: Text('Shift Completed for Today'),
+                                    )
+                                    : (needsOdometer || tripInProgress)
+                                    ? Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.speed_rounded,
+                                            size: 64,
+                                            color: AppColors.primary.withOpacity(0.5),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            needsOdometer ? 'Start Trip to Proceed' : 'Trip In Progress',
+                                            style: const TextStyle(color: AppColors.textGray),
+                                          ),
+                                        ],
+                                      ),
                                     )
                                     : Column(
                                       mainAxisAlignment:
@@ -383,12 +500,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _handleSubmit,
+                              onPressed: _isSubmitting 
+                                ? null 
+                                : needsOdometer 
+                                  ? _showStartTripDialog 
+                                  : tripInProgress 
+                                    ? _showEndTripDialog 
+                                    : _handleSubmit,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor:
-                                    isCheckedIn
-                                        ? Colors.orange
-                                        : AppColors.primary,
+                                    needsOdometer 
+                                        ? Colors.blue
+                                        : tripInProgress
+                                          ? Colors.redAccent
+                                          : isCheckedIn
+                                            ? Colors.orange
+                                            : AppColors.primary,
                               ),
                               child:
                                   _isSubmitting
@@ -396,7 +523,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                         color: Colors.white,
                                       )
                                       : Text(
-                                        isCheckedIn ? 'Check Out' : 'Check In',
+                                        needsOdometer 
+                                          ? 'Start Trip' 
+                                          : tripInProgress 
+                                            ? 'End Trip' 
+                                            : isCheckedIn 
+                                              ? 'Check Out' 
+                                              : 'Check In',
                                       ),
                             ),
                           ),

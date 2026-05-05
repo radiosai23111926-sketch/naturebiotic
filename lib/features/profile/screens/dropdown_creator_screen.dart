@@ -24,7 +24,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   int? _selectedParentId;
   int? _selectedSubParentId; // Added for 3-level hierarchy
   bool _tableMissing = false;
-  bool _isUploadingImage = false;
+  final bool _isUploadingImage = false;
 
   final Map<String, String> _typeLabels = {
     'farmer_category': 'Farmer Categories',
@@ -64,28 +64,39 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     try {
       if (_selectedType == 'problem_subcategory') {
         if (_problemCategories.isEmpty) {
-          _problemCategories = await SupabaseService.getDropdownOptions('problem_category');
+          _problemCategories = await SupabaseService.getDropdownOptions(
+            'problem_category',
+          );
         }
         if (_selectedParentId == null && _problemCategories.isNotEmpty) {
           _selectedParentId = _problemCategories[0]['id'];
         }
         if (_selectedParentId != null) {
-          _options = await SupabaseService.getDropdownOptions(_selectedType!, parentId: _selectedParentId);
+          _options = await SupabaseService.getDropdownOptions(
+            _selectedType!,
+            parentId: _selectedParentId,
+          );
         } else {
           _options = [];
         }
       } else if (_selectedType == 'problem_item') {
         if (_problemCategories.isEmpty) {
-          _problemCategories = await SupabaseService.getDropdownOptions('problem_category');
+          _problemCategories = await SupabaseService.getDropdownOptions(
+            'problem_category',
+          );
         }
         if (_selectedParentId == null && _problemCategories.isNotEmpty) {
           _selectedParentId = _problemCategories[0]['id'];
         }
-        
+
         // Fetch subcategories for the selected category
         if (_selectedParentId != null) {
-          _problemSubCategories = await SupabaseService.getDropdownOptions('problem_subcategory', parentId: _selectedParentId);
-          if (_selectedSubParentId == null && _problemSubCategories.isNotEmpty) {
+          _problemSubCategories = await SupabaseService.getDropdownOptions(
+            'problem_subcategory',
+            parentId: _selectedParentId,
+          );
+          if (_selectedSubParentId == null &&
+              _problemSubCategories.isNotEmpty) {
             _selectedSubParentId = _problemSubCategories[0]['id'];
           }
         } else {
@@ -94,7 +105,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
         }
 
         if (_selectedSubParentId != null) {
-          _options = await SupabaseService.getDropdownOptions(_selectedType!, parentId: _selectedSubParentId);
+          _options = await SupabaseService.getDropdownOptions(
+            _selectedType!,
+            parentId: _selectedSubParentId,
+          );
         } else {
           _options = [];
         }
@@ -155,12 +169,19 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
 
   Future<String?> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+    );
     if (image == null) return null;
 
     final bytes = await image.readAsBytes();
     final fileName = '${const Uuid().v4()}.jpg';
-    return await SupabaseService.uploadImage(bytes, fileName, 'dropdown_covers');
+    return await SupabaseService.uploadImage(
+      bytes,
+      fileName,
+      'dropdown_covers',
+    );
   }
 
   Future<void> _addOption() async {
@@ -171,17 +192,21 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => DropdownOptionDialog(
-        title: 'Add ${_typeLabels[_selectedType]}',
-        isProductName: _selectedType == 'product_name',
-        onPickImage: _pickAndUploadImage,
-      ),
+      builder:
+          (context) => DropdownOptionDialog(
+            title: 'Add ${_typeLabels[_selectedType]}',
+            isProductName: _selectedType == 'product_name',
+            onPickImage: _pickAndUploadImage,
+          ),
     );
-    
+
     if (result != null && result['label'].isNotEmpty) {
       setState(() => _isLoading = true);
       try {
-        final parentToUse = (_selectedType == 'problem_item') ? _selectedSubParentId : _selectedParentId;
+        final parentToUse =
+            (_selectedType == 'problem_item')
+                ? _selectedSubParentId
+                : _selectedParentId;
         final newOption = await SupabaseService.addDropdownOption(
           _selectedType!,
           result['label'],
@@ -427,15 +452,16 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   Future<void> _editOption(Map<String, dynamic> option) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => DropdownOptionDialog(
-        title: 'Edit ${_typeLabels[_selectedType]}',
-        initialLabel: option['label'],
-        initialImageUrl: option['image_url'],
-        initialMrp: option['mrp'],
-        initialOfferPrice: option['offer_price'],
-        isProductName: _selectedType == 'product_name',
-        onPickImage: _pickAndUploadImage,
-      ),
+      builder:
+          (context) => DropdownOptionDialog(
+            title: 'Edit ${_typeLabels[_selectedType]}',
+            initialLabel: option['label'],
+            initialImageUrl: option['image_url'],
+            initialMrp: option['mrp'],
+            initialOfferPrice: option['offer_price'],
+            isProductName: _selectedType == 'product_name',
+            onPickImage: _pickAndUploadImage,
+          ),
     );
 
     if (result != null && result['label'].isNotEmpty) {
@@ -452,7 +478,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error updating option: $e'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Error updating option: $e'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       } finally {
@@ -613,7 +642,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                             ),
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
-                              value: _selectedType,
+                              initialValue: _selectedType,
                               decoration: const InputDecoration(
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -625,44 +654,159 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 // Farmer Profile
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('FARMER PROFILE', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'FARMER PROFILE',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['farmer_category'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
-                                
+                                ...['farmer_category'].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
+
                                 // Farm Registration
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('FARM REGISTRATION', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'FARM REGISTRATION',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['soil_type', 'irrigation_type', 'water_source', 'water_quantity', 'power_source', 'acre_unit'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
-                                
+                                ...[
+                                  'soil_type',
+                                  'irrigation_type',
+                                  'water_source',
+                                  'water_quantity',
+                                  'power_source',
+                                  'acre_unit',
+                                ].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
+
                                 // Report & Analysis
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('REPORT & ANALYSIS', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'REPORT & ANALYSIS',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['problem_category', 'problem_subcategory', 'problem_item'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
-                                
+                                ...[
+                                  'problem_category',
+                                  'problem_subcategory',
+                                  'problem_item',
+                                ].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
+
                                 // Crop & Yield
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('CROP & YIELD', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'CROP & YIELD',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['master_crop', 'age_unit', 'life_unit', 'count_unit', 'yield_unit', 'yield_period'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
-                                
+                                ...[
+                                  'master_crop',
+                                  'age_unit',
+                                  'life_unit',
+                                  'count_unit',
+                                  'yield_unit',
+                                  'yield_period',
+                                ].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
+
                                 // Product & Treatment
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('PRODUCT & TREATMENT', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'PRODUCT & TREATMENT',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['product_name', 'filler_material', 'application_method', 'dose_unit', 'filler_unit', 'per_unit'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
-                                
+                                ...[
+                                  'product_name',
+                                  'filler_material',
+                                  'application_method',
+                                  'dose_unit',
+                                  'filler_unit',
+                                  'per_unit',
+                                ].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
+
                                 // Stock Management
                                 const DropdownMenuItem(
                                   enabled: false,
-                                  child: Text('STOCK', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 11)),
+                                  child: Text(
+                                    'STOCK',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
-                                ...['stock_vendor'].map((key) => DropdownMenuItem(value: key, child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(_typeLabels[key]!)))),
+                                ...['stock_vendor'].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
                               ],
                               onChanged: (v) {
                                 setState(() {
@@ -673,17 +817,34 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 _fetchOptions();
                               },
                             ),
-                            if (_selectedType == 'problem_subcategory' || _selectedType == 'problem_item') ...[
+                            if (_selectedType == 'problem_subcategory' ||
+                                _selectedType == 'problem_item') ...[
                               const SizedBox(height: 16),
                               const Text(
                                 'Select Parent Category',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<int>(
-                                value: _selectedParentId,
-                                decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
-                                items: _problemCategories.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(c['label']))).toList(),
+                                initialValue: _selectedParentId,
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                items:
+                                    _problemCategories
+                                        .map(
+                                          (c) => DropdownMenuItem<int>(
+                                            value: c['id'],
+                                            child: Text(c['label']),
+                                          ),
+                                        )
+                                        .toList(),
                                 onChanged: (v) {
                                   setState(() {
                                     _selectedParentId = v;
@@ -697,13 +858,29 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                               const SizedBox(height: 16),
                               const Text(
                                 'Select Parent Sub-Category',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<int>(
-                                value: _selectedSubParentId,
-                                decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
-                                items: _problemSubCategories.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(c['label']))).toList(),
+                                initialValue: _selectedSubParentId,
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                items:
+                                    _problemSubCategories
+                                        .map(
+                                          (c) => DropdownMenuItem<int>(
+                                            value: c['id'],
+                                            child: Text(c['label']),
+                                          ),
+                                        )
+                                        .toList(),
                                 onChanged: (v) {
                                   setState(() => _selectedSubParentId = v);
                                   _fetchOptions();
@@ -815,7 +992,11 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
             children: [
               const CircleAvatar(
                 backgroundColor: AppColors.secondary,
-                child: Icon(Icons.inventory_2_rounded, color: AppColors.primary, size: 20),
+                child: Icon(
+                  Icons.inventory_2_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -824,7 +1005,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                   children: [
                     Text(
                       item['label'] ?? 'Unknown Product',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -832,16 +1016,25 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                           ? 'No default vendor set'
                           : 'Vendor: ${item['default_vendor']}',
                       style: TextStyle(
-                        color: item['default_vendor'].isEmpty ? Colors.grey : AppColors.primary,
+                        color:
+                            item['default_vendor'].isEmpty
+                                ? Colors.grey
+                                : AppColors.primary,
                         fontSize: 13,
-                        fontStyle: item['default_vendor'].isEmpty ? FontStyle.italic : FontStyle.normal,
+                        fontStyle:
+                            item['default_vendor'].isEmpty
+                                ? FontStyle.italic
+                                : FontStyle.normal,
                       ),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_note_rounded, color: AppColors.primary),
+                icon: const Icon(
+                  Icons.edit_note_rounded,
+                  color: AppColors.primary,
+                ),
                 onPressed: () => _editStockVendor(item),
                 tooltip: 'Set Default Vendor',
               ),
@@ -901,7 +1094,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error saving vendor: $e'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Error saving vendor: $e'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       } finally {
@@ -954,7 +1150,11 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                     color: AppColors.secondary.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.image_not_supported_outlined, color: AppColors.primary, size: 20),
+                  child: const Icon(
+                    Icons.image_not_supported_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                 ),
               Expanded(
                 child: Column(
@@ -967,17 +1167,28 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                     if (option['mrp'] != null)
                       Text(
                         'MRP: ₹${option['mrp']} | Offer: ₹${option['offer_price']}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGray,
+                        ),
                       ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
                 onPressed: () => _editOption(option),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                  size: 20,
+                ),
                 onPressed: () => _deleteOption(option),
               ),
             ],
@@ -1094,10 +1305,11 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   }
 
   Widget _buildHierarchicalProductView() {
-    if (_options.isEmpty)
+    if (_options.isEmpty) {
       return const Center(
         child: Text('No products found. Add one to get started.'),
       );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(24),

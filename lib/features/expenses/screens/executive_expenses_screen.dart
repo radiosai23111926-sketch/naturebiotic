@@ -363,21 +363,30 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => _AddExpenseDialogContent(
-        expenseId: _activeExpense!['id'],
-        onAdded: _loadActiveExpense,
-        onCapture: () => _captureAndUpload('expense-documents'),
-      ),
+      builder:
+          (context) => _AddExpenseDialogContent(
+            expenseId: _activeExpense!['id'],
+            onAdded: _loadActiveExpense,
+            onCapture: () => _captureAndUpload('expense-documents'),
+          ),
     );
   }
 
   Widget _buildSubmitReturn() {
-    final allotted = double.tryParse(_activeExpense!['amount_allotted'].toString()) ?? 0.0;
-    final items = List<Map<String, dynamic>>.from(_activeExpense!['expense_items'] ?? []);
-    final spent = items.fold(0.0, (sum, item) => sum + (double.tryParse(item['amount'].toString()) ?? 0.0));
+    final allotted =
+        double.tryParse(_activeExpense!['amount_allotted'].toString()) ?? 0.0;
+    final items = List<Map<String, dynamic>>.from(
+      _activeExpense!['expense_items'] ?? [],
+    );
+    final spent = items.fold(
+      0.0,
+      (sum, item) => sum + (double.tryParse(item['amount'].toString()) ?? 0.0),
+    );
     final balance = allotted - spent;
     final isClaim = balance < 0;
-    final returnController = TextEditingController(text: isClaim ? balance.abs().toString() : balance.toString());
+    final returnController = TextEditingController(
+      text: isClaim ? balance.abs().toString() : balance.toString(),
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(isClaim ? 'Submit Claim' : 'Return Balance')),
@@ -386,34 +395,46 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
         child: Column(
           children: [
             Icon(
-              isClaim ? Icons.add_moderator_rounded : Icons.assignment_return_rounded,
+              isClaim
+                  ? Icons.add_moderator_rounded
+                  : Icons.assignment_return_rounded,
               size: 64,
               color: isClaim ? Colors.orange : AppColors.primary,
             ),
             const SizedBox(height: 24),
             Text(
               isClaim ? 'Expense Claim' : 'Trip Finished',
-              style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold),
+              style: GoogleFonts.outfit(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            if (_activeExpense!['start_odometer_reading'] != null && _activeExpense!['end_odometer_reading'] != null) ...[
+            if (_activeExpense!['start_odometer_reading'] != null &&
+                _activeExpense!['end_odometer_reading'] != null) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   'Total Distance: ${((double.tryParse(_activeExpense!['end_odometer_reading'].toString()) ?? 0) - (double.tryParse(_activeExpense!['start_odometer_reading'].toString()) ?? 0)).toStringAsFixed(1)} KM',
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
             const SizedBox(height: 8),
             Text(
-              isClaim 
-                ? 'You have spent more than allotted. Submit a claim for the difference.'
-                : 'Enter the amount you are returning to the manager.',
+              isClaim
+                  ? 'You have spent more than allotted. Submit a claim for the difference.'
+                  : 'Enter the amount you are returning to the manager.',
               style: const TextStyle(color: AppColors.textGray),
               textAlign: TextAlign.center,
             ),
@@ -424,7 +445,9 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
               decoration: InputDecoration(
                 labelText: isClaim ? 'Claim Amount' : 'Return Amount',
                 prefixText: '₹ ',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const Spacer(),
@@ -437,10 +460,16 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
                 ),
                 onPressed: () async {
                   final amount = double.tryParse(returnController.text) ?? 0.0;
-                  await SupabaseService.submitReturn(_activeExpense!['id'], isClaim ? -amount : amount);
+                  await SupabaseService.submitReturn(
+                    _activeExpense!['id'],
+                    isClaim ? -amount : amount,
+                  );
                   _loadActiveExpense();
                 },
-                child: Text(isClaim ? 'Submit Claim' : 'Submit Return', style: const TextStyle(color: Colors.white)),
+                child: Text(
+                  isClaim ? 'Submit Claim' : 'Submit Return',
+                  style: const TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -455,13 +484,29 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.hourglass_empty_rounded, size: 80, color: Colors.orange),
+            const Icon(
+              Icons.hourglass_empty_rounded,
+              size: 80,
+              color: Colors.orange,
+            ),
             const SizedBox(height: 24),
-            Text('Awaiting Manager Approval', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              'Awaiting Manager Approval',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('You have submitted the return amount.', style: TextStyle(color: AppColors.textGray)),
+            const Text(
+              'You have submitted the return amount.',
+              style: TextStyle(color: AppColors.textGray),
+            ),
             const SizedBox(height: 32),
-            ElevatedButton(onPressed: _loadActiveExpense, child: const Text('Check Status')),
+            ElevatedButton(
+              onPressed: _loadActiveExpense,
+              child: const Text('Check Status'),
+            ),
           ],
         ),
       ),
@@ -471,9 +516,19 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
   Widget _summaryBlock(String label, String value) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
       ],
     );
   }
@@ -482,20 +537,36 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
     IconData icon;
     Color color;
     switch (category) {
-      case 'FOOD': icon = Icons.restaurant_rounded; color = Colors.orange; break;
-      case 'FUEL': icon = Icons.local_gas_station_rounded; color = Colors.blue; break;
-      case 'COURIER': icon = Icons.local_shipping_rounded; color = Colors.purple; break;
-      case 'DRIVER': icon = Icons.person_rounded; color = Colors.teal; break;
-      default: icon = Icons.more_horiz_rounded; color = Colors.grey;
+      case 'FOOD':
+        icon = Icons.restaurant_rounded;
+        color = Colors.orange;
+        break;
+      case 'FUEL':
+        icon = Icons.local_gas_station_rounded;
+        color = Colors.blue;
+        break;
+      case 'COURIER':
+        icon = Icons.local_shipping_rounded;
+        color = Colors.purple;
+        break;
+      case 'DRIVER':
+        icon = Icons.person_rounded;
+        color = Colors.teal;
+        break;
+      default:
+        icon = Icons.more_horiz_rounded;
+        color = Colors.grey;
     }
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
       child: Icon(icon, color: color, size: 20),
     );
   }
 }
-
 
 class _AddExpenseDialogContent extends StatefulWidget {
   final String expenseId;
@@ -549,7 +620,7 @@ class _AddExpenseDialogContentState extends State<_AddExpenseDialogContent> {
             ),
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
-              value: _category,
+              initialValue: _category,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),
@@ -680,4 +751,3 @@ class _AddExpenseDialogContentState extends State<_AddExpenseDialogContent> {
     );
   }
 }
-

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/navigation/bottom_nav.dart';
 import 'package:nature_biotic/services/supabase_service.dart';

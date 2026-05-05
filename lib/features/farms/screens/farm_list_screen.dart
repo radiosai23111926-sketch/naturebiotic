@@ -44,10 +44,10 @@ class _FarmListScreenState extends State<FarmListScreen> {
 
       // Merge and De-duplicate
       final Map<String, Map<String, dynamic>> combinedMap = {};
-      for (var farm in localData) {
+      for (var farm in remoteData) {
         combinedMap[farm['id'].toString()] = farm;
       }
-      for (var farm in remoteData) {
+      for (var farm in localData) {
         combinedMap[farm['id'].toString()] = farm;
       }
 
@@ -414,6 +414,7 @@ class _FarmListScreenState extends State<FarmListScreen> {
                           balances: _farmBalances[farm['id'].toString()],
                           isVerified: farm['is_verified'] == true,
                           isManager: _userRole == 'manager',
+                          isAdmin: _userRole == 'admin',
                         ),
                       );
                     },
@@ -437,6 +438,7 @@ class FarmCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final bool isVerified;
   final bool isManager;
+  final bool isAdmin;
 
   const FarmCard({
     super.key,
@@ -451,6 +453,7 @@ class FarmCard extends StatelessWidget {
     this.onDelete,
     this.isVerified = true,
     this.isManager = false,
+    this.isAdmin = false,
   });
 
   @override
@@ -486,7 +489,7 @@ class FarmCard extends StatelessWidget {
                   color: AppColors.primary,
                 ),
               ),
-              if (!isManager)
+              if (isAdmin || (!isManager && !isVerified))
                 PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'edit') onEdit?.call();

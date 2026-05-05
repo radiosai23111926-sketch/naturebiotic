@@ -7,6 +7,8 @@ import 'package:nature_biotic/features/farms/screens/add_farm_screen.dart';
 import 'package:nature_biotic/features/farms/screens/farm_detail_screen.dart';
 
 import 'package:nature_biotic/core/call_tracker.dart';
+import 'package:nature_biotic/services/local_database_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FarmerDetailScreen extends StatefulWidget {
   final Map<String, dynamic> farmer;
@@ -154,18 +156,88 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
       MaterialPageRoute(builder: (context) => AddFarmerScreen(farmer: _farmer)),
     );
 
-    if (result == true) {
-      // Re-fetch or pass updated data?
-      // For now, let's just refresh list by popping back or we could fetch again.
-      // Since AddFarmerScreen doesn't return the data, we might need to fetch.
+    if (result != null && result is Map) {
+      // The edit screen returned the updated data directly — apply it immediately
+      if (mounted) {
+        setState(() {
+          // Merge the returned data into existing farmer, preserving any fields
+          // not included in the edit form (e.g. is_verified, assigned_to)
+          _farmer = {..._farmer, ...Map<String, dynamic>.from(result)};
+        });
+      }
+    } else if (result == true) {
+      // Fallback: if only 'true' was returned, do a network re-fetch
       _refreshFarmer();
     }
   }
 
   Future<void> _refreshFarmer() async {
-    // Optionally fetch specific farmer by ID to update detail screen
-    // For now, let's just pop back to list to keep it simple and ensure consistency
-    Navigator.pop(context, true);
+    setState(() => _isLoading = true);
+    try {
+      final farmerId = _farmer['id'].toString();
+      
+      // Fetch fresh data
+      Map<String, dynamic>? updatedFarmer;
+      
+      if (kIsWeb) {
+        // On web, fetch from remote
+        final remote = await SupabaseService.getFarmerDetail(farmerId);
+        if (remote != null) updatedFarmer = remote;
+      } else {
+        // On mobile, try local first then remote
+        final local = await LocalDatabaseService.getDataById('farmers', farmerId);
+        if (local != null) {
+          updatedFarmer = local;
+        } else {
+          final remote = await SupabaseService.getFarmerDetail(farmerId);
+          if (remote != null) updatedFarmer = remote;
+        }
+      }
+
+      if (mounted && updatedFarmer != null) {
+        setState(() {
+          _farmer = updatedFarmer!;
+          _isLoading = false;
+        });
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error refreshing farmer: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleVerify() async {
+    setState(() => _isLoading = true);
+    try {
+      await SupabaseService.verifyItem(
+        'farmers',
+        _farmer['id'],
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Farmer Verified Successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _farmer['is_verified'] = true;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -185,20 +257,23 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
         ),
         actions: [
-          if (_userRole != 'manager') ...[
+          // Show edit/delete buttons only for non-managers if not verified
+          // Admins can always edit (assuming admin role exists and is allowed)
+          if ((_userRole == 'admin') || (_userRole != 'manager' && _farmer['is_verified'] != true)) ...[
             IconButton(
               icon: const Icon(Icons.edit_rounded, color: AppColors.primary),
               onPressed: _isLoading ? null : _handleEdit,
             ),
             IconButton(
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.hot,
-              ),
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
               onPressed: _isLoading ? null : _handleDelete,
             ),
           ],
-          const SizedBox(width: 8),
+          if (_userRole == 'manager' && _farmer['is_verified'] != true)
+            IconButton(
+              icon: const Icon(Icons.verified_user_rounded, color: Colors.green),
+              onPressed: _isLoading ? null : _handleVerify,
+            ),const SizedBox(width: 8),
         ],
       ),
       body: Center(
@@ -648,40 +723,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
         children: [
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed:
-                _isLoading
-                    ? null
-                    : () async {
-                      setState(() => _isLoading = true);
-                      try {
-                        await SupabaseService.verifyItem(
-                          'farmers',
-                          _farmer['id'],
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Farmer Verified Successfully'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                          setState(() {
-                            _farmer['is_verified'] = true;
-                            _isLoading = false;
-                          });
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Verification failed: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          setState(() => _isLoading = false);
-                        }
-                      }
-                    },
+            onPressed: _isLoading ? null : _handleVerify,
             icon: const Icon(Icons.verified_rounded),
             label: const Text('Verify Entry'),
             style: ElevatedButton.styleFrom(

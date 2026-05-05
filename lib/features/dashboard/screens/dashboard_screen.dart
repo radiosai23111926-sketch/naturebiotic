@@ -118,7 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       final attendance = await SupabaseService.getTodayAttendance();
       
       Map<String, dynamic>? activeTrip;
-      if (isExecutive || isTelecaller) {
+      if (isExecutive || isTelecaller || isManager) {
         final userId = SupabaseService.client.auth.currentUser?.id;
         if (userId != null) {
           activeTrip = await SupabaseService.getActiveExpenseForExecutive(userId);
@@ -1263,70 +1263,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Future<String?> _captureAndUpload(String bucketId) async {
-    final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 50,
-    );
-    if (photo != null) {
-      final bytes = await photo.readAsBytes();
-      final extension = photo.path.split('.').last;
-      final fileName = '${const Uuid().v4()}.$extension';
-
-      try {
-        return await SupabaseService.uploadImage(bytes, fileName, bucketId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Upload failed: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-    return null;
-  }
-
-  void _showStartTripDialog() {
-    if (_activeTrip == null) {
-      // Step 1: Create the trip record if it doesn't exist
-      SupabaseService.startExecutiveTrip().then((_) => _loadDashboardData());
-      return;
-    }
-
-    // Step 2: Show the odometer form
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StartTripForm(
-          expenseId: _activeTrip!['id'],
-          onStarted: () {
-            Navigator.pop(context);
-            _loadDashboardData();
-          },
-          onCapture: () => _captureAndUpload('expense-documents'),
-        ),
-      ),
-    );
-  }
-
-  void _showEndTripDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => EndTripDialogContent(
-        expenseId: _activeTrip!['id'],
-        startOdometer: double.tryParse(_activeTrip!['start_odometer_reading']?.toString() ?? '0') ?? 0.0,
-        onEnded: _loadDashboardData,
-        onCapture: () => _captureAndUpload('expense-documents'),
-      ),
-    );
-  }
 
   Widget _buildPremiumHeader() {
     String greeting = 'Hi ${_userName.split(' ')[0]}';
@@ -1464,7 +1400,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   const SizedBox(width: 6),
                   // Premium Attendance Button
-                  if (!_isManager)
+                  if (!_isAdmin)
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
@@ -1509,10 +1445,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                   const SizedBox(width: 6),
-                  // Trip/Odometer Action
-                  if (_isExecutive || _isTelecaller)
-                    _buildTripActionButton(),
-                  const SizedBox(width: 6),
                   _headerActionIcon(
                     icon: Icons.power_settings_new_rounded,
                     color: Colors.redAccent,
@@ -1525,111 +1457,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTripActionButton() {
-    bool hasActiveTrip = _activeTrip != null;
-    bool needsOdometer = hasActiveTrip && _activeTrip!['start_odometer_reading'] == null;
-    bool tripInProgress = hasActiveTrip && _activeTrip!['start_odometer_reading'] != null && _activeTrip!['end_odometer_reading'] == null;
-
-    IconData icon;
-    String label;
-    VoidCallback onTap;
-    List<Color> gradientColors;
-
-    if (!hasActiveTrip) {
-      icon = Icons.play_arrow_rounded;
-      label = 'Start Trip';
-      onTap = () {
-        if (_todayAttendance == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please Check In first to start a trip'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        _showStartTripDialog();
-      };
-      gradientColors = [const Color(0xFF1976D2), const Color(0xFF0D47A1)]; // Blue
-    } else if (needsOdometer) {
-      icon = Icons.speed_rounded;
-      label = 'Enter Odo';
-      onTap = () {
-        if (_todayAttendance == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please Check In first to enter odometer'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        _showStartTripDialog();
-      };
-      gradientColors = [const Color(0xFFFFA000), const Color(0xFFFF6F00)]; // Orange
-    } else if (tripInProgress) {
-      icon = Icons.stop_rounded;
-      label = 'End Trip';
-      onTap = () {
-        if (_todayAttendance == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please Check In first to end your trip'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        _showEndTripDialog();
-      };
-      gradientColors = [const Color(0xFFD32F2F), const Color(0xFFB71C1C)]; // Red
-    } else {
-      return const SizedBox.shrink();
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradientColors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: gradientColors[1].withOpacity(0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 15),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+      );
   }
 
   Widget _headerActionIcon(

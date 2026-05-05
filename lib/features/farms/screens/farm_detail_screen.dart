@@ -155,10 +155,10 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
           // Merge and De-duplicate
           final Map<String, Map<String, dynamic>> combinedMap = {};
           
-          for (var crop in localCrops) {
+          for (var crop in remoteCrops) {
             combinedMap[crop['id'].toString()] = crop;
           }
-          for (var crop in remoteCrops) {
+          for (var crop in localCrops) {
             combinedMap[crop['id'].toString()] = crop;
           }
 

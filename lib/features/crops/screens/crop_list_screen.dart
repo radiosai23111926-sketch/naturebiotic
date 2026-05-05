@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
-import 'package:nature_biotic/features/crops/screens/add_crop_screen.dart';
 import 'package:nature_biotic/features/crops/screens/crop_detail_screen.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/core/widgets/animations.dart';
@@ -35,7 +34,10 @@ class _CropListScreenState extends State<CropListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading crops: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error loading crops: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -55,52 +57,58 @@ class _CropListScreenState extends State<CropListScreen> {
           ),
         ],
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _loadCrops,
-            child: _crops.isEmpty 
-              ? _buildEmptyState()
-              : Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(24.0),
-                      itemCount: _crops.length,
-                      itemBuilder: (context, index) {
-                        final crop = _crops[index];
-                        final farmName = crop['farms']?['name'] ?? 'N/A';
-                        final farmerName = crop['farms']?['farmers']?['name'] ?? 'N/A';
-                        
-                        return EntranceAnimation(
-                          delay: 100 + (index * 100),
-                          child: CropCard(
-                            cropName: crop['name'] ?? 'Unknown',
-                            variety: crop['variety'] ?? 'Unknown',
-                            age: crop['age'] ?? 'N/A',
-                            expectedYield: crop['expected_yield'] ?? 'N/A',
-                            farmName: farmName,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => CropDetailScreen(
-                                    crop: crop,
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _loadCrops,
+                child:
+                    _crops.isEmpty
+                        ? _buildEmptyState()
+                        : Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 800),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(24.0),
+                              itemCount: _crops.length,
+                              itemBuilder: (context, index) {
+                                final crop = _crops[index];
+                                final farmName =
+                                    crop['farms']?['name'] ?? 'N/A';
+                                final farmerName =
+                                    crop['farms']?['farmers']?['name'] ?? 'N/A';
+
+                                return EntranceAnimation(
+                                  delay: 100 + (index * 100),
+                                  child: CropCard(
+                                    cropName: crop['name'] ?? 'Unknown',
+                                    variety: crop['variety'] ?? 'Unknown',
+                                    age: crop['age'] ?? 'N/A',
+                                    expectedYield:
+                                        crop['expected_yield'] ?? 'N/A',
                                     farmName: farmName,
-                                    farmerName: farmerName,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => CropDetailScreen(
+                                                crop: crop,
+                                                farmName: farmName,
+                                                farmerName: farmerName,
+                                              ),
+                                        ),
+                                      ).then((value) {
+                                        if (value == true) _loadCrops();
+                                      });
+                                    },
                                   ),
-                                ),
-                              ).then((value) {
-                                if (value == true) _loadCrops();
-                              });
-                            },
+                                );
+                              },
+                            ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-          ),
+                        ),
+              ),
       floatingActionButton: null,
     );
   }
@@ -170,14 +178,17 @@ class CropCard extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.eco_rounded, color: AppColors.primary),
+                  child: const Icon(
+                    Icons.eco_rounded,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       Text(
+                      Text(
                         farmName,
                         style: const TextStyle(
                           fontSize: 11,
@@ -203,7 +214,10 @@ class CropCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.primary,
+                ),
               ],
             ),
             const SizedBox(height: 20),

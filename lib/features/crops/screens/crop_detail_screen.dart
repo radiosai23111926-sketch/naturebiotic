@@ -114,10 +114,9 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
       appBar: AppBar(
         title: Text(widget.crop['name'] ?? 'Crop Details'),
         actions: [
-          if (_userRole != 'manager')
+          if (_userRole == 'admin' || (_userRole != 'manager' && _crop['is_verified'] != true))
             IconButton(
               icon: const Icon(Icons.edit_rounded),
-              tooltip: 'Edit Crop Details',
               onPressed: () {
                 Navigator.push(
                   context,

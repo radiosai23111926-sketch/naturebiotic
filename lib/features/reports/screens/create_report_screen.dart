@@ -12,11 +12,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class CreateReportScreen extends StatefulWidget {
   final String? preSelectedFarmId;
   final String? preSelectedCropId;
+  final Map<String, dynamic>? existingReport;
 
   const CreateReportScreen({
     super.key,
     this.preSelectedFarmId,
     this.preSelectedCropId,
+    this.existingReport,
   });
 
   @override
@@ -98,6 +100,22 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     _addRecommendationRow();
     if (widget.preSelectedCropId != null) {
       _loadCropDetails(widget.preSelectedCropId!);
+    }
+    if (widget.existingReport != null) {
+      _populateFromExistingReport();
+    }
+  }
+
+  void _populateFromExistingReport() {
+    final report = widget.existingReport!;
+    _selectedFarmId = report['farm_id']?.toString();
+    _selectedCropId = report['crop_id']?.toString();
+    
+    // For now, we populate the basic selection. 
+    // Full parsing of aggregated strings is complex, 
+    // so we at least ensure the context is correct.
+    if (_selectedFarmId != null) {
+      _loadCrops(_selectedFarmId!);
     }
   }
 
@@ -655,12 +673,16 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       };
 
       if (kIsWeb) {
-        await SupabaseService.addReport(reportData);
+        if (widget.existingReport != null) {
+          await SupabaseService.updateReport(widget.existingReport!['id'].toString(), reportData);
+        } else {
+          await SupabaseService.addReport(reportData);
+        }
       } else {
         await LocalDatabaseService.saveAndQueue(
           tableName: 'reports',
           data: reportData,
-          operation: 'INSERT',
+          operation: widget.existingReport != null ? 'UPDATE' : 'INSERT',
         );
         SyncManager().sync();
       }
@@ -827,7 +849,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 content: Column(
                   children: [
                     DropdownButtonFormField<String>(
-                      value: _selectedFarmId,
+                      value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId))
+                          ? _selectedFarmId
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Choose Farm',
                       ),
@@ -851,7 +875,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       key: ValueKey('crop_dropdown_${_multiCropsData.length}_$_selectedCropId'),
-                      value: _selectedCropId,
+                      value: (_selectedCropId != null && _crops.any((c) => c['id'].toString() == _selectedCropId))
+                          ? _selectedCropId
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Choose Crop',
                       ),
@@ -1647,7 +1673,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 flex: 3,
                 child: DropdownButtonFormField<String>(
                   value:
-                      variants.any((v) => v['label'] == row.pkgSize.text)
+                      variants.any((v) => v['label'].toString() == row.pkgSize.text)
                           ? row.pkgSize.text
                           : null,
                   decoration: const InputDecoration(
@@ -1793,7 +1819,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   child: DropdownButtonFormField<String>(
                     value:
                         _productOptions.any(
-                              (p) => p['label'] == row.product.text,
+                              (p) => p['label'].toString() == row.product.text,
                             )
                             ? row.product.text
                             : null,
@@ -1843,7 +1869,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 child: DropdownButtonFormField<String>(
                   value:
                       _applicationOptions.any(
-                            (a) => a['label'] == row.application.text,
+                            (a) => a['label'].toString() == row.application.text,
                           )
                           ? row.application.text
                           : null,
@@ -1910,7 +1936,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 child: DropdownButtonFormField<String>(
                   value:
                       _doseUnitOptions.any(
-                            (u) => u['label'] == row.doseUnit,
+                            (u) => u['label'].toString() == row.doseUnit,
                           )
                           ? row.doseUnit
                           : null,
@@ -1948,7 +1974,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 child: DropdownButtonFormField<String>(
                   value:
                       _perUnitOptions.any(
-                            (u) => u['label'] == row.perUnit,
+                            (u) => u['label'].toString() == row.perUnit,
                           )
                           ? row.perUnit
                           : null,
@@ -1990,7 +2016,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                       child: DropdownButtonFormField<String>(
                         value:
                             _fillerMaterialOptions.any(
-                                  (m) => m['label'] == row.filler.text,
+                                  (m) => m['label'].toString() == row.filler.text,
                                 )
                                 ? row.filler.text
                                 : null,

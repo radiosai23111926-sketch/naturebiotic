@@ -486,6 +486,14 @@ class LocalDatabaseService {
     );
   }
 
+  static Future<Map<String, dynamic>?> getDataById(String tableName, String id) async {
+    final db = await database;
+    if (db == null) return null;
+    final results = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
+    if (results.isEmpty) return null;
+    return results.first;
+  }
+
   static Future<Map<String, dynamic>?> getTodayAttendance() async {
     final db = await database;
     if (db == null) return null;

@@ -71,13 +71,13 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
 
       if (mounted) {
         setState(() {
-          // Merge and De-duplicate
+          // Merge and De-duplicate: Local truth wins over remote
           final Map<String, Map<String, dynamic>> combinedMap = {};
           
-          for (var farmer in localData) {
+          for (var farmer in remoteData) {
             combinedMap[farmer['id'].toString()] = farmer;
           }
-          for (var farmer in remoteData) {
+          for (var farmer in localData) {
             combinedMap[farmer['id'].toString()] = farmer;
           }
 

@@ -3,6 +3,7 @@ import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/core/widgets/animations.dart';
+import 'package:nature_biotic/features/inventory/screens/stock_transaction_form.dart';
 
 class StoreStockReturnAcceptanceScreen extends StatefulWidget {
   const StoreStockReturnAcceptanceScreen({super.key});
@@ -30,10 +31,10 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
       
       if (mounted) {
         setState(() {
-          // Filter for only returns
-          _pendingReturns = pending.where((tx) => tx['transaction_type'] == 'RETURN').toList();
+          // Filter for returns and requests
+          _pendingReturns = pending.where((tx) => tx['transaction_type'] == 'RETURN' || tx['transaction_type'] == 'REQUEST').toList();
           _returnHistory = all.where((tx) => 
-            tx['transaction_type'] == 'RETURN' && 
+            (tx['transaction_type'] == 'RETURN' || tx['transaction_type'] == 'REQUEST') && 
             (tx['status'] == 'ACCEPTED' || tx['status'] == 'REJECTED' || tx['status'] == 'DENIED')
           ).toList();
           _isLoading = false;
@@ -57,7 +58,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
       if (mounted) {
         Navigator.pop(context); // Close loading
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Return ${status.toLowerCase()} successfully')),
+          SnackBar(content: Text('Task ${status.toLowerCase()} successfully')),
         );
         _loadData();
       }
@@ -71,12 +72,24 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
     }
   }
 
+  void _openDeliveryForm(Map<String, dynamic> tx) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StockTransactionForm(
+          transactionType: 'DELIVERY',
+          initialData: tx,
+        ),
+      ),
+    ).then((_) => _loadData());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Executive Returns'),
+        title: const Text('Pending Tasks'),
         actions: [
           IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh_rounded)),
         ],
@@ -85,15 +98,15 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
               slivers: [
-                _buildSectionHeader('Pending Returns', _pendingReturns.length),
+                _buildSectionHeader('Pending Tasks', _pendingReturns.length),
                 if (_pendingReturns.isEmpty)
-                  _buildEmptyState('No pending returns from executives')
+                  _buildEmptyState('No pending requests or returns')
                 else
                   _buildPendingList(),
                 
-                _buildSectionHeader('Return History', _returnHistory.length),
+                _buildSectionHeader('Task History', _returnHistory.length),
                 if (_returnHistory.isEmpty)
-                  _buildEmptyState('No return history found')
+                  _buildEmptyState('No history found')
                 else
                   _buildHistoryList(),
                 
@@ -157,6 +170,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
           final date = DateTime.tryParse(tx['created_at']?.toString() ?? '') ?? DateTime.now();
           final dateStr = DateFormat('dd MMM, hh:mm a').format(date);
           final executiveName = tx['profiles']?['full_name'] ?? 'Unknown Executive';
+          final isRequest = tx['transaction_type'] == 'REQUEST';
 
           return EntranceAnimation(
             child: Container(
@@ -180,7 +194,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "REQUEST FROM",
+                            isRequest ? "PRODUCT REQUEST FROM" : "RETURN FROM",
                             style: TextStyle(
                               color: AppColors.textGray.withOpacity(0.6),
                               fontSize: 9,
@@ -212,34 +226,64 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                     style: const TextStyle(color: AppColors.textBlack, fontWeight: FontWeight.w600, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => _handleAction(tx['id'], 'REJECTED'),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  if (isRequest)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => _handleAction(tx['id'], 'REJECTED'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Deny Request', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                           ),
-                          child: const Text('Deny Return', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _handleAction(tx['id'], 'ACCEPTED'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _openDeliveryForm(tx),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Process Delivery', style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
-                          child: const Text('Accept Return', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => _handleAction(tx['id'], 'REJECTED'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Deny Return', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _handleAction(tx['id'], 'ACCEPTED'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Accept Return', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -259,6 +303,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
           final dateStr = DateFormat('dd MMM yyyy').format(date);
           final status = tx['status']?.toString().toUpperCase() ?? 'UNKNOWN';
           final isAccepted = status == 'ACCEPTED';
+          final isRequest = tx['transaction_type'] == 'REQUEST';
           final executiveName = tx['profiles']?['full_name'] ?? 'Unknown';
 
           return Container(
@@ -295,6 +340,10 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                       Text(
                         'From: $executiveName • $dateStr',
                         style: const TextStyle(color: AppColors.textGray, fontSize: 11),
+                      ),
+                      Text(
+                        isRequest ? 'Product Request' : 'Stock Return',
+                        style: TextStyle(color: isRequest ? Colors.blue : Colors.purple, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

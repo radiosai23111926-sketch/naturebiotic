@@ -1,5 +1,3 @@
-import 'package:nature_biotic/services/supabase_service.dart';
-
 void main() async {
   // This script is to be run manually or I can just use it to think.
   // Actually I can't run it easily.

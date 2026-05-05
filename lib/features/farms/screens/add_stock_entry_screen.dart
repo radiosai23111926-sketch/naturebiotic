@@ -57,7 +57,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           _itemOptions = items.map((e) => e['label'].toString()).toList();
           _globalDoseUnits = units.map((e) => e['label'].toString()).toList();
         });
-        
+
         final myStock = await SupabaseService.getDetailedExecutiveStock();
         if (mounted) {
           setState(() {
@@ -104,17 +104,20 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
       final List variants = product['variants'] ?? [];
 
       if (variants.isNotEmpty) {
-        row.packetSizeOptions = variants
-            .map((v) => v['label'].toString())
-            .where((label) => 
-                !label.toLowerCase().contains('nature') && 
-                !label.toLowerCase().contains('biotic'))
-            .toList();
+        row.packetSizeOptions =
+            variants
+                .map((v) => v['label'].toString())
+                .where(
+                  (label) =>
+                      !label.toLowerCase().contains('nature') &&
+                      !label.toLowerCase().contains('biotic'),
+                )
+                .toList();
       } else {
         row.packetSizeOptions = [...defaults];
         for (var u in _globalDoseUnits) {
-          if (!row.packetSizeOptions.contains(u) && 
-              !u.toLowerCase().contains('nature') && 
+          if (!row.packetSizeOptions.contains(u) &&
+              !u.toLowerCase().contains('nature') &&
               !u.toLowerCase().contains('biotic')) {
             row.packetSizeOptions.add(u);
           }
@@ -172,14 +175,17 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
 
     // Check if any row has no product selected
     // Check stock for executives and telecallers
-    if ((_userRole == 'executive' || _userRole == 'telecaller') && _transactionType == 'RECEIVED') {
+    if ((_userRole == 'executive' || _userRole == 'telecaller') &&
+        _transactionType == 'RECEIVED') {
       for (var row in _itemRows) {
         final requestedQty = double.tryParse(row.qtyController.text) ?? 0.0;
         final available = _myStock[row.selectedItem]?[row.selectedUnit] ?? 0.0;
         if (requestedQty > available) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Insufficient stock for ${row.selectedItem} (${row.selectedUnit}). Available: $available'),
+              content: Text(
+                'Insufficient stock for ${row.selectedItem} (${row.selectedUnit}). Available: $available',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -375,7 +381,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           const Divider(),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: row.selectedItem,
+            initialValue: row.selectedItem,
             isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Select Stock Item',
@@ -426,7 +432,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
               Expanded(
                 flex: 3,
                 child: DropdownButtonFormField<String>(
-                  value: row.selectedUnit,
+                  initialValue: row.selectedUnit,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Packet Size'),
                   items:
@@ -483,9 +489,12 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.inventory_2_outlined, 
-                    size: 14, 
-                    color: (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) > 0 ? Colors.green : Colors.red
+                    Icons.inventory_2_outlined,
+                    size: 14,
+                    color:
+                        (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) > 0
+                            ? Colors.green
+                            : Colors.red,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -493,7 +502,11 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) > 0 ? Colors.green : Colors.red,
+                      color:
+                          (_myStock[row.selectedItem]?[row.selectedUnit] ?? 0) >
+                                  0
+                              ? Colors.green
+                              : Colors.red,
                     ),
                   ),
                 ],

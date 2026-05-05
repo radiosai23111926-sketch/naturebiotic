@@ -370,6 +370,16 @@ class SupabaseService {
   }
 
   // Farmer CRUD
+  static Future<Map<String, dynamic>?> getFarmerDetail(String id) async {
+    try {
+      final response = await client.from('farmers').select().eq('id', id).single();
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('Error in getFarmerDetail: $e');
+      return null;
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getFarmers() async {
     try {
       final profile = await getProfile();
@@ -456,7 +466,11 @@ class SupabaseService {
   }
 
   // Generic Verify Record
-  static Future<void> verifyItem(String tableName, dynamic id) async {
+  static Future<void> updateReport(String id, Map<String, dynamic> data) async {
+    await client.from('reports').update(data).eq('id', id);
+  }
+
+  static Future<void> verifyItem(String tableName, String id) async {
     final userId = client.auth.currentUser?.id;
     if (userId == null) throw 'User not authenticated';
 
@@ -973,10 +987,10 @@ class SupabaseService {
         // Executive/Telecaller only sees pending deliveries sent TO them
         query = query.eq('executive_id', user.id).eq('transaction_type', 'DELIVERY');
       } else if (role == 'store') {
-        // Store only sees pending returns sent TO the store
-        query = query.eq('transaction_type', 'RETURN');
+        // Store sees pending returns sent TO the store AND product requests
+        query = query.inFilter('transaction_type', ['RETURN', 'REQUEST']);
       } else {
-        // Admin sees all pending deliveries and returns
+        // Admin sees all pending deliveries, returns, and requests
       }
 
       final response = await query.order('created_at', ascending: false);
@@ -1038,6 +1052,14 @@ class SupabaseService {
     await client.from('store_transactions').update({
       'status': status,
       'accepted_at': status == 'ACCEPTED' ? DateTime.now().toIso8601String() : null,
+    }).eq('id', id);
+  }
+
+  static Future<void> approveProductRequest(String id) async {
+    // When a request is approved, it turns into a PENDING DELIVERY
+    await client.from('store_transactions').update({
+      'transaction_type': 'DELIVERY',
+      'status': 'PENDING',
     }).eq('id', id);
   }
 

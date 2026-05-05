@@ -168,12 +168,21 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   }
 
   void _openAcceptanceScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ExecutiveStockAcceptanceScreen(),
-      ),
-    ).then((_) => _refreshData());
+    if (_userRole == 'executive' || _userRole == 'telecaller') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ExecutiveStockAcceptanceScreen(),
+        ),
+      ).then((_) => _refreshData());
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const StoreStockReturnAcceptanceScreen(),
+        ),
+      ).then((_) => _refreshData());
+    }
   }
 
   @override
@@ -859,6 +868,14 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                         Colors.green,
                         _openAcceptanceScreen,
                         badgeCount: _pendingCount,
+                      ),
+                      const SizedBox(width: 12),
+                      _hifiActionTile(
+                        'Request',
+                        'Need product',
+                        Icons.add_shopping_cart_rounded,
+                        Colors.blue,
+                        () => _openTransactionForm('REQUEST'),
                       ),
                       const SizedBox(width: 12),
                       _hifiActionTile(
