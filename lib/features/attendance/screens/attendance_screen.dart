@@ -24,7 +24,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Map<String, dynamic>? _todayAttendance;
   Position? _currentPosition;
   String _currentAddress = 'Fetching location...';
-  File? _image;
+  XFile? _image;
   final _picker = ImagePicker();
   bool _isSubmitting = false;
   Map<String, dynamic>? _activeTrip;
@@ -36,7 +36,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final _odoController = TextEditingController();
   String? _selectedVehicle;
   String? _selectedOwnership;
-  File? _odoImage;
+  XFile? _odoImage;
   String? _odoImageUrl;
 
   @override
@@ -168,7 +168,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         maxHeight: 1024,
       );
       if (pickedFile != null) {
-        setState(() => _image = File(pickedFile.path));
+        setState(() => _image = pickedFile);
       }
     } catch (e) {
       if (mounted) {
@@ -253,7 +253,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       imageQuality: 50,
     );
     if (photo != null) {
-      setState(() => _odoImage = File(photo.path));
+      setState(() => _odoImage = photo);
     }
   }
 
@@ -525,10 +525,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 _image != null
                                     ? ClipRRect(
                                       borderRadius: BorderRadius.circular(22),
-                                      child: Image.file(
-                                        _image!,
-                                        fit: BoxFit.cover,
-                                      ),
+                                      child: kIsWeb
+                                          ? Image.network(
+                                              _image!.path,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Image.file(
+                                              File(_image!.path),
+                                              fit: BoxFit.cover,
+                                            ),
                                     )
                                     : isCompleted
                                     ? const Center(
@@ -847,7 +852,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             child: _odoImage != null
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.file(_odoImage!, fit: BoxFit.cover),
+                    child: kIsWeb
+                        ? Image.network(
+                            _odoImage!.path,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.file(
+                            File(_odoImage!.path),
+                            fit: BoxFit.cover,
+                          ),
                   )
                 : const Center(
                     child: Column(
@@ -929,7 +942,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             child: _odoImage != null
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.file(_odoImage!, fit: BoxFit.cover),
+                    child: kIsWeb
+                        ? Image.network(
+                            _odoImage!.path,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.file(
+                            File(_odoImage!.path),
+                            fit: BoxFit.cover,
+                          ),
                   )
                 : const Center(
                     child: Column(
