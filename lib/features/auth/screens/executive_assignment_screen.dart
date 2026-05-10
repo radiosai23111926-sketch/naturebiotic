@@ -163,7 +163,7 @@ class _ExecutiveAssignmentScreenState extends State<ExecutiveAssignmentScreen> {
                           ),
                           trailing: Switch(
                             value: isAssignedToThisExecutive,
-                            activeThumbColor: AppColors.primary,
+                            activeColor: AppColors.primary,
                             onChanged: (value) => _toggleAssignment(farm),
                           ),
                           onTap: () => _toggleAssignment(farm),

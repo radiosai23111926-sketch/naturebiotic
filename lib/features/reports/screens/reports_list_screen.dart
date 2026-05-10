@@ -301,6 +301,11 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                           ).then((_) => _loadReports());
                         },
                       ),
+                    if (_userRole == 'admin')
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                        onPressed: () => _handleDeleteReport(report),
+                      ),
                     const Icon(
                       Icons.chevron_right_rounded,
                       color: AppColors.primary,
@@ -327,5 +332,43 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleDeleteReport(Map<String, dynamic> report) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Report'),
+        content: const Text('Are you sure you want to delete this analysis report?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteRecord('reports', report['id']);
+        _loadReports();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Report deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 }

@@ -309,6 +309,9 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                                   categoryColor: _getCategoryColor(farmer['category']),
                                   isVerified: farmer['is_verified'] == true,
                                   isGrid: true,
+                                  isAdmin: _userRole == 'admin',
+                                  onEdit: () => _handleEditFarmer(farmer),
+                                  onDelete: () => _handleDeleteFarmer(farmer),
                                   onTap: () async {
                                     final result = await Navigator.push(
                                       context,
@@ -344,6 +347,9 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                                 category: farmer['category'] ?? 'Warm',
                                 categoryColor: _getCategoryColor(farmer['category']),
                                 isVerified: farmer['is_verified'] == true,
+                                isAdmin: _userRole == 'admin',
+                                onEdit: () => _handleEditFarmer(farmer),
+                                onDelete: () => _handleDeleteFarmer(farmer),
                                 onTap: () async {
                                   final result = await Navigator.push(
                                     context,
@@ -399,6 +405,59 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
             ),
           ),
     );
+  }
+
+  Future<void> _handleEditFarmer(Map<String, dynamic> farmer) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddFarmerScreen(farmer: farmer),
+      ),
+    );
+    if (result != null) {
+      _loadFarmers();
+    }
+  }
+
+  Future<void> _handleDeleteFarmer(Map<String, dynamic> farmer) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Farmer'),
+        content: Text('Are you sure you want to delete "${farmer['name']}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteFarmer(farmer['id'].toString());
+        _loadFarmers();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Farmer deleted successfully'), backgroundColor: AppColors.primary),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting farmer: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -466,7 +525,10 @@ class FarmerCard extends StatelessWidget {
   final Color categoryColor;
   final bool isVerified;
   final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
   final bool isGrid;
+  final bool isAdmin;
 
   const FarmerCard({
     super.key,
@@ -477,7 +539,10 @@ class FarmerCard extends StatelessWidget {
     required this.categoryColor,
     this.isVerified = true,
     this.onTap,
+    this.onEdit,
+    this.onDelete,
     this.isGrid = false,
+    this.isAdmin = false,
   });
 
   String _getInitials(String name) {
@@ -527,7 +592,39 @@ class FarmerCard extends StatelessWidget {
         _buildAvatar(),
         const SizedBox(width: 20),
         Expanded(child: _buildDetails(isGrid: false)),
-        _buildChevron(),
+        if (isAdmin) _buildAdminMenu() else _buildChevron(),
+      ],
+    );
+  }
+
+  Widget _buildAdminMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded, color: AppColors.primary),
+      onSelected: (value) {
+        if (value == 'edit') onEdit?.call();
+        if (value == 'delete') onDelete?.call();
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_rounded, size: 20, color: Colors.blue),
+              SizedBox(width: 12),
+              Text('Edit'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Delete', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
       ],
     );
   }

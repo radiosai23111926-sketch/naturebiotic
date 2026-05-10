@@ -689,27 +689,32 @@ class _ManagerExpenseControlState extends State<ManagerExpenseControl> {
                           if (expense['return_status'] == 'PENDING') ...[
                             const SizedBox(width: 8),
                             ElevatedButton(
-                              onPressed:
-                                  () => _approveReturn(expense['id'], isClaim),
+                              onPressed: () => _approveReturn(expense['id'], isClaim),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    isClaim ? Colors.orange : Colors.green,
+                                backgroundColor: isClaim ? Colors.orange : Colors.green,
                                 foregroundColor: Colors.white,
                                 minimumSize: const Size(0, 36),
                                 elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
-                              child: Text(
-                                isClaim ? 'Approve' : 'Accept',
-                                style: const TextStyle(fontSize: 11),
-                              ),
+                              child: Text(isClaim ? 'Approve' : 'Accept', style: const TextStyle(fontSize: 11)),
                             ),
                           ],
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            onSelected: (val) {
+                              if (val == 'delete') _deleteExpense(expense);
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textGray),
+                            padding: EdgeInsets.zero,
+                          ),
                         ],
                       ),
                     ),
@@ -742,32 +747,38 @@ class _ManagerExpenseControlState extends State<ManagerExpenseControl> {
         String date = 'N/A';
         if (e['created_at'] != null) {
           try {
-            date = DateFormat(
-              'dd MMM yyyy',
-            ).format(DateTime.parse(e['created_at']));
+            date = DateFormat('dd MMM yyyy').format(DateTime.parse(e['created_at']));
           } catch (_) {}
         }
 
-        final returnAmount =
-            double.tryParse(e['return_amount']?.toString() ?? '0') ?? 0.0;
+        final returnAmount = double.tryParse(e['return_amount']?.toString() ?? '0') ?? 0.0;
 
         return Card(
           child: ListTile(
-            onTap:
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ExpenseDetailScreen(expense: e),
-                  ),
-                ).then((value) {
-                  if (value == true) _loadData();
-                }),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ExpenseDetailScreen(expense: e)),
+            ).then((value) {
+              if (value == true) _loadData();
+            }),
             title: Text(e['profiles']?['full_name'] ?? 'Unknown'),
             subtitle: Text('₹${e['amount_allotted'] ?? 0} • $date'),
-            trailing: _statusChip(
-              e['status'],
-              e['return_status'],
-              returnAmount,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _statusChip(e['status'], e['return_status'], returnAmount),
+                PopupMenuButton<String>(
+                  onSelected: (val) {
+                    if (val == 'delete') _deleteExpense(e);
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -866,6 +877,44 @@ class _ManagerExpenseControlState extends State<ManagerExpenseControl> {
       } catch (e) {
         setState(() => _isLoading = false);
         if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteExpense(Map<String, dynamic> expense) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Expense Record'),
+        content: const Text('Are you sure you want to delete this expense record? This action is permanent.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteRecord('expenses', expense['id']);
+        _loadData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Expense deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
           );

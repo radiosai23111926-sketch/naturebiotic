@@ -400,6 +400,48 @@ class _ExecutiveListScreenState extends State<ExecutiveListScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+                _optionItem(
+                  Icons.person_remove_rounded,
+                  'Delete Account',
+                  'Permanently remove this user account',
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Account?'),
+                        content: const Text('This will permanently delete this user account. This action cannot be undone.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      try {
+                        await SupabaseService.deleteRecord('profiles', member['id']);
+                        _loadTeamMembers();
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Account deleted successfully')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),

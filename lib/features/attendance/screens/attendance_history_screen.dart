@@ -17,6 +17,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _attendanceLogs = [];
   DateTime _selectedDate = DateTime.now();
+  String? _userRole;
 
   @override
   void initState() {
@@ -62,6 +63,13 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             return t2.compareTo(t1);
           });
         });
+
+        final profile = await SupabaseService.getProfile();
+        if (mounted) {
+          setState(() {
+            _userRole = profile?['role'];
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error loading history: $e');
@@ -139,7 +147,20 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(DateFormat('MMM dd, yyyy').format(checkIn), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      _statusBadge(checkOut != null),
+                      Row(
+                        children: [
+                          _statusBadge(checkOut != null),
+                          if (_userRole == 'admin') ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                              onPressed: () => _deleteLog(log),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -421,5 +442,38 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         Text(time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       ],
     );
+  }
+
+  Future<void> _deleteLog(Map<String, dynamic> log) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Log'),
+        content: const Text('Are you sure you want to delete this attendance record?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteRecord('attendance', log['id']);
+        _loadData();
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 }

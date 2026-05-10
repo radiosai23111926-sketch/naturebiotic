@@ -620,7 +620,7 @@ class _AddExpenseDialogContentState extends State<_AddExpenseDialogContent> {
             ),
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
-              initialValue: _category,
+              value: _category,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),

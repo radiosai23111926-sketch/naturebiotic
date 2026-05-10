@@ -261,9 +261,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+    });
+
     try {
       final isCheckIn = _todayAttendance == null;
+
+      if (isCheckIn) {
+        // Mandatory offline data sync during check-in
+        try {
+          await SupabaseService.syncAllDropdownOptions();
+        } catch (e) {
+          debugPrint('Sync failed during check-in: $e');
+        }
+      }
+
       final fileName =
           '${SupabaseService.client.auth.currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -519,9 +532,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                               ),
                               child:
                                   _isSubmitting
-                                      ? const CircularProgressIndicator(
-                                        color: Colors.white,
-                                      )
+                                      ? Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              isCheckedIn ? 'Checking Out...' : 'Syncing & Checking In...',
+                                              style: const TextStyle(color: Colors.white),
+                                            ),
+                                          ],
+                                        )
                                       : Text(
                                         needsOdometer 
                                           ? 'Start Trip' 

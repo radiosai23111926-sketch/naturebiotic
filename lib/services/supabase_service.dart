@@ -498,11 +498,6 @@ class SupabaseService {
     }
   }
 
-  // Generic Delete Record
-  static Future<void> deleteRecord(String tableName, String id) async {
-    await client.from(tableName).delete().eq('id', id);
-  }
-
   // Generic Verify Record
   static Future<void> updateReport(String id, Map<String, dynamic> data) async {
     await client.from('reports').update(data).eq('id', id);
@@ -562,7 +557,19 @@ class SupabaseService {
   }
 
   static Future<void> deleteFarm(dynamic id) async {
-    await client.from('farms').delete().eq('id', id);
+    final hasInternet = await Connectivity().checkConnectivity().then((res) => !res.every((r) => r == ConnectivityResult.none));
+    
+    if (!kIsWeb && !hasInternet) {
+      await LocalDatabaseService.deleteAndQueue(tableName: 'farms', id: id.toString());
+      SyncManager().sync();
+    } else {
+      await client.from('farms').delete().eq('id', id);
+      if (!kIsWeb) {
+        await LocalDatabaseService.database.then((db) {
+          db?.delete('farms', where: 'id = ?', whereArgs: [id.toString()]);
+        });
+      }
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getFarmsByFarmer(dynamic farmerId) async {
@@ -2278,5 +2285,17 @@ class SupabaseService {
     final cleaned = Map<String, dynamic>.from(data);
     cleaned.removeWhere((key, _) => key.startsWith('_'));
     return cleaned;
+  }
+
+  // --- Admin Management Methods ---
+
+  /// Deletes a record from any table by ID. Restricted to admins via RLS.
+  static Future<void> deleteRecord(String table, dynamic id) async {
+    await client.from(table).delete().eq('id', id);
+  }
+
+  /// Updates a record in any table by ID. Restricted to admins via RLS.
+  static Future<void> updateRecord(String table, dynamic id, Map<String, dynamic> data) async {
+    await client.from(table).update(_cleanPayload(data)).eq('id', id);
   }
 }

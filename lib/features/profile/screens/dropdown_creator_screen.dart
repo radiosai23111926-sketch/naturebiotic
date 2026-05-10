@@ -642,7 +642,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                             ),
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
-                              initialValue: _selectedType,
+                              value: _selectedType,
                               decoration: const InputDecoration(
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -829,7 +829,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<int>(
-                                initialValue: _selectedParentId,
+                                value: _selectedParentId,
                                 decoration: const InputDecoration(
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -865,7 +865,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<int>(
-                                initialValue: _selectedSubParentId,
+                                value: _selectedSubParentId,
                                 decoration: const InputDecoration(
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16,

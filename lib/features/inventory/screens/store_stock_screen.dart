@@ -1630,10 +1630,75 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 tooltip: 'Edit Rejected Delivery',
               ),
             ],
+            if (_userRole == 'admin') ...[
+              const SizedBox(width: 8),
+              PopupMenuButton<String>(
+                onSelected: (val) {
+                  if (val == 'delete') _deleteTransaction(tx);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                        SizedBox(width: 12),
+                        Text('Delete', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ],
+                icon: const Icon(Icons.more_vert_rounded, color: AppColors.textGray),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _deleteTransaction(Map<String, dynamic> tx) async {
+    final isField = tx['_source'] == 'field';
+    final tableName = isField ? 'stock_transactions' : 'store_transactions';
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Transaction'),
+        content: const Text('Are you sure you want to delete this transaction? This will permanently affect stock calculations.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteRecord(tableName, tx['id']);
+        _refreshData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Transaction deleted successfully'), backgroundColor: AppColors.primary),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildHero() {

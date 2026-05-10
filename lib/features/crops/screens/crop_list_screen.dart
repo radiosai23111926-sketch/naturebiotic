@@ -14,6 +14,7 @@ class CropListScreen extends StatefulWidget {
 class _CropListScreenState extends State<CropListScreen> {
   List<Map<String, dynamic>> _crops = [];
   bool _isLoading = true;
+  String? _userRole;
 
   @override
   void initState() {
@@ -24,6 +25,9 @@ class _CropListScreenState extends State<CropListScreen> {
   Future<void> _loadCrops() async {
     setState(() => _isLoading = true);
     try {
+      final profile = await SupabaseService.getProfile();
+      _userRole = profile?['role'];
+      
       final crops = await SupabaseService.getAllCrops();
       if (mounted) {
         setState(() {
@@ -87,6 +91,8 @@ class _CropListScreenState extends State<CropListScreen> {
                                     expectedYield:
                                         crop['expected_yield'] ?? 'N/A',
                                     farmName: farmName,
+                                    isAdmin: _userRole == 'admin',
+                                    onDelete: () => _handleDeleteCrop(crop),
                                     onTap: () {
                                       Navigator.push(
                                         context,
@@ -128,6 +134,44 @@ class _CropListScreenState extends State<CropListScreen> {
       ),
     );
   }
+
+  Future<void> _handleDeleteCrop(Map<String, dynamic> crop) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Crop'),
+        content: Text('Are you sure you want to delete "${crop['name']}" variety of "${crop['variety']}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteRecord('farm_crops', crop['id']);
+        _loadCrops();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Crop deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
 }
 
 class CropCard extends StatelessWidget {
@@ -137,6 +181,8 @@ class CropCard extends StatelessWidget {
   final String expectedYield;
   final String farmName;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
+  final bool isAdmin;
 
   const CropCard({
     super.key,
@@ -146,6 +192,8 @@ class CropCard extends StatelessWidget {
     required this.expectedYield,
     required this.farmName,
     required this.onTap,
+    this.onDelete,
+    this.isAdmin = false,
   });
 
   @override
@@ -214,10 +262,24 @@ class CropCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.primary,
-                ),
+                if (isAdmin)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, color: AppColors.primary),
+                    onSelected: (val) {
+                      if (val == 'delete') onDelete?.call();
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  )
+                else
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.primary,
+                  ),
               ],
             ),
             const SizedBox(height: 20),
