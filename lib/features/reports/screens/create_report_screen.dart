@@ -97,9 +97,21 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFarms();
-    _fetchProblemData();
-    _addRecommendationRow();
+    _initializeAll();
+  }
+
+  Future<void> _initializeAll() async {
+    await _loadFarms();
+    await _fetchProblemData();
+    
+    // Attempt to load local draft and restore form state
+    await _loadDraft();
+
+    // If still empty after draft loading, ensure at least one row exists
+    if (_recommendationsList.isEmpty) {
+      _addRecommendationRow();
+    }
+
     if (widget.preSelectedCropId != null) {
       _loadCropDetails(widget.preSelectedCropId!);
     }
@@ -283,8 +295,22 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           _currentStep = 1;
         }
       } else {
-        _selectedCropId = null;
-        _suggestedProblems = [];
+        // If draft loading restored a cropId, don't clear it unless invalid for this farm
+        final bool isCurrentStillValid = crops.any((c) => c['id'].toString() == _selectedCropId);
+        if (!isCurrentStillValid) {
+          _selectedCropId = null;
+          _suggestedProblems = [];
+        } else {
+          // If valid, re-trigger suggested problems for this preserved selection
+          final crop = _crops.firstWhere(
+            (c) => c['id'].toString() == _selectedCropId,
+            orElse: () => {},
+          );
+          if (crop.isNotEmpty && crop['dropdown_options'] != null) {
+            final cropIntId = int.tryParse(crop['dropdown_options']['id'].toString());
+            if (cropIntId != null) _loadSuggestedProblems(cropIntId);
+          }
+        }
       }
     });
   }
@@ -559,6 +585,162 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     };
   }
 
+  Future<void> _saveDraft() async {
+    try {
+      final draft = {
+        'step': _currentStep,
+        'farmId': _selectedFarmId,
+        'cropId': _selectedCropId,
+        'problems': _selectedProblems.toList(),
+        'notes': _additionalNotesController.text,
+        'nextVisit': _nextVisitDate?.toIso8601String(),
+        'prevInputs': _previousInputsMap.map(
+          (k, v) => MapEntry(
+            k,
+            v
+                .map(
+                  (r) => {
+                    'text': r.controller.text,
+                    'date': r.date?.toIso8601String(),
+                  },
+                )
+                .toList(),
+          ),
+        ),
+        'recs': _recommendationsList
+            .map(
+              (r) => {
+                'prod': r.product.text,
+                'app': r.application.text,
+                'dose': r.dose.text,
+                'doseU': r.doseUnit,
+                'perU': r.perUnit,
+                'fill': r.filler.text,
+                'fillQ': r.fillerQty.text,
+                'fillU': r.fillerUnit,
+              },
+            )
+            .toList(),
+        'cost': _costEstimations
+            .map(
+              (c) => {
+                'name': c.productName,
+                'pkg': c.pkgSize.text,
+                'qty': c.qty.text,
+                'mrp': c.mrp.text,
+                'off': c.offerPrice.text,
+              },
+            )
+            .toList(),
+      };
+      await LocalDatabaseService.saveCache('visit_report_draft', [draft]);
+    } catch (e) {
+      debugPrint('Error saving draft: $e');
+    }
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      final cache = await LocalDatabaseService.getCache('visit_report_draft');
+      if (cache != null && cache.isNotEmpty) {
+        final data = cache.first;
+        setState(() {
+          _currentStep = data['step'] ?? 0;
+          _selectedFarmId = data['farmId'];
+          _selectedCropId = data['cropId'];
+          _additionalNotesController.text = data['notes'] ?? '';
+          
+          if (data['nextVisit'] != null) {
+            _nextVisitDate = DateTime.tryParse(data['nextVisit']);
+          }
+
+          final List<dynamic>? loadedProbs = data['problems'];
+          if (loadedProbs != null) {
+            _selectedProblems.addAll(loadedProbs.whereType<String>());
+          }
+
+          // Restore Previous Inputs
+          final dynamic prevRaw = data['prevInputs'];
+          if (prevRaw != null && prevRaw is Map) {
+            _previousInputsMap = {};
+            prevRaw.forEach((key, list) {
+              if (list is List) {
+                _previousInputsMap[key.toString()] = list.map((item) {
+                  final row = PreviousInputRow();
+                  if (item is Map) {
+                    row.controller.text = item['text'] ?? '';
+                    if (item['date'] != null) {
+                      row.date = DateTime.tryParse(item['date']);
+                    }
+                  }
+                  return row;
+                }).toList();
+              }
+            });
+          }
+
+          // Restore Recommendations
+          final dynamic recsRaw = data['recs'];
+          if (recsRaw != null && recsRaw is List) {
+            _recommendationsList.clear();
+            for (var item in recsRaw) {
+              if (item is Map) {
+                final r = RecommendationRow();
+                r.product.text = item['prod'] ?? '';
+                r.application.text = item['app'] ?? '';
+                r.dose.text = item['dose'] ?? '';
+                r.doseUnit = item['doseU'];
+                r.perUnit = item['perU'];
+                r.filler.text = item['fill'] ?? '';
+                r.fillerQty.text = item['fillQ'] ?? '';
+                r.fillerUnit = item['fillU'];
+                _recommendationsList.add(r);
+              }
+            }
+          }
+
+          // Restore Costs
+          final dynamic costRaw = data['cost'];
+          if (costRaw != null && costRaw is List) {
+            _costEstimations.clear();
+            for (var item in costRaw) {
+              if (item is Map) {
+                final c = CostEstimationRow(productName: item['name'] ?? '');
+                c.pkgSize.text = item['pkg'] ?? '';
+                c.qty.text = item['qty'] ?? '';
+                c.mrp.text = item['mrp'] ?? '';
+                c.offerPrice.text = item['off'] ?? '';
+                _costEstimations.add(c);
+              }
+            }
+          }
+        });
+
+        // Re-trigger async dependencies
+        if (_selectedFarmId != null) {
+          await _loadCrops(_selectedFarmId!);
+          if (_selectedCropId != null) {
+            await _loadCropDetails(_selectedCropId!);
+            await _loadLastReportData(_selectedFarmId!, _selectedCropId!);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading draft: $e');
+    }
+  }
+
+  Future<void> _clearDraft() async {
+    try {
+      await LocalDatabaseService.saveCache('visit_report_draft', []);
+    } catch (_) {}
+  }
+
+  Future<void> _onAttemptToLeave() async {
+    await _saveDraft();
+    if (mounted) Navigator.of(context).pop();
+  }
+
   void _resetCropStepData() {
     setState(() {
       _selectedCropId = null;
@@ -769,6 +951,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         SyncManager().sync();
       }
 
+      // Clear Draft after successful submission
+      await _clearDraft();
+
       if (mounted) {
         final farm = _farms.firstWhere((f) => f['id'] == _selectedFarmId, orElse: () => {});
         final farmerNameForPdf = farm['farmers']?['name'] ?? 'Valued Farmer';
@@ -814,9 +999,21 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       ],
     );
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Visit Report')),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _onAttemptToLeave();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('Visit Report'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _onAttemptToLeave,
+          ),
+        ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -824,6 +1021,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             type: StepperType.vertical,
             currentStep: _currentStep,
             onStepContinue: () {
+              _saveDraft(); // Safety snap-shot on each progression
               if (_currentStep < 5) {
                 if (_currentStep == 3) _syncCostEstimations();
                 setState(() => _currentStep += 1);
@@ -832,6 +1030,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               }
             },
             onStepCancel: () {
+              _saveDraft(); // Safety snap-shot on backtrack
               if (_currentStep > 0) {
                 setState(() => _currentStep -= 1);
               }
@@ -1377,6 +1576,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

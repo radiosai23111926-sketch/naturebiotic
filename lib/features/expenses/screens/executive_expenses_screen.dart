@@ -4,8 +4,6 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
-import 'package:nature_biotic/features/expenses/widgets/trip_widgets.dart';
 import 'package:uuid/uuid.dart';
 
 class ExecutiveExpenseDashboard extends StatefulWidget {

@@ -2,7 +2,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
 
 class PdfService {
@@ -726,190 +726,317 @@ class PdfService {
     required String cropName,
     required String transactionType,
     required DateTime date,
+    String? farmerAddress,
+    String? farmerContact,
+    String? dcNumber,
   }) async {
     final pdf = pw.Document();
     final font = await PdfGoogleFonts.robotoRegular();
     final boldFont = await PdfGoogleFonts.robotoBold();
 
-    final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(date);
+    final dateStr = DateFormat('dd MMM yyyy').format(date);
     double grandTotal = 0;
     for (var item in items) {
-      grandTotal +=
-          (item['price'] as double? ?? 0) * (item['quantity'] as double? ?? 0);
+      grandTotal += (item['price'] as double? ?? 0) * (item['quantity'] as double? ?? 0);
     }
 
+    // Load logo via rootBundle — the reliable way for PDF generation
+    pw.MemoryImage? logo;
+    try {
+      final ByteData data = await rootBundle.load('assets/logo.png');
+      logo = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      // Logo not available, render without it
+    }
+
+    // Helper: table cell widget
+    pw.Widget cell(String text, {
+      bool bold = false,
+      double fontSize = 10,
+      pw.Alignment align = pw.Alignment.center,
+      pw.EdgeInsets? padding,
+    }) {
+      return pw.Container(
+        padding: padding ?? const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 7),
+        alignment: align,
+        child: pw.Text(
+          text,
+          style: pw.TextStyle(font: bold ? boldFont : font, fontSize: fontSize),
+        ),
+      );
+    }
+
+    // Helper: label-value row (e.g. "D.C No  :  value")
+    // Uses Expanded so long values wrap cleanly without breaking alignment
+    pw.Widget labelValue(String label, String value, {double labelW = 70}) {
+      return pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: labelW,
+            child: pw.Text(label, style: pw.TextStyle(font: font, fontSize: 10)),
+          ),
+          pw.Text(':  ', style: pw.TextStyle(font: font, fontSize: 10)),
+          pw.Expanded(
+            child: pw.Text(value, style: pw.TextStyle(font: font, fontSize: 10)),
+          ),
+        ],
+      );
+    }
+
+    final int dataRows = items.length;
+    final int totalRows = dataRows < 15 ? 15 : dataRows;
+
     pdf.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
-        header:
-            (context) => pw.Column(
-              children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'NATURE BIOTIC',
-                          style: pw.TextStyle(
-                            fontSize: 24,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.green,
-                          ),
-                        ),
-                        pw.Text(
-                          'Delivery Challan',
-                          style: const pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.grey700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          'Date: $dateStr',
-                          style: const pw.TextStyle(fontSize: 9),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                pw.Divider(thickness: 1, color: PdfColors.grey300),
-                pw.SizedBox(height: 10),
-              ],
+        margin: const pw.EdgeInsets.all(20),
+        build: (pw.Context context) {
+          return pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 0.8),
             ),
-        build:
-            (context) => [
-              pw.Row(
-                children: [
-                      pw.Row(
-                        children: [
-                          _infoItem('FARMER NAME', farmerName),
-                          pw.SizedBox(width: 32),
-                          _infoItem('FARM NAME', farmName),
-                          pw.SizedBox(width: 32),
-                          _infoItem('CROP NAME', cropName),
-                        ],
-                      ),
-                ],
-              ),
-              pw.SizedBox(height: 20),
-              pw.TableHelper.fromTextArray(
-                headerStyle: pw.TextStyle(
-                  fontSize: 10,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.green700,
-                ),
-                cellStyle: const pw.TextStyle(fontSize: 9),
-                columnWidths: {
-                  0: const pw.FixedColumnWidth(30),
-                  1: const pw.FlexColumnWidth(3),
-                  2: const pw.FlexColumnWidth(1),
-                  3: const pw.FlexColumnWidth(1),
-                  4: const pw.FlexColumnWidth(1),
-                  5: const pw.FlexColumnWidth(1),
-                },
-                data: <List<String>>[
-                  ['S.No', 'Item Name', 'Size', 'Qty', 'Rate', 'Amount'],
-                  ...items.asMap().entries.map((entry) {
-                    final idx = entry.key + 1;
-                    final item = entry.value;
-                    final qty = item['quantity'] as double? ?? 0;
-                    final price = item['price'] as double? ?? 0;
-                    return [
-                      idx.toString(),
-                      item['name'] ?? 'Unknown',
-                      item['unit'] ?? 'N/A',
-                      qty.toString(),
-                      'Rs.${price.toStringAsFixed(2)}',
-                      'Rs.${(qty * price).toStringAsFixed(2)}',
-                    ];
-                  }),
-                ],
-              ),
-              pw.SizedBox(height: 20),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+
+                // ─── HEADER: Logo + Company Info | Delivery Challan title ──────────
+                pw.Container(
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      pw.Text(
-                        'TOTAL VALUE:',
-                        style: const pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey600,
+                      // Left side: logo + company details
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          padding: const pw.EdgeInsets.all(10),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                          ),
+                          child: pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              // Logo
+                              if (logo != null)
+                                pw.Container(
+                                  width: 72,
+                                  height: 72,
+                                  margin: const pw.EdgeInsets.only(right: 12),
+                                  child: pw.Image(logo),
+                                ),
+                              // Company text
+                              pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                mainAxisAlignment: pw.MainAxisAlignment.center,
+                                children: [
+                                  pw.Text('SAIRAM AGRI INPUTS',
+                                      style: pw.TextStyle(font: boldFont, fontSize: 12)),
+                                  pw.SizedBox(height: 3),
+                                  pw.Text('644C (1), Behind PACR Statue,',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                  pw.Text('Tenkasi Road, Rajapalayam - 626117.',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                  pw.Text('Tamil Nadu, India',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                  pw.Text('GSTIN 33EFZPS9942RIZT',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                  pw.Text('Contact No -',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                  pw.Text('E-mail -',
+                                      style: pw.TextStyle(font: font, fontSize: 8.5)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      pw.Text(
-                        'Rs.${grandTotal.toStringAsFixed(2)}',
-                        style: pw.TextStyle(
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.green900,
+                      // Right side: Delivery Challan title (centered)
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Container(
+                          alignment: pw.Alignment.center,
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+                          child: pw.Text(
+                            'Delivery Challan',
+                            style: pw.TextStyle(font: boldFont, fontSize: 22),
+                            textAlign: pw.TextAlign.center,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              pw.Spacer(),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(10),
-                decoration: const pw.BoxDecoration(
-                  color: PdfColors.grey50,
-                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                 ),
-                child: pw.Text(
-                  'Declaration: This is a computer generated document. It confirms that the above mentioned items have been ${transactionType.toLowerCase()} by the farm representative.',
-                  style: pw.TextStyle(
-                    fontSize: 8,
-                    fontStyle: pw.FontStyle.italic,
+
+                // ─── DC NO / DATE  |  PLACE OF SUPPLY ───────────────────────────
+                pw.Container(
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 1,
+                        child: pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                          ),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              labelValue('D.C No', dcNumber ?? ''),
+                              pw.SizedBox(height: 4),
+                              labelValue('D.C Date', dateStr),
+                            ],
+                          ),
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 1,
+                        child: pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: labelValue('Place of Supply', ''),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-        footer:
-            (context) => pw.Column(
-              children: [
-                pw.Divider(thickness: 1, color: PdfColors.grey300),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+
+                // ─── CUSTOMER INFO ────────────────────────────────────────────────
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      labelValue('Customer Name', farmerName, labelW: 100),
+                      pw.SizedBox(height: 3),
+                      labelValue('Address', farmerAddress ?? farmName, labelW: 100),
+                      pw.SizedBox(height: 3),
+                      labelValue('Contact No', farmerContact ?? '', labelW: 100),
+                    ],
+                  ),
+                ),
+
+                // ─── PRODUCT TABLE ────────────────────────────────────────────────
+                pw.Table(
+                  // Only vertical lines between columns — no horizontal lines between rows
+                  border: const pw.TableBorder(
+                    left: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                    right: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                    bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                    verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                  ),
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(38),
+                    1: const pw.FlexColumnWidth(3.5),
+                    2: const pw.FlexColumnWidth(2.0),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(2.0),
+                  },
                   children: [
-                    pw.Text(
-                      'Nature Biotic Stock Management System',
-                      style: pw.TextStyle(
-                        fontSize: 7,
-                        color: PdfColors.grey500,
+                    // Header row — has a bottom border to separate it from data
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
                       ),
+                      children: [
+                        cell('S.No', bold: true, fontSize: 11),
+                        cell('Product Name', bold: true, fontSize: 11),
+                        cell('Package Size', bold: true, fontSize: 11),
+                        cell('Quantity', bold: true, fontSize: 11),
+                        cell('Sale Value', bold: true, fontSize: 11),
+                      ],
                     ),
-                    pw.Text(
-                      'Page ${context.pageNumber} of ${context.pagesCount}',
-                      style: const pw.TextStyle(
-                        fontSize: 7,
-                        color: PdfColors.grey500,
-                      ),
+                    // Data rows + empty filler rows (NO lines between them)
+                    ...List.generate(totalRows, (i) {
+                      if (i < dataRows) {
+                        final item = items[i];
+                        final qty = item['quantity'] as double? ?? 0;
+                        final price = item['price'] as double? ?? 0;
+                        final total = qty * price;
+                        return pw.TableRow(
+                          children: [
+                            cell('${i + 1}'),
+                            cell(item['name'] ?? '', align: pw.Alignment.centerLeft),
+                            cell(item['unit'] ?? ''),
+                            cell(qty % 1 == 0 ? qty.toInt().toString() : qty.toString()),
+                            cell(total.toStringAsFixed(2), align: pw.Alignment.centerRight),
+                          ],
+                        );
+                      }
+                      // Empty filler row
+                      return pw.TableRow(
+                        children: List.generate(5, (_) => cell('', padding: const pw.EdgeInsets.symmetric(vertical: 10))),
+                      );
+                    }),
+                  ],
+                ),
+
+                // ─── TOTAL ROW ────────────────────────────────────────────────────
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(38),
+                    1: const pw.FlexColumnWidth(3.5),
+                    2: const pw.FlexColumnWidth(2.0),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(2.0),
+                  },
+                  children: [
+                    pw.TableRow(
+                      children: [
+                        cell(''),
+                        cell('Total', bold: true, fontSize: 11),
+                        cell(''),
+                        cell(''),
+                        cell(grandTotal.toStringAsFixed(2), bold: true, align: pw.Alignment.centerRight),
+                      ],
                     ),
                   ],
                 ),
+
+                // ─── FOOTER: Terms | Authorized Signature | Bank Details ──────────
+                pw.Container(
+                  height: 90,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(top: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                  ),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Terms and Conditions',
+                              style: pw.TextStyle(font: boldFont, fontSize: 9)),
+                          pw.Text('Authorized Signature',
+                              style: pw.TextStyle(font: boldFont, fontSize: 11)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Text('Bank Details',
+                          style: pw.TextStyle(font: boldFont, fontSize: 9)),
+                    ],
+                  ),
+                ),
               ],
             ),
+          );
+        },
       ),
     );
 
+    final nameFormatted = farmName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     await Printing.sharePdf(
       bytes: await pdf.save(),
-      filename:
-          'NatureBiotic_Challan_${farmName.replaceAll(' ', '_')}_${DateFormat('ddMMMyy').format(date)}.pdf',
+      filename: 'DeliveryChallan_${nameFormatted}_${DateFormat('ddMMMyy').format(date)}.pdf',
     );
   }
 

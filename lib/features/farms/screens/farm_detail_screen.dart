@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:nature_biotic/core/call_tracker.dart';
 import 'dart:convert';
+import 'package:nature_biotic/features/profile/screens/edit_request_dialog.dart';
 
 class FarmDetailScreen extends StatefulWidget {
   final Map<String, dynamic> farm;
@@ -264,22 +265,39 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Registration Date', 
-                              style: GoogleFonts.outfit(
-                                color: Colors.white.withOpacity(0.8), 
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              )
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _farm['name'] ?? 'Farm Record',
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 22,
+                                      letterSpacing: -0.5,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (_farm['is_verified'] == true) ...[
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildRiseTokenButton(),
+                                ],
+                              ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
-                              _formatDate(_farm['created_at']), 
+                              'Registered: ${_formatDate(_farm['created_at'])}',
                               style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800, 
-                                fontSize: 20,
-                              )
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -513,6 +531,15 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
                         _infoCard(Icons.waves_rounded, 'Source', _farm['water_source'] ?? 'N/A'),
                         _infoCard(Icons.inventory_2_rounded, 'Qty', _farm['water_quantity'] ?? 'N/A'),
                         _infoCard(Icons.bolt_rounded, 'Power', _farm['power_source'] ?? 'N/A'),
+                        _infoCard(
+                          Icons.layers_rounded, 
+                          'Strategy', 
+                          (_farm['intercrop']?.toString() == 'Yes' 
+                              ? 'Intercrop' 
+                              : _farm['intercrop']?.toString() == 'No' 
+                                  ? 'Normal' 
+                                  : (_farm['intercrop'] ?? 'Normal'))
+                        ),
                         if (_farm['report_url'] != null && _farm['report_url'].toString().isNotEmpty)
                           GestureDetector(
                             onTap: () async {
@@ -889,6 +916,52 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
     } catch (_) {
       return dateStr.toString();
     }
+  }
+
+  Widget _buildRiseTokenButton() {
+    return TextButton.icon(
+      onPressed: () {
+        EditRequestDialog.show(
+          context,
+          entityType: 'farms',
+          entityId: _farm['id'].toString(),
+          currentData: _farm,
+          fieldMap: {
+            'name': 'Farm Name',
+            'area': 'Area (Acres)',
+            'soil_type': 'Soil Type',
+            'irrigation_type': 'Irrigation Type',
+            'water_source': 'Water Source',
+            'water_quantity': 'Water Quantity',
+            'power_source': 'Power Source',
+            'landmark': 'Landmark',
+            'intercrop': 'Intercrop Strategy',
+          },
+        );
+      },
+      icon: const Icon(
+        Icons.add_alert_rounded,
+        size: 14,
+        color: Colors.orangeAccent,
+      ),
+      label: const Text(
+        'Rise Token',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 11,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.orange.withOpacity(0.2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.orange.withOpacity(0.5)),
+        ),
+      ),
+    );
   }
 }
 

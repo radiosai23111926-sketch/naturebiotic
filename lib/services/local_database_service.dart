@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalDatabaseService {
   static Database? _database;
@@ -710,30 +711,50 @@ class LocalDatabaseService {
   // ============================================================
 
   /// Save a list of records to the local cache under a given key.
+  /// Uses SharedPreferences as fallback when SQLite is unavailable (e.g. on Web)
   static Future<void> saveCache(
     String key,
     List<Map<String, dynamic>> data,
   ) async {
     final db = await database;
-    if (db == null) return;
+    final timestamp = DateTime.now().toIso8601String();
+    final payload = jsonEncode(data);
+
+    if (db == null) {
+      // Web / Fallback Path
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cache_$key', payload);
+      await prefs.setString('cache_ts_$key', timestamp);
+      return;
+    }
+
     await db.insert('cached_data', {
       'cache_key': key,
-      'payload': jsonEncode(data),
-      'cached_at': DateTime.now().toIso8601String(),
+      'payload': payload,
+      'cached_at': timestamp,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// Retrieve cached records by key. Returns null if no cache exists.
   static Future<List<Map<String, dynamic>>?> getCache(String key) async {
     final db = await database;
-    if (db == null) return null;
-    final results = await db.query(
-      'cached_data',
-      where: 'cache_key = ?',
-      whereArgs: [key],
-    );
-    if (results.isEmpty) return null;
-    final raw = results.first['payload'] as String?;
+    String? raw;
+
+    if (db == null) {
+      // Web / Fallback Path
+      final prefs = await SharedPreferences.getInstance();
+      raw = prefs.getString('cache_$key');
+    } else {
+      final results = await db.query(
+        'cached_data',
+        where: 'cache_key = ?',
+        whereArgs: [key],
+      );
+      if (results.isNotEmpty) {
+        raw = results.first['payload'] as String?;
+      }
+    }
+
     if (raw == null) return null;
     try {
       final decoded = jsonDecode(raw) as List;
@@ -746,7 +767,11 @@ class LocalDatabaseService {
   /// Returns the ISO timestamp of when the cache was last written.
   static Future<String?> getCacheTimestamp(String key) async {
     final db = await database;
-    if (db == null) return null;
+    if (db == null) {
+      // Web / Fallback Path
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('cache_ts_$key');
+    }
     final results = await db.query(
       'cached_data',
       columns: ['cached_at'],

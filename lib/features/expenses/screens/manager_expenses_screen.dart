@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/features/expenses/screens/expense_detail_screen.dart';
 import 'package:nature_biotic/services/pdf_service.dart';

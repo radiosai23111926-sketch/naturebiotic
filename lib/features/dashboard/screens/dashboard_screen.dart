@@ -25,6 +25,7 @@ import 'package:nature_biotic/features/reports/screens/report_generator_screen.d
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nature_biotic/features/expenses/widgets/trip_widgets.dart';
+import 'package:nature_biotic/features/dashboard/screens/admin_edit_requests_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -76,6 +77,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<Map<String, dynamic>> _allCollections = [];
   List<Map<String, dynamic>> _recentActivities = [];
   List<Map<String, dynamic>> _filteredTransactions = [];
+  List<Map<String, dynamic>> _filteredCollections = [];
   List<Map<String, dynamic>> _reminders = [];
 
   // Scroll & Animation Logic
@@ -139,9 +141,19 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       List<Map<String, dynamic>> localTransactions = [];
       if (!kIsWeb) {
-        localTransactions = await LocalDatabaseService.getData(
+        var rawLocal = await LocalDatabaseService.getData(
           'stock_transactions',
         );
+        // Filter raw local data if user is restricted role to ensure multi-user device isolation
+        if (isExecutive || isTelecaller) {
+          final uid = SupabaseService.client.auth.currentUser?.id?.toLowerCase();
+          rawLocal = rawLocal.where((t) {
+            final execId = t['executive_id']?.toString().toLowerCase();
+            // Keep it ONLY if it explicitly belongs to this user's ID
+            return execId == uid;
+          }).toList();
+        }
+        localTransactions = rawLocal;
       }
 
       // Merge transactions correctly to avoid duplicates and preserve local-only data (collected_amount)
@@ -254,13 +266,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           // DELIVERED is just field usage (consumption) and doesn't affect billing.
           final isRelevant = type == 'RECEIVED' || type == 'RETURN';
           final periodOk = _isInPeriod(tx, startDate, endDate);
-          if (!_isAdmin) {
+          if (_isExecutive || _isTelecaller) {
             // Robust executive check: handle strings, cases, and pending locals
             final txExecId = tx['executive_id']?.toString().toLowerCase();
             final currentId = currentUserId?.toString().toLowerCase();
-            final isOwner =
-                txExecId == currentId ||
-                (tx['status'] == 'PENDING' && txExecId == null);
+            final isOwner = txExecId == currentId;
             return isRelevant && periodOk && isOwner;
           }
           return isRelevant && periodOk;
@@ -310,22 +320,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     _totalItemsSold = itemsSold.toInt();
     _totalItemsReturned = itemsReturned.toInt();
 
-    // Calculate collections from dedicated farm_collections table
-    totalCollection = _allCollections
-        .where((c) {
-          final periodOk = _isInPeriod(c, startDate, endDate);
-          if (!_isAdmin) {
-            final creatorId = c['created_by']?.toString().toLowerCase();
-            final currentId = currentUserId?.toString().toLowerCase();
-            return periodOk && creatorId == currentId;
-          }
-          return periodOk;
-        })
-        .fold(
-          0.0,
-          (sum, c) =>
-              sum + (double.tryParse(c['amount']?.toString() ?? '0') ?? 0.0),
-        );
+    final validCollections = _allCollections.where((c) {
+      final periodOk = _isInPeriod(c, startDate, endDate);
+      if (_isExecutive || _isTelecaller) {
+        final creatorId = c['created_by']?.toString().toLowerCase();
+        final currentId = currentUserId?.toString().toLowerCase();
+        return periodOk && creatorId == currentId;
+      }
+      return periodOk;
+    }).toList();
+
+    _filteredCollections = validCollections;
+
+    totalCollection = validCollections.fold(
+      0.0,
+      (sum, c) =>
+          sum + (double.tryParse(c['amount']?.toString() ?? '0') ?? 0.0),
+    );
 
     _totalCollection = totalCollection;
     _totalOutstanding = _totalSalesRevenue - totalCollection;
@@ -898,6 +909,26 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _actionWrapper(
+        isWide,
+        delay: 850,
+        child: _workActionCard(
+          context,
+          title: 'Edit Info Requests',
+          subtitle: 'Review user correction proposals',
+          icon: Icons.edit_note_rounded,
+          color: Colors.orange,
+          fullWidth: true,
+          onTap:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminEditRequestsScreen(),
+                ),
+              ),
         ),
       ),
       const SizedBox(height: 16),
@@ -2105,7 +2136,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder:
                         (context) => FarmSalesListScreen(
-                          initialTransactions: _allTransactions,
+                          initialTransactions: _filteredTransactions,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'SALES',
@@ -2127,8 +2158,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder:
                         (context) => FarmSalesListScreen(
-                          initialTransactions: _allTransactions,
-                          initialCollections: _allCollections,
+                          initialTransactions: _filteredTransactions,
+                          initialCollections: _filteredCollections,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'SALES',
@@ -2154,8 +2185,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder:
                         (context) => FarmSalesListScreen(
-                          initialTransactions: _allTransactions,
-                          initialCollections: _allCollections,
+                          initialTransactions: _filteredTransactions,
+                          initialCollections: _filteredCollections,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'OUTSTANDING',
@@ -2177,8 +2208,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder:
                         (context) => FarmSalesListScreen(
-                          initialTransactions: _allTransactions,
-                          initialCollections: _allCollections,
+                          initialTransactions: _filteredTransactions,
+                          initialCollections: _filteredCollections,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'COLLECTION',

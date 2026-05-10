@@ -179,7 +179,7 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 Text(
-                  'Quantity: ${tx['quantity']} ${tx['unit']}',
+                  'Quantity: ${tx['quantity']} x ${tx['unit']}',
                   style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),

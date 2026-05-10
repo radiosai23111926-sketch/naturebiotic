@@ -862,20 +862,20 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                   Row(
                     children: [
                       _hifiActionTile(
+                        'Request',
+                        'Need product',
+                        Icons.add_shopping_cart_rounded,
+                        Colors.blue,
+                        () => _openTransactionForm('REQUEST'),
+                      ),
+                      const SizedBox(width: 12),
+                      _hifiActionTile(
                         'Accept Stock',
                         'Verify incoming',
                         Icons.verified_user_rounded,
                         Colors.green,
                         _openAcceptanceScreen,
                         badgeCount: _pendingCount,
-                      ),
-                      const SizedBox(width: 12),
-                      _hifiActionTile(
-                        'Request',
-                        'Need product',
-                        Icons.add_shopping_cart_rounded,
-                        Colors.blue,
-                        () => _openTransactionForm('REQUEST'),
                       ),
                       const SizedBox(width: 12),
                       _hifiActionTile(
@@ -2057,7 +2057,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                         ),
                       ),
                       Text(
-                        '${tx['profiles']?['full_name'] ?? 'Executive'} rejected ${tx['quantity']} ${tx['unit']} of ${tx['item_name']}.',
+                        '${tx['profiles']?['full_name'] ?? 'Executive'} rejected ${tx['quantity']} x ${tx['unit']} of ${tx['item_name']}.',
                         style: const TextStyle(fontSize: 12, color: Colors.deepOrange),
                       ),
                     ],

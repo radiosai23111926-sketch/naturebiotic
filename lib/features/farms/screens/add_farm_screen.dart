@@ -45,7 +45,7 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
   ];
   List<String> _waterQtys = ['Ample', 'surplus', 'Scarcity'];
   List<String> _powerSources = ['EB', 'Diesel Pump', 'Solar'];
-  List<String> _intercropOptions = ['Yes', 'No'];
+  List<String> _intercropOptions = ['Normal', 'Intercrop'];
 
   // Additional Contacts
   final List<Map<String, TextEditingController>> _contactControllers = [];
@@ -83,7 +83,14 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
       _waterQty = widget.farm!['water_quantity'];
       _powerSource = widget.farm!['power_source'];
       _landmarkController.text = widget.farm!['landmark'] ?? '';
-      _intercrop = widget.farm!['intercrop'];
+      final rawIntercrop = widget.farm!['intercrop']?.toString();
+      if (rawIntercrop == 'Yes') {
+        _intercrop = 'Intercrop';
+      } else if (rawIntercrop == 'No') {
+        _intercrop = 'Normal';
+      } else {
+        _intercrop = rawIntercrop;
+      }
       _existingReportUrl = widget.farm!['report_url'];
 
       // Load existing contacts
@@ -805,11 +812,11 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
                           (v) => setState(() => _soilType = v ?? _soilType),
                         ),
                         const SizedBox(height: 16),
-                        _buildDropdown(
+                        _buildToggleSelection(
                           'Intercrop',
                           _intercropOptions,
                           _intercrop,
-                          (v) => setState(() => _intercrop = v ?? _intercrop),
+                          (v) => setState(() => _intercrop = v),
                         ),
                       ],
                     ),
@@ -1103,6 +1110,78 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildToggleSelection(
+    String label,
+    List<String> options,
+    String? selectedValue,
+    Function(String) onSelected,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0, bottom: 10.0),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: AppColors.textGray.withOpacity(0.8),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Row(
+          children:
+              options.map((option) {
+                final isSelected = selectedValue == option;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => onSelected(option),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color:
+                              isSelected
+                                  ? AppColors.primary
+                                  : Colors.grey.shade300,
+                          width: 1.5,
+                        ),
+                        boxShadow:
+                            isSelected
+                                ? [
+                                  BoxShadow(
+                                    color: AppColors.primary.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                                : [],
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        option,
+                        style: TextStyle(
+                          color:
+                              isSelected ? Colors.white : AppColors.textBlack,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+        ),
+      ],
     );
   }
 

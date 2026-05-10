@@ -82,7 +82,8 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'name': _nameController.text.trim(),
         'village': _villageController.text.trim(),
         'mobile': _mobileController.text.trim(),
-        'address': '${_talukController.text.trim()}\n${_districtController.text.trim()}\n${_landmarkController.text.trim()}',
+        'address':
+            '${_talukController.text.trim()}\n${_districtController.text.trim()}\n${_landmarkController.text.trim()}',
         'category': _selectedCategory,
         'created_at': DateTime.now().toIso8601String(),
         'created_by': currentUserId,
@@ -132,9 +133,10 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
       if (mounted) {
         String errorMessage = 'Error: $e';
         if (e.toString().contains('farmers_category_check')) {
-          errorMessage = 'Database Error: The selected category is not allowed by the database constraint. Please update the "farmers_category_check" constraint in Supabase.';
+          errorMessage =
+              'Database Error: The selected category is not allowed by the database constraint. Please update the "farmers_category_check" constraint in Supabase.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -240,8 +242,11 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
             farmer['mobile'] = cleanMobile;
 
             // Reconstruct address if separate fields were provided
-            if (farmer['taluk'] != null || farmer['district'] != null || farmer['landmark'] != null) {
-              farmer['address'] = '${farmer['taluk'] ?? ''}\n${farmer['district'] ?? ''}\n${farmer['landmark'] ?? ''}';
+            if (farmer['taluk'] != null ||
+                farmer['district'] != null ||
+                farmer['landmark'] != null) {
+              farmer['address'] =
+                  '${farmer['taluk'] ?? ''}\n${farmer['district'] ?? ''}\n${farmer['landmark'] ?? ''}';
             }
 
             // Ensure all recognized keys exist in every map to maintain consistent schema
@@ -283,7 +288,15 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
     try {
       setState(() => _isLoading = true);
 
-      const headers = ['name', 'mobile', 'village', 'taluk', 'district', 'landmark', 'category'];
+      const headers = [
+        'name',
+        'mobile',
+        'village',
+        'taluk',
+        'district',
+        'landmark',
+        'category',
+      ];
       const exampleRow = [
         'John Doe',
         '9876543210',
@@ -495,10 +508,11 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: (_selectedCategory != null &&
-                                  _categories.contains(_selectedCategory))
-                              ? _selectedCategory
-                              : null,
+                          initialValue:
+                              (_selectedCategory != null &&
+                                      _categories.contains(_selectedCategory))
+                                  ? _selectedCategory
+                                  : null,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                             fillColor: Colors.white,

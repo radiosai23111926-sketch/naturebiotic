@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
-import 'package:nature_biotic/services/local_database_service.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'add_collection_screen.dart';
 
 class CollectionHistoryScreen extends StatefulWidget {
@@ -19,7 +17,8 @@ class CollectionHistoryScreen extends StatefulWidget {
   });
 
   @override
-  State<CollectionHistoryScreen> createState() => _CollectionHistoryScreenState();
+  State<CollectionHistoryScreen> createState() =>
+      _CollectionHistoryScreenState();
 }
 
 class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
@@ -37,12 +36,12 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
     setState(() => _isLoading = true);
     try {
       final all = await SupabaseService.getFarmCollections(widget.farmId);
-      
+
       final total = all.fold(
         0.0,
         (sum, c) => sum + (double.tryParse(c['amount'].toString()) ?? 0.0),
       );
-      
+
       if (mounted) {
         setState(() {
           _collections = all;
@@ -85,56 +84,58 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadCollections,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 700),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      // Total summary card
-                      _buildSummaryCard(),
-                      const SizedBox(height: 28),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _loadCollections,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 700),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        // Total summary card
+                        _buildSummaryCard(),
+                        const SizedBox(height: 28),
 
-                      if (_collections.isEmpty)
-                        _buildEmptyState()
-                      else ...[
-                        Text(
-                          'Transaction History',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textBlack.withOpacity(0.8),
+                        if (_collections.isEmpty)
+                          _buildEmptyState()
+                        else ...[
+                          Text(
+                            'Transaction History',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textBlack.withOpacity(0.8),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        ...List.generate(
-                          _collections.length,
-                          (i) => _buildCollectionCard(_collections[i]),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          ...List.generate(
+                            _collections.length,
+                            (i) => _buildCollectionCard(_collections[i]),
+                          ),
+                        ],
 
-                      const SizedBox(height: 100),
-                    ],
+                        const SizedBox(height: 100),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'collection_fab',
         onPressed: () async {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => AddCollectionScreen(
-                farmId: widget.farmId,
-                farmName: widget.farmName,
-                farmerName: widget.farmerName,
-              ),
+              builder:
+                  (_) => AddCollectionScreen(
+                    farmId: widget.farmId,
+                    farmName: widget.farmName,
+                    farmerName: widget.farmerName,
+                  ),
             ),
           );
           if (result == true) _loadCollections();

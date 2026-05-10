@@ -189,126 +189,210 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 450),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              AppColors.secondary.withOpacity(0.4),
+              const Color(0xFFEBF3EC),
+              Colors.white,
+            ],
+            stops: const [0.0, 0.4, 0.8, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 48),
-                  EntranceAnimation(
-                    delay: 100,
-                    child: Center(
-                      child: Image.asset('assets/logo.png', width: 150),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const EntranceAnimation(
-                    delay: 300,
-                    child: Center(
-                      child: Text(
-                        'Welcome Back',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textBlack,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: EntranceAnimation(
+                  delay: 100,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(36),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 40,
+                          offset: const Offset(0, 16),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const EntranceAnimation(
-                    delay: 450,
-                    child: Center(
-                      child: Text(
-                        'Sign in to manage your farming activities',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textGray,
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.05),
+                          blurRadius: 60,
+                          offset: const Offset(0, 24),
                         ),
+                      ],
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.6),
+                        width: 1.5,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-                  EntranceAnimation(
-                    delay: 600,
-                    child: TextField(
-                      controller: _identifierController,
-                      decoration: const InputDecoration(
-                        hintText: 'Username or Email',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  EntranceAnimation(
-                    delay: 750,
-                    child: TextField(
-                      controller: _passwordController,
-                      obscureText: !_isPasswordVisible,
-                      decoration: InputDecoration(
-                        hintText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isPasswordVisible
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isPasswordVisible = !_isPasswordVisible;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  EntranceAnimation(
-                    delay: 1050,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ScaleButton(
-                        onTap: _isLoading ? null : _handleLogin,
-                        child: ElevatedButton(
-                          onPressed: null, // Tap handled by ScaleButton
-                          child:
-                              _isLoading
-                                  ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Brand Header
+                        Center(
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.03),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 5),
                                     ),
-                                  )
-                                  : const Text('Login'),
+                                  ],
+                                ),
+                                child: Image.asset('assets/logo.png', width: 90),
+                              ),
+                              const SizedBox(height: 24),
+                              RichText(
+                                text: const TextSpan(
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                    fontFamily: 'Outfit',
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: 'NATURE BIOTIC',
+                                      style: TextStyle(color: AppColors.textBlack),
+                                    ),
+                                    TextSpan(
+                                      text: ' CRM',
+                                      style: TextStyle(color: AppColors.primary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Sign in to manage your farming hub',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textGray.withOpacity(0.7),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 44),
+
+                        // Input Fields
+                        TextField(
+                          controller: _identifierController,
+                          decoration: InputDecoration(
+                            hintText: 'Username or Email',
+                            prefixIcon: Icon(
+                              Icons.alternate_email_rounded,
+                              color: AppColors.textGray.withOpacity(0.6),
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.background,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: !_isPasswordVisible,
+                          decoration: InputDecoration(
+                            hintText: 'Password',
+                            prefixIcon: Icon(
+                              Icons.lock_outline_rounded,
+                              color: AppColors.textGray.withOpacity(0.6),
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.background,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible
+                                    ? Icons.visibility_rounded
+                                    : Icons.visibility_off_rounded,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+
+                        // Login Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ScaleButton(
+                            onTap: _isLoading ? null : _handleLogin,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              onPressed: null, // Tap handled by ScaleButton
+                              child:
+                                  _isLoading
+                                      ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : const Text(
+                                        'Secure Login',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Forgot Password
+                        TextButton(
+                          onPressed: _isLoading ? null : _handleForgotPassword,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                          ),
+                          child: const Text(
+                            'Recover Access',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: TextButton(
-                      onPressed: _isLoading ? null : _handleForgotPassword,
-                      child: const Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                ),
               ),
             ),
           ),
@@ -316,6 +400,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
 
   @override
   void dispose() {

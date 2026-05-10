@@ -299,11 +299,12 @@ class SyncManager {
         break;
       case 'crops':
         if (operation == 'INSERT') await SupabaseService.addCrop(cleanPayload);
-        if (operation == 'UPDATE')
+        if (operation == 'UPDATE') {
           await SupabaseService.updateCrop(
             cleanPayload['id'].toString(),
             cleanPayload,
           );
+        }
         break;
       case 'reports':
         if (operation == 'INSERT') {

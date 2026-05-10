@@ -364,6 +364,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     final attendanceData = {
+      if (_todayAttendance != null) 'id': _todayAttendance!['id'],
       if (isCheckIn)
         'check_in_time': DateTime.now().toIso8601String()
       else if (isCheckedIn)
@@ -374,11 +375,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       else if (isCheckedIn)
         'check_out_photo': imageUrl,
 
-      if (isCheckIn || isCheckedIn)
-        'check_in_location_lat': _currentPosition!.latitude,
+      if (isCheckIn)
+        'check_in_location_lat': _currentPosition!.latitude
+      else if (isCheckedIn)
+        'check_out_location_lat': _currentPosition!.latitude,
 
-      if (isCheckIn || isCheckedIn)
-        'check_in_location_lng': _currentPosition!.longitude,
+      if (isCheckIn)
+        'check_in_location_lng': _currentPosition!.longitude
+      else if (isCheckedIn)
+        'check_out_location_lng': _currentPosition!.longitude,
 
       'created_at': DateTime.now().toIso8601String(),
       '_local_photo': null,

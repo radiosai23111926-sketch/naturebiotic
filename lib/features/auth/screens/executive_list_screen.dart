@@ -131,35 +131,52 @@ class _ExecutiveListScreenState extends State<ExecutiveListScreen> {
                                               ),
                                             ),
                                             const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  '@${member['username'] ?? 'unknown'}',
-                                                  style: TextStyle(
-                                                    color: AppColors.textGray.withOpacity(0.6),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.primary.withOpacity(0.08),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                  ),
-                                                  child: Text(
-                                                    role.toUpperCase(),
-                                                    style: const TextStyle(
-                                                      color: AppColors.primary,
-                                                      fontSize: 9,
-                                                      fontWeight: FontWeight.w900,
-                                                      letterSpacing: 0.5,
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      '@${member['username'] ?? 'unknown'}',
+                                                      style: TextStyle(
+                                                        color: AppColors.textGray.withOpacity(0.6),
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
                                                     ),
-                                                  ),
+                                                    const SizedBox(width: 12),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.blueGrey.withOpacity(0.08),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        'ID: ${(member['staff_number'] ?? '-').toString().padLeft(4, '0')}',
+                                                        style: const TextStyle(
+                                                          color: Colors.blueGrey,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.w900,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.primary.withOpacity(0.08),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        role.toUpperCase(),
+                                                        style: const TextStyle(
+                                                          color: AppColors.primary,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.w900,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              ],
-                                            ),
                                           ],
                                         ),
                                       ),
@@ -280,33 +297,49 @@ class _ExecutiveListScreenState extends State<ExecutiveListScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      '@${member['username']}',
-                      style: const TextStyle(
-                        color: AppColors.textGray,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        (member['role'] ?? 'unknown').toString().toUpperCase(),
+                  Row(
+                    children: [
+                      Text(
+                        '@${member['username']}',
                         style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          color: AppColors.textGray,
+                          fontSize: 13,
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'ID: ${(member['staff_number'] ?? '-').toString().padLeft(4, '0')}',
+                          style: const TextStyle(
+                            color: Colors.blueGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          (member['role'] ?? 'unknown').toString().toUpperCase(),
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 32),
                 if (isExecutive) ...[
                   _optionItem(

@@ -11,7 +11,7 @@ class StockTransactionForm extends StatefulWidget {
   final Map<String, dynamic>? initialData;
 
   const StockTransactionForm({
-    super.key, 
+    super.key,
     required this.transactionType,
     this.initialData,
   });
@@ -43,7 +43,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
   @override
   void initState() {
     super.initState();
-    _items = [ _StockItem() ];
+    _items = [_StockItem()];
     _loadData();
   }
 
@@ -79,11 +79,12 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         setState(() {
           _masterProducts = products;
           _productVendors = vendorMap;
-          _allVendors = vendorMappings
-              .map((m) => (m['label'] as String?)?.trim() ?? '')
-              .where((v) => v.isNotEmpty)
-              .toSet()
-              .toList();
+          _allVendors =
+              vendorMappings
+                  .map((m) => (m['label'] as String?)?.trim() ?? '')
+                  .where((v) => v.isNotEmpty)
+                  .toSet()
+                  .toList();
 
           // If editing, populate the form
           if (widget.initialData != null) {
@@ -100,8 +101,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                   unit: data['unit']?.toString(),
                   vendor: data['vendor_name']?.toString(),
                 );
-                
-                final variants = List<Map<String, dynamic>>.from(p['variants'] ?? []);
+
+                final variants = List<Map<String, dynamic>>.from(
+                  p['variants'] ?? [],
+                );
                 for (var v in variants) {
                   if (v['label'] == item.unitController.text) {
                     item.variant = v;
@@ -112,7 +115,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                 break;
               }
             }
-            if (_items.isEmpty) _items = [ _StockItem() ];
+            if (_items.isEmpty) _items = [_StockItem()];
           }
         });
       }
@@ -150,10 +153,17 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
   Future<void> _submit() async {
     // Custom validation check
-    if (widget.transactionType == 'DELIVERY' && (_userRole == 'store' || _userRole == 'manager' || _userRole == 'admin')) {
-      if (_selectedExecutiveId == null && _buyerNameController.text.trim().isEmpty) {
+    if (widget.transactionType == 'DELIVERY' &&
+        (_userRole == 'store' ||
+            _userRole == 'manager' ||
+            _userRole == 'admin')) {
+      if (_selectedExecutiveId == null &&
+          _buyerNameController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a staff member or enter buyer name'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Please select a staff member or enter buyer name'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
@@ -165,30 +175,39 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
     for (var item in _items) {
       if (item.product == null || item.variant == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select product and size for all items'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Please select product and size for all items'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
-      
+
       final double qty = double.tryParse(item.quantityController.text) ?? 0;
       if (qty <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a valid quantity for all items'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Please enter a valid quantity for all items'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
-      
+
       // Stock validation for Executives/Telecallers on RETURN
-      if ((_userRole == 'executive' || _userRole == 'telecaller') && widget.transactionType == 'RETURN') {
+      if ((_userRole == 'executive' || _userRole == 'telecaller') &&
+          widget.transactionType == 'RETURN') {
         final productName = item.product?['label'] ?? '';
         final variantName = item.variant?['label'] ?? '';
         final availableQty = _detailedStock[productName]?[variantName] ?? 0.0;
-        
+
         if (qty > availableQty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.red,
-              content: Text('Insufficient stock for $productName ($variantName). Available: $availableQty'),
+              content: Text(
+                'Insufficient stock for $productName ($variantName). Available: $availableQty',
+              ),
             ),
           );
           return;
@@ -196,16 +215,19 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       }
 
       // Stock validation for Store/Admin on DELIVERY
-      if ((_userRole == 'store' || _userRole == 'admin') && widget.transactionType == 'DELIVERY') {
+      if ((_userRole == 'store' || _userRole == 'admin') &&
+          widget.transactionType == 'DELIVERY') {
         final productName = item.product?['label'] ?? '';
         final variantName = item.variant?['label'] ?? '';
         final availableQty = _detailedStock[productName]?[variantName] ?? 0.0;
-        
+
         if (qty > availableQty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.red,
-              content: Text('Insufficient store stock for $productName ($variantName). Available: $availableQty'),
+              content: Text(
+                'Insufficient store stock for $productName ($variantName). Available: $availableQty',
+              ),
             ),
           );
           return;
@@ -218,32 +240,43 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       final user = SupabaseService.client.auth.currentUser;
       final transactionId = const Uuid().v4();
 
-      final isDirectPurchase = widget.transactionType == 'DELIVERY' && 
-                               (_userRole == 'store' || _userRole == 'manager' || _userRole == 'admin') && 
-                               _selectedExecutiveId == null &&
-                               _buyerNameController.text.trim().isNotEmpty;
+      final isDirectPurchase =
+          widget.transactionType == 'DELIVERY' &&
+          (_userRole == 'store' ||
+              _userRole == 'manager' ||
+              _userRole == 'admin') &&
+          _selectedExecutiveId == null &&
+          _buyerNameController.text.trim().isNotEmpty;
 
       final List<Map<String, dynamic>> transactionList = [];
-      
+
       int itemIndex = 0;
       for (var item in _items) {
         final newTransactionId = const Uuid().v4();
         transactionList.add({
-          'id': (widget.initialData != null && itemIndex == 0) ? widget.initialData!['id'] : newTransactionId,
+          'id':
+              (widget.initialData != null && itemIndex == 0)
+                  ? widget.initialData!['id']
+                  : newTransactionId,
           'item_name': item.product?['label'] ?? '',
           'transaction_type': widget.transactionType,
           'quantity': double.parse(item.quantityController.text),
           'unit': item.unitController.text,
           'executive_id': isDirectPurchase ? null : _selectedExecutiveId,
           'vendor_name':
-              widget.transactionType == 'REQUEST' 
+              widget.transactionType == 'REQUEST'
                   ? 'Store'
                   : (isDirectPurchase
                       ? _buyerNameController.text.trim()
                       : item.vendorController.text.trim()),
-          'status': (widget.transactionType == 'PURCHASE' || isDirectPurchase) ? 'ACCEPTED' : 'PENDING',
+          'status':
+              (widget.transactionType == 'PURCHASE' || isDirectPurchase)
+                  ? 'ACCEPTED'
+                  : 'PENDING',
           'created_by': user?.id,
-          'created_at': widget.initialData?['created_at'] ?? DateTime.now().toIso8601String(),
+          'created_at':
+              widget.initialData?['created_at'] ??
+              DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
           if (isDirectPurchase) 'accepted_at': DateTime.now().toIso8601String(),
         });
@@ -252,7 +285,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
       if (kIsWeb) {
         if (widget.initialData != null) {
-          await SupabaseService.updateStoreTransaction(transactionList.first['id'], transactionList.first);
+          await SupabaseService.updateStoreTransaction(
+            transactionList.first['id'],
+            transactionList.first,
+          );
         } else {
           for (var data in transactionList) {
             await SupabaseService.addStoreTransaction(data);
@@ -264,7 +300,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           await LocalDatabaseService.saveAndQueue(
             tableName: 'store_transactions',
             data: data,
-            operation: widget.initialData != null && dbItemIndex == 0 ? 'UPDATE' : 'INSERT',
+            operation:
+                widget.initialData != null && dbItemIndex == 0
+                    ? 'UPDATE'
+                    : 'INSERT',
           );
           dbItemIndex++;
         }
@@ -313,7 +352,8 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
                     if (widget.transactionType == 'DELIVERY' ||
                         widget.transactionType == 'RETURN') ...[
-                      if (_userRole != 'executive' && _userRole != 'telecaller') ...[
+                      if (_userRole != 'executive' &&
+                          _userRole != 'telecaller') ...[
                         _buildSectionTitle(
                           widget.transactionType == 'DELIVERY'
                               ? 'Delivery Target'
@@ -322,13 +362,20 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                         const SizedBox(height: 16),
                         _dropdownField(),
                         const SizedBox(height: 24),
-                        
-                        if ((_userRole == 'store' || _userRole == 'manager' || _userRole == 'admin') && widget.transactionType == 'DELIVERY') ...[
+
+                        if ((_userRole == 'store' ||
+                                _userRole == 'manager' ||
+                                _userRole == 'admin') &&
+                            widget.transactionType == 'DELIVERY') ...[
                           _buildSectionTitle('Direct Sale from Store'),
                           const SizedBox(height: 8),
                           Text(
                             'To sell directly to a farmer/customer from the store, leave "Staff Member" empty and enter Buyer Name below.',
-                            style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           AbsorbPointer(
@@ -338,7 +385,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                               child: _textField(
                                 _buyerNameController,
                                 'Buyer Name',
-                                _selectedExecutiveId != null ? 'Clear staff to use direct sale' : 'Who bought this?',
+                                _selectedExecutiveId != null
+                                    ? 'Clear staff to use direct sale'
+                                    : 'Who bought this?',
                                 Icons.person_add_alt_1_rounded,
                                 optional: true,
                               ),
@@ -354,14 +403,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                     ..._items.asMap().entries.map((entry) {
                       final index = entry.key;
                       final item = entry.value;
-                      
+
                       if (_editingIndex == index) {
                         return _buildItemEntry(index, item);
                       } else {
                         return _buildItemSummary(index, item);
                       }
                     }),
-                    
+
                     const SizedBox(height: 8),
                     Center(
                       child: TextButton.icon(
@@ -375,8 +424,13 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                         label: const Text('Add Another Product'),
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           backgroundColor: AppColors.primary.withOpacity(0.05),
                         ),
                       ),
@@ -402,7 +456,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                                 ),
                               )
                               : Text(
-                                widget.transactionType == 'REQUEST' ? 'Submit Request' : 'Record Transaction',
+                                widget.transactionType == 'REQUEST'
+                                    ? 'Submit Request'
+                                    : 'Record Transaction',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -431,7 +487,6 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       ),
     );
   }
-
 
   Widget _textField(
     TextEditingController controller,
@@ -463,7 +518,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
   Widget _dropdownField() {
     return DropdownButtonFormField<String>(
-      value: _selectedExecutiveId,
+      initialValue: _selectedExecutiveId,
       decoration: InputDecoration(
         labelText: 'Select Staff Member',
         prefixIcon: const Icon(Icons.person_rounded, size: 20),
@@ -471,13 +526,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         filled: true,
         fillColor: Colors.white,
       ),
-      items: (_staffMembers).map((staff) {
-        final role = staff['role']?.toString().toUpperCase() ?? '';
-        return DropdownMenuItem<String>(
-          value: staff['id'],
-          child: Text('${staff['full_name'] ?? 'Unknown'} ($role)'),
-        );
-      }).toList(),
+      items:
+          (_staffMembers).map((staff) {
+            final role = staff['role']?.toString().toUpperCase() ?? '';
+            return DropdownMenuItem<String>(
+              value: staff['id'],
+              child: Text('${staff['full_name'] ?? 'Unknown'} ($role)'),
+            );
+          }).toList(),
       onChanged: (val) {
         setState(() => _selectedExecutiveId = val);
         if (val != null) {
@@ -485,7 +541,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         }
       },
       validator: (val) {
-        if (widget.transactionType == 'DELIVERY' && (_userRole == 'store' || _userRole == 'manager' || _userRole == 'admin')) {
+        if (widget.transactionType == 'DELIVERY' &&
+            (_userRole == 'store' ||
+                _userRole == 'manager' ||
+                _userRole == 'admin')) {
           return null;
         }
         return val == null ? 'Please select a staff member' : null;
@@ -496,8 +555,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
   Widget _buildItemSummary(int index, _StockItem item) {
     final productName = item.product?['label'] ?? 'Select Product';
     final variantName = item.variant?['label'] ?? '';
-    final qty = item.quantityController.text.isEmpty ? '0' : item.quantityController.text;
-    final vendor = item.vendorController.text.isEmpty ? 'No Vendor' : item.vendorController.text;
+    final qty =
+        item.quantityController.text.isEmpty
+            ? '0'
+            : item.quantityController.text;
+    final vendor =
+        item.vendorController.text.isEmpty
+            ? 'No Vendor'
+            : item.vendorController.text;
 
     return Card(
       elevation: 0,
@@ -531,7 +596,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         subtitle: Text(
-          widget.transactionType == 'REQUEST' 
+          widget.transactionType == 'REQUEST'
               ? (variantName.isNotEmpty ? variantName : "")
               : '${variantName.isNotEmpty ? "$variantName • " : ""}$vendor',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -543,7 +608,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Text('QTY', style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                const Text(
+                  'QTY',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Text(
                   qty,
                   style: const TextStyle(
@@ -556,7 +628,11 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
             ),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 22),
+              icon: const Icon(
+                Icons.edit_note_rounded,
+                color: AppColors.primary,
+                size: 22,
+              ),
               onPressed: () => setState(() => _editingIndex = index),
               visualDensity: VisualDensity.compact,
             ),
@@ -574,7 +650,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.5),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withOpacity(0.05),
@@ -592,7 +671,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(8),
@@ -607,7 +689,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Editing...', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+                  const Text(
+                    'Editing...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
+                  ),
                 ],
               ),
               Row(
@@ -620,11 +709,19 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                           _editingIndex = null;
                         });
                       },
-                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                     ),
                   IconButton(
                     onPressed: () => setState(() => _editingIndex = null),
-                    icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 24),
+                    icon: const Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: Colors.green,
+                      size: 24,
+                    ),
                   ),
                 ],
               ),
@@ -656,7 +753,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
 
   Widget _buildProductDropdownFor(_StockItem item) {
     return DropdownButtonFormField<Map<String, dynamic>>(
-      value: item.product,
+      initialValue: item.product,
       hint: const Text('Select Product'),
       isExpanded: true,
       decoration: InputDecoration(
@@ -664,12 +761,16 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         prefixIcon: const Icon(Icons.shopping_bag_rounded, size: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      items: _masterProducts.map((p) {
-        return DropdownMenuItem<Map<String, dynamic>>(
-          value: p,
-          child: Text(p['label'] ?? 'Unknown', style: const TextStyle(fontSize: 14)),
-        );
-      }).toList(),
+      items:
+          _masterProducts.map((p) {
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: p,
+              child: Text(
+                p['label'] ?? 'Unknown',
+                style: const TextStyle(fontSize: 14),
+              ),
+            );
+          }).toList(),
       onChanged: (val) {
         setState(() {
           item.product = val;
@@ -687,9 +788,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
     final List<Map<String, dynamic>> variants = List<Map<String, dynamic>>.from(
       item.product?['variants'] ?? [],
     );
-    
+
     return DropdownButtonFormField<Map<String, dynamic>>(
-      value: item.variant,
+      initialValue: item.variant,
       hint: const Text('Select Size'),
       isExpanded: true,
       decoration: InputDecoration(
@@ -697,12 +798,16 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         prefixIcon: const Icon(Icons.straighten_rounded, size: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      items: variants.map((v) {
-        return DropdownMenuItem<Map<String, dynamic>>(
-          value: v,
-          child: Text(v['label'] ?? 'Unknown', style: const TextStyle(fontSize: 14)),
-        );
-      }).toList(),
+      items:
+          variants.map((v) {
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: v,
+              child: Text(
+                v['label'] ?? 'Unknown',
+                style: const TextStyle(fontSize: 14),
+              ),
+            );
+          }).toList(),
       onChanged: (val) {
         setState(() {
           item.variant = val;
@@ -731,12 +836,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           onSelected: (String selection) {
             item.vendorController.text = selection;
           },
-          fieldViewBuilder: (
-            context,
-            controller,
-            focusNode,
-            onFieldSubmitted,
-          ) {
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
             return TextFormField(
               controller: controller,
               focusNode: focusNode,
@@ -796,7 +896,7 @@ class _StockItem {
   final unitController = TextEditingController(text: 'Units');
   final vendorController = TextEditingController();
 
-  _StockItem({this.product, this.variant, String? qty, String? unit, String? vendor}) {
+  _StockItem({this.product, String? qty, String? unit, String? vendor}) {
     if (qty != null) quantityController.text = qty;
     if (unit != null) unitController.text = unit;
     if (vendor != null) vendorController.text = vendor;

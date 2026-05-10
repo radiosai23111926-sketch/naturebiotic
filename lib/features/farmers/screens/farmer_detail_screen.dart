@@ -9,6 +9,7 @@ import 'package:nature_biotic/features/farms/screens/farm_detail_screen.dart';
 import 'package:nature_biotic/core/call_tracker.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:nature_biotic/features/profile/screens/edit_request_dialog.dart';
 
 class FarmerDetailScreen extends StatefulWidget {
   final Map<String, dynamic> farmer;
@@ -354,7 +355,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    if (_farmer['is_verified'] == true) _buildVerifiedBadge(),
+                    if (_farmer['is_verified'] == true) ...[
+                      _buildVerifiedBadge(),
+                      const SizedBox(width: 8),
+                      _buildRiseTokenButton(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -608,6 +613,42 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     );
   }
 
+  Widget _buildRiseTokenButton() {
+    return TextButton.icon(
+      onPressed: () {
+        EditRequestDialog.show(
+          context,
+          entityType: 'farmers',
+          entityId: _farmer['id'].toString(),
+          currentData: _farmer,
+          fieldMap: {
+            'name': 'Full Name',
+            'mobile': 'Mobile Number',
+            'village': 'Village',
+            'taluk': 'Taluk',
+            'district': 'District',
+            'landmark': 'Landmark',
+            'category': 'Category',
+          },
+        );
+      },
+      icon: const Icon(Icons.add_alert_rounded, size: 16, color: Colors.orange),
+      label: const Text(
+        'Rise Token',
+        style: TextStyle(
+          color: Colors.orange,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.orange.withOpacity(0.1),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+  }
+
   Widget _buildProfileHeader() {
     return Column(
       children: [
@@ -628,7 +669,14 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                 Positioned(
                   top: 0,
                   left: 0,
-                  child: _buildVerifiedBadge(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildVerifiedBadge(),
+                      const SizedBox(width: 4),
+                      _buildRiseTokenButton(),
+                    ],
+                  ),
                 ),
             ],
           ),
