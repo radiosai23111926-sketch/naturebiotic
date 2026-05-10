@@ -57,6 +57,12 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
         );
       }
 
+      final profile = await SupabaseService.getProfile().catchError(
+        (_) => null,
+      );
+      final role = profile?['role']?.toString().toLowerCase();
+      final userId = SupabaseService.client.auth.currentUser?.id.toLowerCase();
+
       // Merge and De-duplicate
       final Map<String, Map<String, dynamic>> combined = {};
       for (var tx in localData) {
@@ -66,7 +72,17 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
         combined[tx['id'].toString()] = tx;
       }
 
-      final sortedTransactions = combined.values.toList();
+      var sortedTransactions = combined.values.toList();
+
+      // Apply explicit final UI-level security lock
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        sortedTransactions =
+            sortedTransactions.where((t) {
+              final txId = t['executive_id']?.toString().toLowerCase();
+              return txId == userId;
+            }).toList();
+      }
+
       sortedTransactions.sort(
         (a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''),
       );
@@ -121,7 +137,10 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
             const Text('Sales History', style: TextStyle(fontSize: 16)),
             Text(
               '${widget.farmerName ?? 'Farmer'} • ${widget.farmName}${widget.cropName != null ? ' • ${widget.cropName}' : ''}',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.normal,
+              ),
             ),
           ],
         ),

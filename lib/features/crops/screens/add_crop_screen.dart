@@ -67,7 +67,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
       _isConfigLoading = true;
       _isLoading = true;
     });
-    
+
     try {
       final profile = await SupabaseService.getProfile();
       _userRole = profile?['role'];
@@ -485,9 +485,15 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                 borderRadius: BorderRadius.circular(24),
                               ),
                               child: DropdownButtonFormField<String>(
-                                value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId))
-                                    ? _selectedFarmId
-                                    : null,
+                                initialValue:
+                                    (_selectedFarmId != null &&
+                                            _farms.any(
+                                              (f) =>
+                                                  f['id'].toString() ==
+                                                  _selectedFarmId,
+                                            ))
+                                        ? _selectedFarmId
+                                        : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Select Farm',
                                   fillColor: Colors.white,
@@ -529,9 +535,14 @@ class _AddCropScreenState extends State<AddCropScreen> {
                             child: Column(
                               children: [
                                 DropdownButtonFormField<int>(
-                                  value: (_selectedCropId != null && _masterCrops.any((c) => c['id'] == _selectedCropId))
-                                      ? _selectedCropId
-                                      : null,
+                                  initialValue:
+                                      (_selectedCropId != null &&
+                                              _masterCrops.any(
+                                                (c) =>
+                                                    c['id'] == _selectedCropId,
+                                              ))
+                                          ? _selectedCropId
+                                          : null,
                                   decoration: const InputDecoration(
                                     labelText: 'Crop Name',
                                     fillColor: Colors.white,
@@ -558,17 +569,23 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 DropdownButtonFormField<int>(
-                                  value: (_selectedVarietyId != null &&
-                                          ((_masterCrops.firstWhere(
-                                                    (c) =>
-                                                        c['id'] ==
-                                                        _selectedCropId,
-                                                    orElse: () => {},
-                                                  )['master_crop_varieties'] as List?) ??
-                                              [])
-                                          .any((v) => v['id'] == _selectedVarietyId))
-                                      ? _selectedVarietyId
-                                      : null,
+                                  initialValue:
+                                      (_selectedVarietyId != null &&
+                                              ((_masterCrops.firstWhere(
+                                                            (c) =>
+                                                                c['id'] ==
+                                                                _selectedCropId,
+                                                            orElse: () => {},
+                                                          )['master_crop_varieties']
+                                                          as List?) ??
+                                                      [])
+                                                  .any(
+                                                    (v) =>
+                                                        v['id'] ==
+                                                        _selectedVarietyId,
+                                                  ))
+                                          ? _selectedVarietyId
+                                          : null,
                                   decoration: const InputDecoration(
                                     labelText: 'Variety',
                                     fillColor: Colors.white,
@@ -643,15 +660,19 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                               }
                                             });
                                           },
-                                  validator: (v) => v == null ? 'Required' : null,
+                                  validator:
+                                      (v) => v == null ? 'Required' : null,
                                 ),
                                 if (_selectedCropId != null &&
                                     _userRole == 'admin' &&
                                     (_masterCrops.firstWhere(
-                                          (c) => c['id'] == _selectedCropId,
-                                          orElse: () => {},
-                                        )['master_crop_varieties'] as List?)
-                                        ?.isEmpty ==
+                                                  (c) =>
+                                                      c['id'] ==
+                                                      _selectedCropId,
+                                                  orElse: () => {},
+                                                )['master_crop_varieties']
+                                                as List?)
+                                            ?.isEmpty ==
                                         true)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 12.0),
@@ -843,7 +864,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 flex: 4,
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: (units.contains(selectedUnit)) ? selectedUnit : (units.isNotEmpty ? units.first : null),
+                    value:
+                        (units.contains(selectedUnit))
+                            ? selectedUnit
+                            : (units.isNotEmpty ? units.first : null),
                     isExpanded: true,
                     icon: const Icon(
                       Icons.arrow_drop_down_rounded,
@@ -879,7 +903,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 flex: 6,
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: (periods.contains(selectedPeriod)) ? selectedPeriod : (periods.isNotEmpty ? periods.first : null),
+                    value:
+                        (periods.contains(selectedPeriod))
+                            ? selectedPeriod
+                            : (periods.isNotEmpty ? periods.first : null),
                     isExpanded: true,
                     icon: const Icon(
                       Icons.arrow_drop_down_rounded,
@@ -944,7 +971,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
               Expanded(
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: (units.contains(selectedUnit)) ? selectedUnit : (units.isNotEmpty ? units.first : null),
+                    value:
+                        (units.contains(selectedUnit))
+                            ? selectedUnit
+                            : (units.isNotEmpty ? units.first : null),
                     isExpanded: true,
                     icon: const Icon(
                       Icons.arrow_drop_down_rounded,

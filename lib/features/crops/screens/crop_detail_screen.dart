@@ -8,6 +8,7 @@ import 'package:nature_biotic/features/reports/screens/report_generator_screen.d
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/features/crops/screens/add_crop_screen.dart';
 import 'package:nature_biotic/features/reports/screens/create_report_screen.dart';
+import 'package:nature_biotic/features/profile/screens/edit_request_dialog.dart';
 
 class CropDetailScreen extends StatefulWidget {
   final Map<String, dynamic> crop;
@@ -189,6 +190,8 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                                 if (_crop['is_verified'] == true) ...[
                                   const SizedBox(width: 8),
                                   const Icon(Icons.verified_rounded, color: Colors.blue, size: 18),
+                                  const SizedBox(width: 8),
+                                  _buildRiseTokenButton(),
                                 ],
                               ],
                             ),
@@ -609,6 +612,49 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRiseTokenButton() {
+    return TextButton.icon(
+      onPressed: () {
+        EditRequestDialog.show(
+          context,
+          entityType: 'crops',
+          entityId: _crop['id'].toString(),
+          currentData: _crop,
+          fieldMap: {
+            'name': 'Crop Name',
+            'variety': 'Variety',
+            'age': 'Current Age',
+            'life': 'Total Life',
+            'acre': 'Acres',
+            'count': 'Count / Trees',
+            'expected_yield': 'Expected Yield',
+          },
+        );
+      },
+      icon: const Icon(
+        Icons.add_alert_rounded,
+        size: 14,
+        color: Colors.orange,
+      ),
+      label: const Text(
+        'Rise Token',
+        style: TextStyle(
+          color: Colors.orange,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.orange.withOpacity(0.1),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }

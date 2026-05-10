@@ -39,6 +39,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
   bool _isDataLoading = true;
   String _userRole = 'executive';
   Map<String, Map<String, double>> _myStock = {};
+  Map<String, dynamic>? _fullFarmData;
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
         'product_name',
       );
       final units = await SupabaseService.getDropdownOptions('dose_unit');
+      final farmInfo = await SupabaseService.getFarmAndFarmerInfo(widget.farmId);
 
       if (mounted) {
         setState(() {
@@ -60,6 +62,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           _allProducts = items;
           _itemOptions = items.map((e) => e['label'].toString()).toList();
           _globalDoseUnits = units.map((e) => e['label'].toString()).toList();
+          _fullFarmData = farmInfo;
         });
 
         final myStock = await SupabaseService.getDetailedExecutiveStock();
@@ -556,13 +559,16 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
                   onPressed: () {
+                    final farmerData = _fullFarmData?['farmers'];
                     PdfService.generateStockChallan(
                       items: itemsForChallan,
                       farmName: widget.farmName,
-                      farmerName: widget.farmerName ?? 'N/A',
+                      farmerName: widget.farmerName ?? farmerData?['name'] ?? 'N/A',
                       cropName: widget.cropName ?? 'N/A',
                       transactionType: _transactionType,
                       date: now,
+                      farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
+                      farmerContact: farmerData?['mobile'] ?? 'N/A',
                     );
                   },
                   icon: const Icon(Icons.share_rounded, size: 18),

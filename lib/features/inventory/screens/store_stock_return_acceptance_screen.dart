@@ -222,7 +222,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Quantity: ${tx['quantity']} ${tx['unit']}',
+                    'Quantity: ${tx['quantity']} x ${tx['unit']}',
                     style: const TextStyle(color: AppColors.textBlack, fontWeight: FontWeight.w600, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
@@ -352,7 +352,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '${tx['quantity']} ${tx['unit']}',
+                      '${tx['quantity']} x ${tx['unit']}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     Text(

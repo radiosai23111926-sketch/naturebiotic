@@ -3,8 +3,6 @@ import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:typed_data';
 import 'dropdown_option_dialog.dart';
 
 class DropdownCreatorScreen extends StatefulWidget {

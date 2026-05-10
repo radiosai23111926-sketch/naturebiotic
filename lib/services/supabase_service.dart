@@ -331,7 +331,7 @@ class SupabaseService {
       final user = client.auth.currentUser;
       var query = client
           .from('profiles')
-          .select('id, username, full_name, sales_target, role, avatar_url');
+          .select('id, username, full_name, sales_target, role, avatar_url, staff_number');
       
       if (user != null) {
         query = query.neq('id', user.id);
@@ -512,6 +512,20 @@ class SupabaseService {
       'verified_by': userId,
       'verified_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
+  }
+
+  static Future<Map<String, dynamic>?> getFarmAndFarmerInfo(String farmId) async {
+    try {
+      final response = await client
+          .from('farms')
+          .select('*, farmers(*)')
+          .eq('id', farmId)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('Error in getFarmAndFarmerInfo: $e');
+      return null;
+    }
   }
 
   // Farm CRUD
@@ -729,31 +743,60 @@ class SupabaseService {
 
   static Future<List<Map<String, dynamic>>> getStockTransactions(String farmId) async {
     try {
+      final profile = await getProfile().catchError((_) => null);
+      final role = profile?['role']?.toString().toLowerCase();
+      final userId = client.auth.currentUser?.id;
+
       if (await isOffline()) throw 'Offline';
-      final response = await client
+      
+      var query = client
           .from('stock_transactions')
           .select()
-          .eq('farm_id', farmId)
-          .order('created_at', ascending: false);
+          .eq('farm_id', farmId);
+
+      // Security lockdown inside details screen
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('executive_id', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false);
       final data = List<Map<String, dynamic>>.from(response);
       
-      if (!kIsWeb) await LocalDatabaseService.saveCache('stock_transactions_farm_$farmId', data);
+      final roleSuffix = role ?? 'all';
+      if (!kIsWeb) await LocalDatabaseService.saveCache('stock_transactions_farm_${farmId}_$roleSuffix', data);
       
       final merged = await LocalDatabaseService.mergeWithPending('stock_transactions', data);
-      return merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+      var finalData = merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+      
+      // Final safeguard
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        finalData = finalData.where((t) => t['executive_id']?.toString().toLowerCase() == userId.toLowerCase()).toList();
+      }
+      return finalData;
     } catch (e) {
       debugPrint('Error in getStockTransactions: $e');
       if (!kIsWeb) {
-        var cached = await LocalDatabaseService.getCache('stock_transactions_farm_$farmId');
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role']?.toString().toLowerCase();
+        final userId = client.auth.currentUser?.id?.toLowerCase();
+        final roleSuffix = role ?? 'all';
+
+        var cached = await LocalDatabaseService.getCache('stock_transactions_farm_${farmId}_$roleSuffix');
         if (cached == null || cached.isEmpty) {
-          final global = await LocalDatabaseService.getCache('all_stock_transactions');
+          final globalCacheKey = 'all_stock_transactions_$roleSuffix';
+          final global = await LocalDatabaseService.getCache(globalCacheKey);
           if (global != null && global.isNotEmpty) {
             cached = global.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
           }
         }
         final baseData = cached ?? [];
         final merged = await LocalDatabaseService.mergeWithPending('stock_transactions', baseData);
-        return merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+        var finalData = merged.where((t) => t['farm_id'].toString() == farmId.toString()).toList();
+
+        if ((role == 'executive' || role == 'telecaller') && userId != null) {
+          finalData = finalData.where((t) => t['executive_id']?.toString().toLowerCase() == userId).toList();
+        }
+        return finalData;
       }
       return [];
     }
@@ -761,9 +804,20 @@ class SupabaseService {
 
   static Future<List<Map<String, dynamic>>> getAllStockTransactions() async {
     try {
-      final response = await client
+      final profile = await getProfile();
+      final role = profile?['role'];
+      final userId = client.auth.currentUser?.id;
+
+      var query = client
           .from('stock_transactions')
-          .select('*, farms(name)')
+          .select('*, farms(name)');
+
+      // Restrict to current executive's data if they are not admin/manager/store
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('executive_id', userId);
+      }
+
+      final response = await query
           .order('created_at', ascending: false)
           .timeout(const Duration(seconds: 4));
       
@@ -773,16 +827,34 @@ class SupabaseService {
           item['unit'] = item['unit'].toString().split('{₹')[0].trim();
         }
       }
+      
+      final cacheKey = 'all_stock_transactions_${role ?? 'all'}';
       // Cache on success
-      if (!kIsWeb) await LocalDatabaseService.saveCache('all_stock_transactions', data);
+      if (!kIsWeb) await LocalDatabaseService.saveCache(cacheKey, data);
       return LocalDatabaseService.mergeWithPending('stock_transactions', data);
     } catch (e) {
       debugPrint('Error in getAllStockTransactions: $e');
       // Fallback to cache
       if (!kIsWeb) {
-        final cached = await LocalDatabaseService.getCache('all_stock_transactions');
-        if (cached != null) return LocalDatabaseService.mergeWithPending('stock_transactions', cached);
-        return await LocalDatabaseService.getData('stock_transactions');
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cacheKey = 'all_stock_transactions_${role ?? 'all'}';
+        
+        final userId = client.auth.currentUser?.id?.toLowerCase();
+        
+        final cached = await LocalDatabaseService.getCache(cacheKey);
+        List<Map<String, dynamic>> rawList = [];
+        if (cached != null) {
+          rawList = await LocalDatabaseService.mergeWithPending('stock_transactions', cached);
+        } else {
+          rawList = await LocalDatabaseService.getData('stock_transactions');
+        }
+
+        // Enforce final role check safeguard on SQLite results
+        if ((role == 'executive' || role == 'telecaller') && userId != null) {
+          rawList = rawList.where((t) => t['executive_id']?.toString().toLowerCase() == userId).toList();
+        }
+        return rawList;
       }
       return [];
     }
@@ -943,21 +1015,42 @@ class SupabaseService {
   static Future<List<Map<String, dynamic>>> getAllCollections() async {
     try {
       if (await isOffline()) throw 'Offline';
-      final response = await client
-          .from('farm_collections')
-          .select()
-          .order('created_at', ascending: false);
+      
+      final profile = await getProfile();
+      final role = profile?['role'];
+      final userId = client.auth.currentUser?.id;
+
+      var query = client.from('farm_collections').select();
+      
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('created_by', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false);
       final data = List<Map<String, dynamic>>.from(response);
 
-      if (!kIsWeb) await LocalDatabaseService.saveCache('all_collections', data);
+      final cacheKey = 'all_collections_${role ?? 'all'}';
+      if (!kIsWeb) await LocalDatabaseService.saveCache(cacheKey, data);
 
       return await LocalDatabaseService.mergeWithPending('farm_collections', data);
     } catch (e) {
       debugPrint('Error in getAllCollections: $e');
       if (!kIsWeb) {
-        final cached = await LocalDatabaseService.getCache('all_collections');
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role'];
+        final cacheKey = 'all_collections_${role ?? 'all'}';
+
+        final userId = client.auth.currentUser?.id?.toLowerCase();
+
+        final cached = await LocalDatabaseService.getCache(cacheKey);
         final baseData = cached ?? [];
-        return await LocalDatabaseService.mergeWithPending('farm_collections', baseData);
+        var rawList = await LocalDatabaseService.mergeWithPending('farm_collections', baseData);
+
+        // Enforce final role check safeguard on SQLite results
+        if ((role == 'executive' || role == 'telecaller') && userId != null) {
+          rawList = rawList.where((t) => t['created_by']?.toString().toLowerCase() == userId).toList();
+        }
+        return rawList;
       }
       return [];
     }
@@ -966,25 +1059,53 @@ class SupabaseService {
   /// Fetch all collection entries for a specific farm, newest first.
   static Future<List<Map<String, dynamic>>> getFarmCollections(String farmId) async {
     try {
+      final profile = await getProfile().catchError((_) => null);
+      final role = profile?['role']?.toString().toLowerCase();
+      final userId = client.auth.currentUser?.id;
+
       if (await isOffline()) throw 'Offline';
-      final response = await client
+
+      var query = client
           .from('farm_collections')
           .select()
-          .eq('farm_id', farmId)
-          .order('created_at', ascending: false);
+          .eq('farm_id', farmId);
+
+      // Security lockdown inside details screen
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('created_by', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false);
       final data = List<Map<String, dynamic>>.from(response);
 
-      if (!kIsWeb) await LocalDatabaseService.saveCache('collections_farm_$farmId', data);
+      final roleSuffix = role ?? 'all';
+      if (!kIsWeb) await LocalDatabaseService.saveCache('collections_farm_${farmId}_$roleSuffix', data);
 
       final merged = await LocalDatabaseService.mergeWithPending('farm_collections', data);
-      return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+      var finalData = merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+
+      // Final safeguard
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        finalData = finalData.where((c) => c['created_by']?.toString().toLowerCase() == userId.toLowerCase()).toList();
+      }
+      return finalData;
     } catch (e) {
       debugPrint('Error in getFarmCollections: $e');
       if (!kIsWeb) {
-        final cached = await LocalDatabaseService.getCache('collections_farm_$farmId');
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role']?.toString().toLowerCase();
+        final userId = client.auth.currentUser?.id?.toLowerCase();
+        final roleSuffix = role ?? 'all';
+
+        final cached = await LocalDatabaseService.getCache('collections_farm_${farmId}_$roleSuffix');
         final baseData = cached ?? [];
         final merged = await LocalDatabaseService.mergeWithPending('farm_collections', baseData);
-        return merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+        var finalData = merged.where((c) => c['farm_id'].toString() == farmId.toString()).toList();
+
+        if ((role == 'executive' || role == 'telecaller') && userId != null) {
+          finalData = finalData.where((c) => c['created_by']?.toString().toLowerCase() == userId).toList();
+        }
+        return finalData;
       }
       return [];
     }
@@ -2154,17 +2275,23 @@ class SupabaseService {
     });
   }
 
-  static Future<void> startExecutiveTrip() async {
+  static Future<String?> startExecutiveTrip() async {
     final userId = client.auth.currentUser?.id;
-    if (userId == null) return;
-    
-    await client.from('expenses').insert({
+    if (userId == null) return null;
+
+    // Check if there's already an active trip
+    final existing = await getActiveExpenseForExecutive(userId);
+    if (existing != null) return existing['id']?.toString();
+
+    final response = await client.from('expenses').insert({
       'executive_id': userId,
-      'amount_allotted': 0.0,
-      'status': 'ACTIVE',
-      'allotment_status': 'RECEIVED', // No allotment needed, using hand cash
+      'status': 'APPROVED',
+      'allotment_status': 'RECEIVED',
       'created_at': DateTime.now().toIso8601String(),
-    });
+      'updated_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    return response['id']?.toString();
   }
 
   static Future<void> receiveExpenseFunds(String expenseId) async {
@@ -2241,7 +2368,7 @@ class SupabaseService {
     final response = await client.from('expenses')
         .select('*, expense_items(*)')
         .eq('executive_id', userId)
-        .eq('status', 'ACTIVE')
+        .or('status.eq.ACTIVE,status.eq.APPROVED')
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
@@ -2276,6 +2403,68 @@ class SupabaseService {
         .eq('id', id)
         .single();
     return response;
+  }
+
+  // --- Edit Information Requests (Rise Tokens) ---
+
+  static Future<void> submitEditRequest({
+    required String entityType,
+    required String entityId,
+    required String fieldName,
+    required String fieldLabel,
+    required String oldValue,
+    required String newValue,
+  }) async {
+    final user = client.auth.currentUser;
+    if (user == null) throw Exception('User must be authenticated');
+
+    await client.from('edit_requests').insert({
+      'entity_type': entityType,
+      'entity_id': entityId,
+      'field_name': fieldName,
+      'field_label': fieldLabel,
+      'old_value': oldValue,
+      'new_value': newValue,
+      'requested_by': user.id,
+      'status': 'pending',
+    });
+  }
+
+  static Future<List<Map<String, dynamic>>> getPendingEditRequests() async {
+    final response = await client
+        .from('edit_requests')
+        .select('*, profiles!requested_by(full_name)')
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  static Future<void> processEditRequest({
+    required String requestId,
+    required String status, // 'approved' or 'rejected'
+    required String entityType, // e.g., 'farmers'
+    required String entityId,
+    required String fieldName,
+    required String newValue,
+    String? adminNotes,
+  }) async {
+    // 1. If approved, perform the actual update on target table
+    if (status == 'approved') {
+      await client
+          .from(entityType)
+          .update({fieldName: newValue})
+          .eq('id', entityId);
+    }
+
+    // 2. Mark the request itself as resolved
+    await client
+        .from('edit_requests')
+        .update({
+          'status': status,
+          'admin_notes': adminNotes,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', requestId);
   }
 
   // --- Utility Methods ---

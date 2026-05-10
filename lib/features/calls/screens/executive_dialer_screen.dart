@@ -173,6 +173,9 @@ class _ExecutiveDialerScreenState extends State<ExecutiveDialerScreen> with Widg
     _selectedFarmerId = farmerId;
     
     CallTracker.makeCall(context, number, farmerId: farmerId);
+    setState(() {
+      _phoneNumber = ''; // Reset dialer for next number
+    });
   }
 
   @override
@@ -382,30 +385,76 @@ class _ExecutiveDialerScreenState extends State<ExecutiveDialerScreen> with Widg
                                   ),
                               ],
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('${(log['duration_seconds'] ?? 0) ~/ 60}m ${log['duration_seconds'] % 60}s', 
-                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
-                                const SizedBox(height: 4),
-                                if (log['summary'] != null && log['summary'].toString().isNotEmpty)
-                                  const Icon(Icons.note_alt_outlined, size: 14, color: AppColors.primary),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      '${(log['duration_seconds'] ?? 0) ~/ 60}m ${log['duration_seconds'] % 60}s',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    if (log['summary'] != null &&
+                                        log['summary'].toString().isNotEmpty)
+                                      const SizedBox(height: 4),
+                                  ],
+                                ),
+                                if (log['summary'] != null &&
+                                    log['summary'].toString().isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.note_alt_outlined,
+                                      size: 20,
+                                      color: AppColors.primary,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'View Summary',
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder:
+                                            (context) => AlertDialog(
+                                              title: const Text('Call Summary'),
+                                              content: Text(
+                                                log['summary'].toString(),
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed:
+                                                      () =>
+                                                          Navigator.pop(context),
+                                                  child: const Text('Close'),
+                                                ),
+                                              ],
+                                            ),
+                                      );
+                                    },
+                                  ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.call_rounded,
+                                    color: Colors.green,
+                                  ),
+                                  onPressed:
+                                      () => _initiateCall(
+                                        log['phone_number']?.toString() ?? '',
+                                        farmerId: log['farmer_id']?.toString(),
+                                      ),
+                                ),
                               ],
                             ),
-                            onTap: () {
-                               final summary = log['summary']?.toString();
-                               if (summary != null && summary.isNotEmpty) {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Call Summary'),
-                                      content: Text(summary),
-                                      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
-                                    ),
-                                  );
-                               }
-                            },
+                            onTap:
+                                () => _initiateCall(
+                                  log['phone_number']?.toString() ?? '',
+                                  farmerId: log['farmer_id']?.toString(),
+                                ),
                           ),
                         );
                       },
