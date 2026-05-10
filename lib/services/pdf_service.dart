@@ -14,7 +14,7 @@ class PdfService {
   }) async {
     final pdf = pw.Document();
 
-    // Load fonts that support the Rupee symbol (₹)
+    // Load fonts that support the Rupee symbol (â‚¹)
     final font = await PdfGoogleFonts.robotoRegular();
     final boldFont = await PdfGoogleFonts.robotoBold();
 
@@ -729,10 +729,18 @@ class PdfService {
     String? farmerAddress,
     String? farmerContact,
     String? dcNumber,
+    String? placeOfSupply,
   }) async {
     final pdf = pw.Document();
     final font = await PdfGoogleFonts.robotoRegular();
     final boldFont = await PdfGoogleFonts.robotoBold();
+
+    String cleanPlaceOfSupply = placeOfSupply ?? '';
+    if (cleanPlaceOfSupply.contains(' | Keywords: ')) {
+      cleanPlaceOfSupply = cleanPlaceOfSupply.split(' | Keywords: ').last.trim();
+    } else if (cleanPlaceOfSupply.contains('Keywords: ')) {
+      cleanPlaceOfSupply = cleanPlaceOfSupply.split('Keywords: ').last.trim();
+    }
 
     final dateStr = DateFormat('dd MMM yyyy').format(date);
     double grandTotal = 0;
@@ -740,10 +748,10 @@ class PdfService {
       grandTotal += (item['price'] as double? ?? 0) * (item['quantity'] as double? ?? 0);
     }
 
-    // Load logo via rootBundle — the reliable way for PDF generation
+    // Load logo via rootBundle â€” the reliable way for PDF generation
     pw.MemoryImage? logo;
     try {
-      final ByteData data = await rootBundle.load('assets/logo.png');
+      final ByteData data = await rootBundle.load('assets/challan_logo.png');
       logo = pw.MemoryImage(data.buffer.asUint8List());
     } catch (_) {
       // Logo not available, render without it
@@ -800,7 +808,7 @@ class PdfService {
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
 
-                // ─── HEADER: Logo + Company Info | Delivery Challan title ──────────
+                // â”€â”€â”€ HEADER: Logo + Company Info | Delivery Challan title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Container(
                   decoration: const pw.BoxDecoration(
                     border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
@@ -870,7 +878,7 @@ class PdfService {
                   ),
                 ),
 
-                // ─── DC NO / DATE  |  PLACE OF SUPPLY ───────────────────────────
+                // â”€â”€â”€ DC NO / DATE  |  PLACE OF SUPPLY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Container(
                   decoration: const pw.BoxDecoration(
                     border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
@@ -898,14 +906,14 @@ class PdfService {
                         flex: 1,
                         child: pw.Container(
                           padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          child: labelValue('Place of Supply', ''),
+                          child: labelValue('Place of Supply', cleanPlaceOfSupply),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                // ─── CUSTOMER INFO ────────────────────────────────────────────────
+                // â”€â”€â”€ CUSTOMER INFO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: const pw.BoxDecoration(
@@ -923,9 +931,9 @@ class PdfService {
                   ),
                 ),
 
-                // ─── PRODUCT TABLE ────────────────────────────────────────────────
+                // â”€â”€â”€ PRODUCT TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Table(
-                  // Only vertical lines between columns — no horizontal lines between rows
+                  // Only vertical lines between columns â€” no horizontal lines between rows
                   border: const pw.TableBorder(
                     left: pw.BorderSide(color: PdfColors.black, width: 0.8),
                     right: pw.BorderSide(color: PdfColors.black, width: 0.8),
@@ -940,7 +948,7 @@ class PdfService {
                     4: const pw.FlexColumnWidth(2.0),
                   },
                   children: [
-                    // Header row — has a bottom border to separate it from data
+                    // Header row â€” has a bottom border to separate it from data
                     pw.TableRow(
                       decoration: const pw.BoxDecoration(
                         border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
@@ -978,7 +986,7 @@ class PdfService {
                   ],
                 ),
 
-                // ─── TOTAL ROW ────────────────────────────────────────────────────
+                // â”€â”€â”€ TOTAL ROW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Table(
                   border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
                   columnWidths: {
@@ -1001,7 +1009,7 @@ class PdfService {
                   ],
                 ),
 
-                // ─── FOOTER: Terms | Authorized Signature | Bank Details ──────────
+                // â”€â”€â”€ FOOTER: Terms | Authorized Signature | Bank Details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 pw.Container(
                   height: 90,
                   decoration: const pw.BoxDecoration(
@@ -1358,6 +1366,423 @@ class PdfService {
       children: [
         pw.Text(label, style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
         pw.Text(value, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  static String numberToWords(int number) {
+    if (number == 0) return 'Zero';
+    final List<String> units = [
+      '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+    ];
+    final List<String> tens = [
+      '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+    ];
+
+    String convert(int n) {
+      if (n < 20) return units[n];
+      if (n < 100) return tens[n ~/ 10] + (n % 10 != 0 ? ' ${units[n % 10]}' : '');
+      if (n < 1000) return '${units[n ~/ 100]} Hundred' + (n % 100 != 0 ? ' and ${convert(n % 100)}' : '');
+      if (n < 100000) return '${convert(n ~/ 1000)} Thousand' + (n % 1000 != 0 ? ' ${convert(n % 1000)}' : '');
+      if (n < 10000000) return '${convert(n ~/ 100000)} Lakh' + (n % 100000 != 0 ? ' ${convert(n % 100000)}' : '');
+      return '${convert(n ~/ 10000000)} Crore' + (n % 10000000 != 0 ? ' ${convert(n % 10000000)}' : '');
+    }
+    return convert(number);
+  }
+
+  static Future<void> generatePaymentReceipt({
+    required String receiptNo,
+    required DateTime date,
+    required String customerName,
+    required String contactNo,
+    required String customerAddress,
+    required double amount,
+    required String purpose,
+    double accAmount = 0.0,
+    double balanceDue = 0.0,
+    String paymentMethod = 'Cash',
+  }) async {
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.robotoRegular();
+    final boldFont = await PdfGoogleFonts.robotoBold();
+
+    pw.MemoryImage? logo;
+    try {
+      final ByteData data = await rootBundle.load('assets/challan_logo.png');
+      logo = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      try {
+        final ByteData data = await rootBundle.load('assets/logo.png');
+        logo = pw.MemoryImage(data.buffer.asUint8List());
+      } catch (_) {}
+    }
+
+    const pageFormat = PdfPageFormat(
+      210 * PdfPageFormat.mm,
+      148 * PdfPageFormat.mm,
+      marginAll: 8 * PdfPageFormat.mm,
+    );
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        build: (context) {
+          return _buildReceiptWidget(
+            {
+              'receiptNo': receiptNo,
+              'date': date,
+              'customerName': customerName,
+              'contactNo': contactNo,
+              'customerAddress': customerAddress,
+              'amount': amount,
+              'purpose': purpose,
+              'accAmount': accAmount,
+              'balanceDue': balanceDue,
+              'paymentMethod': paymentMethod,
+            },
+            font,
+            boldFont,
+            logo,
+          );
+        },
+      ),
+    );
+
+    final filename = 'NatureBiotic_Receipt_${receiptNo.replaceAll('/', '_')}.pdf';
+    await Printing.sharePdf(bytes: await pdf.save(), filename: filename);
+  }
+
+  static Future<void> generateBulkReceiptsPdf({
+    required List<Map<String, dynamic>> receiptsData,
+  }) async {
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.robotoRegular();
+    final boldFont = await PdfGoogleFonts.robotoBold();
+
+    pw.MemoryImage? logo;
+    try {
+      final ByteData data = await rootBundle.load('assets/challan_logo.png');
+      logo = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      try {
+        final ByteData data = await rootBundle.load('assets/logo.png');
+        logo = pw.MemoryImage(data.buffer.asUint8List());
+      } catch (_) {}
+    }
+
+    // A4 Portrait: 210mm x 297mm
+    // 3 receipts per page -> 99mm height each
+    const double receiptHeight = 99 * PdfPageFormat.mm;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(5 * PdfPageFormat.mm),
+        build: (context) {
+          final List<pw.Widget> widgets = [];
+          for (int i = 0; i < receiptsData.length; i++) {
+            final data = receiptsData[i];
+            widgets.add(
+              pw.Container(
+                height: receiptHeight - (10 * PdfPageFormat.mm),
+                child: _buildReceiptWidget(data, font, boldFont, logo, isBulk: true),
+              ),
+            );
+
+            // Add dotted line between receipts on the same page
+            if ((i + 1) % 3 != 0 && i != receiptsData.length - 1) {
+              widgets.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 2 * PdfPageFormat.mm),
+                  child: pw.Row(
+                    children: List.generate(
+                      40,
+                      (index) => pw.Expanded(
+                        child: pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 2),
+                          child: pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+          return widgets;
+        },
+      ),
+    );
+
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'NatureBiotic_BulkReceipts_${DateTime.now().millisecondsSinceEpoch}.pdf',
+    );
+  }
+
+  static pw.Widget _buildReceiptWidget(
+    Map<String, dynamic> data,
+    pw.Font font,
+    pw.Font boldFont,
+    pw.MemoryImage? logo, {
+    bool isBulk = false,
+  }) {
+    final String receiptNo = data['receiptNo']?.toString() ?? 'N/A';
+    final DateTime date = data['date'] ?? DateTime.now();
+    final String customerName = data['customerName']?.toString() ?? 'N/A';
+    final String contactNo = data['contactNo']?.toString() ?? 'N/A';
+    final String customerAddress = data['customerAddress']?.toString() ?? 'N/A';
+    final double amount = double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
+    final String purpose = data['purpose']?.toString() ?? 'N/A';
+    final double accAmount = double.tryParse(data['accAmount']?.toString() ?? '0') ?? 0.0;
+    final double balanceDue = double.tryParse(data['balanceDue']?.toString() ?? '0') ?? 0.0;
+    final String paymentMethod = data['paymentMethod']?.toString() ?? 'Cash';
+
+    final dateStr = DateFormat('dd MMM yyyy').format(date);
+    final amountWords = numberToWords(amount.toInt());
+
+    // Scale fonts slightly down for bulk print to ensure fit
+    final double baseSize = isBulk ? 8.0 : 9.0;
+    final double titleSize = isBulk ? 18.0 : 22.0;
+
+    pw.Widget dottedField(String text) {
+      return pw.Expanded(
+        child: pw.Container(
+          padding: const pw.EdgeInsets.only(left: 2, bottom: 1),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              bottom: pw.BorderSide(style: pw.BorderStyle.dotted, color: PdfColors.grey600),
+            ),
+          ),
+          child: pw.Text(text, style: pw.TextStyle(font: font, fontSize: baseSize)),
+        ),
+      );
+    }
+
+    pw.Widget amountBox(String label, String value) {
+      return pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.SizedBox(
+            width: isBulk ? 60 : 72,
+            child: pw.Text(label, style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
+          ),
+          pw.Container(
+            width: isBulk ? 70 : 80,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey500),
+              borderRadius: pw.BorderRadius.circular(2),
+            ),
+            child: pw.Text('Rs. $value', style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
+          ),
+        ],
+      );
+    }
+
+    pw.Widget checkBox(String label, bool checked) {
+      return pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Text(label, style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
+          pw.Container(
+            width: isBulk ? 8 : 10,
+            height: isBulk ? 8 : 10,
+            margin: const pw.EdgeInsets.only(left: 2, right: 5),
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey600)),
+            child: checked
+                ? pw.Center(
+                    child: pw.Text('X',
+                        style: pw.TextStyle(font: boldFont, fontSize: baseSize - 2)))
+                : null,
+          ),
+        ],
+      );
+    }
+
+    return pw.Stack(
+      children: [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            pw.Container(
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Container(
+                    width: isBulk ? 140 : 155,
+                    padding: const pw.EdgeInsets.all(8),
+                    decoration: const pw.BoxDecoration(
+                      border: pw.Border(right: pw.BorderSide(color: PdfColors.grey400)),
+                    ),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        if (logo != null)
+                          pw.Container(width: isBulk ? 35 : 44, height: isBulk ? 35 : 44, child: pw.Image(logo)),
+                        pw.SizedBox(width: 8),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text('SAIRAM AGRI INPUTS',
+                                  style: pw.TextStyle(font: boldFont, fontSize: baseSize + 1)),
+                              pw.SizedBox(height: 3),
+                              pw.Text(
+                                isBulk 
+                                  ? 'Tenkasi Road, Rajapalayam.\nGSTIN 33EFZPS9942RIZT'
+                                  : '644C (1), Behind PACR Statue,\nTenkasi Road, Rajapalayam - 626117.\nTamil Nadu, India\nGSTIN 33EFZPS9942RIZT',
+                                style: pw.TextStyle(font: font, fontSize: baseSize - 2, lineSpacing: 1.2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.Expanded(
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(10),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Payment Receipt',
+                              style: pw.TextStyle(font: boldFont, fontSize: titleSize)),
+                          pw.SizedBox(height: isBulk ? 5 : 12),
+                          pw.Row(children: [
+                            pw.Text('No : ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                            dottedField(receiptNo),
+                            pw.SizedBox(width: 8),
+                            pw.Text('Date : ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                            dottedField(dateStr),
+                          ]),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Customer Details
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Row(children: [
+                    pw.Text('Customer Name : ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                    dottedField(customerName),
+                    pw.SizedBox(width: 12),
+                    pw.Text('Contact No : ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                    dottedField(contactNo),
+                  ]),
+                  pw.SizedBox(height: 8),
+                  pw.Row(children: [
+                    pw.Text('Customer Address : ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                    dottedField(customerAddress.replaceAll('\n', ' ')),
+                  ]),
+                ],
+              ),
+            ),
+
+            // Payment Details
+            pw.Expanded(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text('An Amount of  ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                        pw.Container(
+                          width: isBulk ? 75 : 88,
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border.all(color: PdfColors.grey500),
+                            borderRadius: pw.BorderRadius.circular(2),
+                          ),
+                          child: pw.Text('Rs. ${amount.toInt()}',
+                              style: pw.TextStyle(font: font, fontSize: baseSize)),
+                        ),
+                        pw.SizedBox(width: 6),
+                        pw.Text('in words  ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                        dottedField(amountWords + ' Rupees Only'),
+                      ],
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Row(children: [
+                      pw.Text('For the purpose of  ', style: pw.TextStyle(font: font, fontSize: baseSize)),
+                      dottedField(purpose),
+                    ]),
+                    pw.SizedBox(height: 10),
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            amountBox('Acc. Amount', accAmount.toInt().toString()),
+                            pw.SizedBox(height: 5),
+                            amountBox('This Payment', amount.toInt().toString()),
+                            pw.SizedBox(height: 5),
+                            amountBox('Balance Due', balanceDue.toInt().toString()),
+                          ],
+                        ),
+                        pw.SizedBox(width: 10),
+                        pw.Expanded(
+                          child: pw.Padding(
+                            padding: const pw.EdgeInsets.only(top: 14),
+                            child: pw.Row(children: [
+                              pw.Text('Paid by  ', style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
+                              checkBox('Cash', paymentMethod.toLowerCase() == 'cash'),
+                              checkBox('Cheque', paymentMethod.toLowerCase() == 'cheque'),
+                              checkBox('UPI', paymentMethod.toLowerCase() == 'upi'),
+                              checkBox('Other', !['cash', 'cheque', 'upi'].contains(paymentMethod.toLowerCase())),
+                            ]),
+                          ),
+                        ),
+                        pw.Container(
+                          width: isBulk ? 85 : 100,
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text('Authorized Signature',
+                                  style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
+                              pw.Text('for (Sairam Agri Inputs)',
+                                  style: pw.TextStyle(
+                                      font: font, fontSize: baseSize - 2, color: PdfColors.grey600)),
+                              pw.SizedBox(height: 15),
+                              pw.Row(children: [dottedField('')]),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        pw.Positioned.fill(
+          child: pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey500, width: 0.8),
+            ),
+          ),
+        ),
       ],
     );
   }

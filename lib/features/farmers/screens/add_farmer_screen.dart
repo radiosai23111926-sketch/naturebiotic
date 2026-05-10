@@ -508,7 +508,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          initialValue:
+                          value:
                               (_selectedCategory != null &&
                                       _categories.contains(_selectedCategory))
                                   ? _selectedCategory

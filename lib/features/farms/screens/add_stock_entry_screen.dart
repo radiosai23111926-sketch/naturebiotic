@@ -569,6 +569,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                       date: now,
                       farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
                       farmerContact: farmerData?['mobile'] ?? 'N/A',
+                      placeOfSupply: _fullFarmData?['location']?.toString(),
                     );
                   },
                   icon: const Icon(Icons.share_rounded, size: 18),

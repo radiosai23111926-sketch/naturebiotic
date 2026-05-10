@@ -6,6 +6,8 @@ import 'package:nature_biotic/features/farms/screens/add_collection_screen.dart'
 import 'package:nature_biotic/features/farms/screens/collection_history_screen.dart';
 import 'package:nature_biotic/features/farms/screens/add_stock_entry_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:nature_biotic/services/pdf_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FarmSalesListScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialTransactions;
@@ -39,7 +41,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   TextEditingController? _cachedSearchController;
   TextEditingController get _searchController =>
       _cachedSearchController ??= TextEditingController();
-
+  
   @override
   void dispose() {
     _cachedSearchController?.dispose();
@@ -88,9 +90,29 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         };
       }
 
-      // Track individual transactions
       if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING') {
-        grouped[farmId]!['logs'].add({...tx, '_source': 'transaction'});
+        final itemName = tx['item_name']?.toString().trim().toLowerCase();
+        final rawUnit = tx['unit']?.toString().trim().toLowerCase() ?? '';
+        final unit = rawUnit.split(' {₹')[0].trim();
+
+        final product = widget.allProducts.firstWhere(
+          (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+          orElse: () => {},
+        );
+        final List variants = product['variants'] ?? [];
+        final variant = variants.firstWhere(
+          (v) => v['label']?.toString().trim().toLowerCase() == unit,
+          orElse: () => {},
+        );
+
+        final price =
+            double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
+
+        grouped[farmId]!['logs'].add({
+          ...tx,
+          '_source': 'transaction',
+          '_price': price,
+        });
       }
 
       // Calculate Revenue (for SALES and OUTSTANDING)
@@ -235,12 +257,32 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         final id = farm['id'].toString();
         if (_farmSales.containsKey(id)) {
           _farmSales[id]!['farm_name'] = farm['name'] ?? 'Unknown Farm';
-          _farmSales[id]!['farmer_name'] =
-              farm['farmers']?['name'] ?? 'No Farmer';
+
+          // Handle nested farmer data (can be Map or List)
+          final farmerData = farm['farmers'];
+          if (farmerData is Map) {
+            _farmSales[id]!['farmer_name'] =
+                farmerData['name'] ?? 'No Farmer';
+          } else if (farmerData is List && farmerData.isNotEmpty) {
+            _farmSales[id]!['farmer_name'] =
+                farmerData[0]['name'] ?? 'No Farmer';
+          } else {
+            _farmSales[id]!['farmer_name'] = 'No Farmer';
+          }
+
           _farmSales[id]!['location'] =
               farm['place'] ?? farm['location'] ?? 'No Location';
 
-          // Handle multi-crop relationships correctly (can be List or Map from Supabase)
+          // Store farmer contact info for PDF generation
+          if (farmerData is Map) {
+            _farmSales[id]!['farmer_mobile'] = farmerData['mobile'];
+            _farmSales[id]!['farmer_address'] = farmerData['address'];
+          } else if (farmerData is List && farmerData.isNotEmpty) {
+            _farmSales[id]!['farmer_mobile'] = farmerData[0]['mobile'];
+            _farmSales[id]!['farmer_address'] = farmerData[0]['address'];
+          }
+
+          // Handle multi-crop relationships correctly
           final cropData = farm['crops'];
           String resolvedCrop = 'No Crop';
           if (cropData is Map) {
@@ -265,7 +307,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     try {
       final response = await SupabaseService.client
           .from('farms')
-          .select('*, farmers(name), crops(name)')
+          .select('*, farmers(name, mobile, address), crops(name)')
           .order('created_at');
       final farms = List<Map<String, dynamic>>.from(response);
       if (mounted) {
@@ -332,9 +374,50 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     if (widget.mode == 'COLLECTION') title = 'Collections by Farm';
     if (widget.mode == 'OUTSTANDING') title = 'Outstanding by Farm';
 
+    List<Map<String, dynamic>> flatCollections = [];
+    if (widget.mode == 'COLLECTION') {
+      for (var farm in list) {
+        final logs = (farm['logs'] as List?) ?? [];
+        for (var log in logs) {
+          if (log is Map<String, dynamic> && log['_source'] == 'collection') {
+            flatCollections.add({'log': log, 'farmData': farm});
+          }
+        }
+      }
+      flatCollections.sort((a, b) {
+        final aStr = a['log']['created_at']?.toString() ?? '';
+        final bStr = b['log']['created_at']?.toString() ?? '';
+        return bStr.compareTo(aStr);
+      });
+
+      // Apply Name Search (already handled in list generation but ensuring flatCollections is filtered)
+      if (_searchController.text.isNotEmpty) {
+        final q = _searchController.text.toLowerCase();
+        flatCollections = flatCollections.where((c) {
+          final farm = (c['farmData']['name'] ?? '').toString().toLowerCase();
+          final farmer = (c['farmData']['farmer_name'] ?? '').toString().toLowerCase();
+          return farm.contains(q) || farmer.contains(q);
+        }).toList();
+      }
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          if (widget.mode == 'COLLECTION' && flatCollections.isNotEmpty)
+            TextButton.icon(
+              onPressed: () => _printFilteredReceipts(flatCollections),
+              icon: const Icon(Icons.print_rounded, size: 18),
+              label: const Text('Print Receipts', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+        ],
+      ),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -386,17 +469,23 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                     child: RefreshIndicator(
                       onRefresh: () async => _processData(),
                       child:
-                          list.isEmpty
+                          (widget.mode == 'COLLECTION' ? flatCollections.isEmpty : list.isEmpty)
                               ? _buildEmptyState()
                               : ListView.builder(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 12,
                                 ),
-                                itemCount: list.length,
-                                itemBuilder:
-                                    (context, index) =>
-                                        _buildFarmCard(list[index]),
+                                itemCount: widget.mode == 'COLLECTION' ? flatCollections.length : list.length,
+                                itemBuilder: (context, index) {
+                                  if (widget.mode == 'COLLECTION') {
+                                    return _buildFlatCollectionCard(
+                                      flatCollections[index]['log'] as Map<String, dynamic>,
+                                      flatCollections[index]['farmData'] as Map<String, dynamic>,
+                                    );
+                                  }
+                                  return _buildFarmCard(list[index]);
+                                },
                               ),
                     ),
                   ),
@@ -479,6 +568,204 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _downloadConsolidatedChallan(Map<String, dynamic> farmData) async {
+    final List<Map<String, dynamic>> logs = List<Map<String, dynamic>>.from(
+      farmData['logs'] ?? [],
+    );
+
+    // Filter only SALES RECEIVED (positive items)
+    final salesLogs =
+        logs
+            .where(
+              (log) =>
+                  log['_source'] == 'transaction' &&
+                  log['transaction_type']?.toString().toUpperCase() ==
+                      'RECEIVED',
+            )
+            .toList();
+
+    if (salesLogs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No sales records to download.')),
+        );
+      }
+      return;
+    }
+
+    final challanItems =
+        salesLogs.map((log) {
+          final qty =
+              double.tryParse(log['quantity']?.toString() ?? '0') ?? 0.0;
+          final price =
+              double.tryParse(log['_price']?.toString() ?? '0') ?? 0.0;
+          return {
+            'name': log['item_name'] ?? 'N/A',
+            'quantity': qty,
+            'price': price,
+            'unit': (log['unit']?.toString() ?? '').split(' {₹')[0].trim(),
+          };
+        }).toList();
+
+    // Generate DC Number
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Get Executive ID part (fallback to 0000 if not found)
+    final profile = await SupabaseService.getProfile();
+    String execPart = '0000';
+    if (profile != null) {
+      final staffNo = profile['staff_number']?.toString();
+      if (staffNo != null && staffNo.isNotEmpty) {
+        execPart = staffNo.padLeft(4, '0');
+        if (execPart.length > 4) {
+          execPart = execPart.substring(execPart.length - 4);
+        }
+      } else {
+        final username = profile['username']?.toString() ?? '';
+        // Extract digits from username (e.g. exec0002 -> 0002)
+        final digits = username.replaceAll(RegExp(r'[^0-9]'), '');
+        if (digits.isNotEmpty) {
+          execPart = digits.padLeft(4, '0');
+          if (execPart.length > 4) {
+            execPart = execPart.substring(execPart.length - 4);
+          }
+        } else {
+          // Fallback to first 4 chars of user ID if no digits
+          final id = profile['id']?.toString() ?? '';
+          if (id.length >= 4) {
+            execPart = id.substring(0, 4).toUpperCase();
+          }
+        }
+      }
+    }
+
+    // Get Receipt Number (Sequential)
+    // Tie it to the farm and latest timestamp to keep it consistent on redownloads
+    final farmId = farmData['farm_id']?.toString() ?? 'unknown';
+    final latestTs = salesLogs.isNotEmpty ? salesLogs.first['created_at']?.toString() ?? '' : '';
+    final dcKey = 'dc_number_${farmId}_$latestTs';
+    
+    int receiptNo = prefs.getInt(dcKey) ?? 0;
+    if (receiptNo == 0) {
+      // Generate new sequential number
+      int globalCounter = prefs.getInt('global_dc_counter') ?? 1;
+      receiptNo = globalCounter;
+      await prefs.setInt('global_dc_counter', globalCounter + 1);
+      await prefs.setInt(dcKey, receiptNo);
+    }
+    
+    final receiptPart = receiptNo.toString().padLeft(4, '0');
+    
+    // Financial Year
+    final now = DateTime.now();
+    int startYear = now.month < 4 ? now.year - 1 : now.year;
+    final fy = '$startYear-${startYear + 1}';
+    
+    final customDcNumber = 'SAI$execPart$receiptPart/$fy';
+
+    PdfService.generateStockChallan(
+      items: challanItems,
+      farmName: farmData['farm_name'] ?? 'N/A',
+      farmerName: farmData['farmer_name'] ?? 'N/A',
+      cropName: farmData['crop_name'] ?? 'N/A',
+      transactionType: 'SALES',
+      date: DateTime.now(), // Use current date for the consolidated statement
+      farmerAddress: farmData['farmer_address'],
+      farmerContact: farmData['farmer_mobile'],
+      dcNumber: customDcNumber,
+      placeOfSupply: farmData['location']?.toString(),
+    );
+  }
+
+  Future<void> _downloadPaymentReceipt(Map<String, dynamic> log, Map<String, dynamic> farmData) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generating Receipt...'), duration: Duration(seconds: 1)),
+      );
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profile = await SupabaseService.getProfile();
+      
+      String execPart = '0000';
+      if (profile != null) {
+        final staffNo = profile['staff_number']?.toString();
+        if (staffNo != null && staffNo.isNotEmpty) {
+          execPart = staffNo.padLeft(4, '0');
+          if (execPart.length > 4) {
+            execPart = execPart.substring(execPart.length - 4);
+          }
+        } else {
+          final username = profile['username']?.toString() ?? '';
+          final digits = username.replaceAll(RegExp(r'[^0-9]'), '');
+          if (digits.isNotEmpty) {
+            execPart = digits.padLeft(4, '0');
+            if (execPart.length > 4) {
+              execPart = execPart.substring(execPart.length - 4);
+            }
+          } else {
+            final id = profile['id']?.toString() ?? '';
+            if (id.length >= 4) {
+              execPart = id.substring(0, 4).toUpperCase();
+            }
+          }
+        }
+      }
+
+      String? customReceiptNumber = log['receipt_no']?.toString();
+      
+      if (customReceiptNumber == null || customReceiptNumber.isEmpty) {
+        final logId = log['id']?.toString() ?? log['created_at'].toString();
+        final receiptKey = 'receipt_number_$logId';
+        
+        int receiptNo = prefs.getInt(receiptKey) ?? 0;
+        if (receiptNo == 0) {
+          int globalCounter = prefs.getInt('global_receipt_counter') ?? 1;
+          receiptNo = globalCounter;
+          await prefs.setInt('global_receipt_counter', globalCounter + 1);
+          await prefs.setInt(receiptKey, receiptNo);
+        }
+        
+        final receiptPart = receiptNo.toString().padLeft(4, '0');
+        final now = DateTime.now();
+        int startYear = now.month < 4 ? now.year - 1 : now.year;
+        final fy = '$startYear-${startYear + 1}';
+        customReceiptNumber = 'SAI$execPart$receiptPart/$fy';
+      }
+
+      final amt = double.tryParse(log['amount']?.toString() ?? '0') ?? 0.0;
+      
+      double accAmount = 0.0;
+      final totalRevenue = double.tryParse(farmData['total_revenue']?.toString() ?? '0') ?? 0.0;
+      accAmount = totalRevenue; 
+      
+      final totalCollection = double.tryParse(farmData['total_collection']?.toString() ?? '0') ?? 0.0;
+      final balanceDue = accAmount - totalCollection;
+
+      final dateStr = log['created_at']?.toString() ?? DateTime.now().toIso8601String();
+      final date = DateTime.tryParse(dateStr) ?? DateTime.now();
+
+      await PdfService.generatePaymentReceipt(
+        receiptNo: customReceiptNumber,
+        date: date,
+        customerName: farmData['farmer_name'] ?? 'N/A',
+        contactNo: farmData['farmer_mobile'] ?? 'N/A',
+        customerAddress: farmData['farmer_address'] ?? 'N/A',
+        amount: amt,
+        purpose: '${farmData['farm_name'] ?? 'N/A'} - ${farmData['crop_name'] ?? 'N/A'}',
+        accAmount: accAmount,
+        balanceDue: balanceDue < 0 ? 0 : balanceDue,
+        paymentMethod: log['payment_method']?.toString() ?? 'Cash',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating receipt: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildFarmCard(Map<String, dynamic> data) {
@@ -586,6 +873,23 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                           fontSize: 10,
                         ),
                       ),
+                      if (widget.mode == 'SALES' ||
+                          widget.mode == 'OUTSTANDING') ...[
+                        const SizedBox(height: 4),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(
+                            Icons.file_download_outlined,
+                            color: AppColors.primary,
+                            size: 22,
+                          ),
+                          tooltip: 'Download Sales Challan',
+                          onPressed: () {
+                            _downloadConsolidatedChallan(data);
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -689,6 +993,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                                 .map(
                                   (l) => _buildInnerLogItem(
                                     l as Map<String, dynamic>,
+                                    data,
                                   ),
                                 )
                                 .toList(),
@@ -730,7 +1035,10 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     );
   }
 
-  Widget _buildInnerLogItem(Map<String, dynamic> log) {
+  Widget _buildInnerLogItem(
+    Map<String, dynamic> log,
+    Map<String, dynamic> farmData,
+  ) {
     final date = _formatDate(log['created_at']);
     final bool isTx = log['_source'] == 'transaction';
 
@@ -909,6 +1217,218 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       return dateStr.toString();
     }
   }
+
+  Widget _buildFlatCollectionCard(Map<String, dynamic> log, Map<String, dynamic> farmData) {
+    final amt = double.tryParse(log['amount']?.toString() ?? '0') ?? 0.0;
+    final date = _formatDate(log['created_at']);
+    final color = Colors.teal;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: Colors.teal,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${farmData['farmer_name']} • ${farmData['farm_name']}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.textBlack,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Crop: ${farmData['crop_name'] ?? 'N/A'}',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '+₹${amt.toInt()}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.teal,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                date,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textGray,
+                ),
+              ),
+              const SizedBox(height: 4),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(
+                  Icons.print_rounded,
+                  color: Colors.teal,
+                  size: 20,
+                ),
+                tooltip: 'Download Payment Receipt',
+                onPressed: () {
+                  _downloadPaymentReceipt(log, farmData);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printFilteredReceipts(List<Map<String, dynamic>> flatList) async {
+    // 1. Get all unique receipt numbers and sort them
+    final List<String> receiptNumbers =
+        flatList
+            .map((e) => e['log']['receipt_no']?.toString() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList();
+
+    // Sort logically (if possible) or alphabetically
+    receiptNumbers.sort();
+
+    String? fromReceipt;
+    String? toReceipt;
+    List<String>? selectedRange;
+
+    if (receiptNumbers.isNotEmpty) {
+      fromReceipt = receiptNumbers.first;
+      toReceipt = receiptNumbers.last;
+
+      final result = await showDialog<bool>(
+        context: context,
+        builder:
+            (context) => StatefulBuilder(
+              builder:
+                  (context, setDialogState) => AlertDialog(
+                    title: const Text('Print Range Selection'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: fromReceipt,
+                          decoration: const InputDecoration(labelText: 'From Receipt No.'),
+                          items:
+                              receiptNumbers.map((r) {
+                                return DropdownMenuItem(value: r, child: Text(r));
+                              }).toList(),
+                          onChanged: (v) {
+                            if (v != null) setDialogState(() => fromReceipt = v);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: toReceipt,
+                          decoration: const InputDecoration(labelText: 'To Receipt No.'),
+                          items:
+                              receiptNumbers.map((r) {
+                                return DropdownMenuItem(value: r, child: Text(r));
+                              }).toList(),
+                          onChanged: (v) {
+                            if (v != null) setDialogState(() => toReceipt = v);
+                          },
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Print'),
+                      ),
+                    ],
+                  ),
+            ),
+      );
+
+      if (result != true) return;
+
+      // Filter flatList by the selected range
+      final fromIdx = receiptNumbers.indexOf(fromReceipt!);
+      final toIdx = receiptNumbers.indexOf(toReceipt!);
+      final startIdx = fromIdx < toIdx ? fromIdx : toIdx;
+      final endIdx = fromIdx < toIdx ? toIdx : fromIdx;
+      selectedRange = receiptNumbers.sublist(startIdx, endIdx + 1);
+    }
+
+    final List<Map<String, dynamic>> receiptsData = [];
+
+    for (var item in flatList) {
+      final log = item['log'] as Map<String, dynamic>;
+      final recNo = log['receipt_no']?.toString() ?? 'N/A';
+
+      if (selectedRange != null && !selectedRange.contains(recNo)) continue;
+
+      final farmData = item['farmData'] as Map<String, dynamic>;
+      final amt = double.tryParse(log['amount']?.toString() ?? '0') ?? 0.0;
+      final createdAt = log['created_at'] != null
+          ? DateTime.tryParse(log['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now();
+
+      receiptsData.add({
+        'receiptNo': recNo,
+        'date': createdAt,
+        'customerName': farmData['farmer_name'] ?? 'N/A',
+        'contactNo': farmData['farmer_mobile'] ?? 'N/A',
+        'customerAddress': farmData['location'] ?? 'N/A',
+        'amount': amt,
+        'purpose': log['notes'] ?? 'Farm Collection',
+        'accAmount': farmData['total_revenue'] ?? 0.0,
+        'balanceDue': (farmData['total_revenue'] ?? 0.0) - (farmData['total_collection'] ?? 0.0),
+        'paymentMethod': log['payment_method'] ?? 'Cash',
+      });
+    }
+
+    if (receiptsData.isEmpty) return;
+
+    await PdfService.generateBulkReceiptsPdf(receiptsData: receiptsData);
+  }
 }
 
 class _SelectionFlow extends StatefulWidget {
@@ -995,92 +1515,83 @@ class _SelectionFlowState extends State<_SelectionFlow> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Row(
               children: [
                 if (_step != 'FARMER')
                   IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 18,
-                    ),
+                    icon: const Icon(Icons.arrow_back),
                     onPressed: () {
                       setState(() {
-                        _searchController.clear();
                         if (_step == 'CROP') {
                           _step = 'FARM';
-                        } else if (_step == 'FARM')
+                        } else if (_step == 'FARM') {
                           _step = 'FARMER';
+                        }
                       });
                     },
                   ),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textBlack,
-                    ),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
-          if (!_isLoading)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Search...',
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.primary,
-                    ),
-                    suffixIcon:
-                        _searchController.text.isNotEmpty
-                            ? IconButton(
-                              icon: const Icon(Icons.clear_rounded),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
-                            : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.primary,
+                  ),
+                  suffixIcon:
+                      _searchController.text.isNotEmpty
+                          ? IconButton(
+                            icon: const Icon(Icons.clear_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                          : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
                   ),
                 ),
               ),
             ),
+          ),
           if (_isLoading)
             const Expanded(child: Center(child: CircularProgressIndicator()))
           else
@@ -1168,10 +1679,11 @@ class _SelectionFlowState extends State<_SelectionFlow> {
           final crop = filtered[index];
           return _selectionTile(
             title: crop['name'] ?? 'Unknown Crop',
-            subtitle: '${crop['area'] ?? '-'} ${crop['area_unit'] ?? ''}',
-            icon: Icons.eco_rounded,
-            onTap:
-                () => widget.onComplete(_selectedFarmer!, _selectedFarm!, crop),
+            subtitle: 'Variety: ${crop['variety'] ?? 'N/A'}',
+            icon: Icons.grass_rounded,
+            onTap: () {
+              widget.onComplete(_selectedFarmer!, _selectedFarm!, crop);
+            },
           );
         },
       );

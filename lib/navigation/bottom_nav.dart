@@ -24,6 +24,15 @@ class _BottomNavState extends State<BottomNav> {
   String _userRole = 'executive';
   bool _isLoading = true;
 
+  // Added Navigator keys for each tab to enable persistent bottom bar
+  final Map<int, GlobalKey<NavigatorState>> _navigatorKeys = {
+    0: GlobalKey<NavigatorState>(),
+    1: GlobalKey<NavigatorState>(),
+    2: GlobalKey<NavigatorState>(),
+    3: GlobalKey<NavigatorState>(),
+    4: GlobalKey<NavigatorState>(),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +48,6 @@ class _BottomNavState extends State<BottomNav> {
           _isLoading = false;
         });
       }
-      // Startup prefetch — cache critical data while online
       if (!kIsWeb) _prefetchCriticalData();
     } catch (e) {
       if (mounted) {
@@ -48,7 +56,6 @@ class _BottomNavState extends State<BottomNav> {
     }
   }
 
-  /// Silently pre-cache all critical data needed for offline use.
   Future<void> _prefetchCriticalData() async {
     try {
       await Future.wait([
@@ -62,10 +69,7 @@ class _BottomNavState extends State<BottomNav> {
         SupabaseService.getMasterCrops(),
         SupabaseService.syncAllDropdownOptions(),
       ]);
-      debugPrint('PREFETCH: Critical data cached successfully.');
-    } catch (e) {
-      debugPrint('PREFETCH: Failed (likely offline): $e');
-    }
+    } catch (_) {}
   }
 
   List<Widget> _getScreens() {
@@ -82,6 +86,16 @@ class _BottomNavState extends State<BottomNav> {
           : const ExecutiveExpenseDashboard(),
       const FarmPdfFolderScreen(),
     ];
+  }
+
+  // Helper to build a navigator for each tab
+  Widget _buildTabNavigator(int index, Widget screen) {
+    return Navigator(
+      key: _navigatorKeys[index],
+      onGenerateRoute: (routeSettings) {
+        return MaterialPageRoute(builder: (context) => screen);
+      },
+    );
   }
 
   List<BottomNavigationBarItem> _getNavItems() {
@@ -130,8 +144,13 @@ class _BottomNavState extends State<BottomNav> {
 
     final screens = _getScreens();
     final bool isWide = MediaQuery.sizeOf(context).width > 1100;
-    final int safeIndex =
-        screens.isEmpty ? 0 : _currentIndex.clamp(0, screens.length - 1);
+    final int safeIndex = screens.isEmpty ? 0 : _currentIndex.clamp(0, screens.length - 1);
+
+    // Build the tab contents with navigators
+    final List<Widget> tabNavigators = [];
+    for (int i = 0; i < screens.length; i++) {
+      tabNavigators.add(_buildTabNavigator(i, screens[i]));
+    }
 
     if (isWide) {
       return Scaffold(
@@ -141,9 +160,9 @@ class _BottomNavState extends State<BottomNav> {
             children: [
               _buildDesktopSidebar(screens),
               Expanded(
-                child: Container(
-                  color: Colors.blue.withOpacity(0.1),
-                  child: screens[safeIndex],
+                child: IndexedStack(
+                  index: safeIndex,
+                  children: tabNavigators,
                 ),
               ),
             ],
@@ -152,12 +171,31 @@ class _BottomNavState extends State<BottomNav> {
       );
     }
 
-    return Scaffold(
-      body: OfflineAwareBanner(child: screens[safeIndex]),
-      bottomNavigationBar:
-          screens.length <= 1
-              ? null
-              : Container(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        
+        final NavigatorState? currentNavigator = _navigatorKeys[_currentIndex]?.currentState;
+        if (currentNavigator != null && currentNavigator.canPop()) {
+          currentNavigator.pop();
+        } else if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+        } else {
+          // If at home and can't pop nested, allow app to exit or use default back behavior
+          // This might need more logic depending on how the app should exit
+        }
+      },
+      child: Scaffold(
+        body: OfflineAwareBanner(
+          child: IndexedStack(
+            index: safeIndex,
+            children: tabNavigators,
+          ),
+        ),
+        bottomNavigationBar: screens.length <= 1
+            ? null
+            : Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -171,9 +209,14 @@ class _BottomNavState extends State<BottomNav> {
                 child: BottomNavigationBar(
                   currentIndex: safeIndex,
                   onTap: (index) {
-                    setState(() {
-                      _currentIndex = index;
-                    });
+                    if (_currentIndex == index) {
+                      // Pop to root if the same tab is tapped again
+                      _navigatorKeys[index]?.currentState?.popUntil((route) => route.isFirst);
+                    } else {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    }
                   },
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.white,
@@ -191,6 +234,7 @@ class _BottomNavState extends State<BottomNav> {
                   items: _getNavItems(),
                 ),
               ),
+      ),
     );
   }
 
@@ -259,23 +303,18 @@ class _BottomNavState extends State<BottomNav> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
-                children:
-                    _userRole == 'store'
-                        ? [
-                          _sidebarItem(0, Icons.inventory_2_rounded, 'Stock'),
-                          _sidebarItem(1, Icons.person_rounded, 'Profile'),
-                        ]
-                        : [
-                          _sidebarItem(0, Icons.dashboard_rounded, 'Dashboard'),
-                          _sidebarItem(1, Icons.call_rounded, 'Nature Biotic'),
-                          _sidebarItem(2, Icons.inventory_2_rounded, 'Stock'),
-                          _sidebarItem(3, Icons.payments_rounded, 'Expenses'),
-                          _sidebarItem(
-                            4,
-                            Icons.folder_shared_rounded,
-                            'Reports',
-                          ),
-                        ],
+                children: _userRole == 'store'
+                    ? [
+                        _sidebarItem(0, Icons.inventory_2_rounded, 'Stock'),
+                        _sidebarItem(1, Icons.person_rounded, 'Profile'),
+                      ]
+                    : [
+                        _sidebarItem(0, Icons.dashboard_rounded, 'Dashboard'),
+                        _sidebarItem(1, Icons.call_rounded, 'Nature Biotic'),
+                        _sidebarItem(2, Icons.inventory_2_rounded, 'Stock'),
+                        _sidebarItem(3, Icons.payments_rounded, 'Expenses'),
+                        _sidebarItem(4, Icons.folder_shared_rounded, 'Reports'),
+                      ],
               ),
             ),
           ),
@@ -329,35 +368,32 @@ class _BottomNavState extends State<BottomNav> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => setState(() => _currentIndex = index),
+          onTap: () {
+            if (_currentIndex == index) {
+              _navigatorKeys[index]?.currentState?.popUntil((route) => route.isFirst);
+            } else {
+              setState(() => _currentIndex = index);
+            }
+          },
           borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color:
-                  isSelected
-                      ? AppColors.primary.withOpacity(0.08)
-                      : Colors.transparent,
+              color: isSelected ? AppColors.primary.withOpacity(0.08) : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [
                 Icon(
                   icon,
-                  color:
-                      isSelected
-                          ? AppColors.primary
-                          : AppColors.textGray.withOpacity(0.5),
+                  color: isSelected ? AppColors.primary : AppColors.textGray.withOpacity(0.5),
                   size: 22,
                 ),
                 const SizedBox(width: 16),
                 Text(
                   label,
                   style: TextStyle(
-                    color:
-                        isSelected
-                            ? AppColors.primary
-                            : AppColors.textGray.withOpacity(0.7),
+                    color: isSelected ? AppColors.primary : AppColors.textGray.withOpacity(0.7),
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     fontSize: 14,
                   ),
@@ -380,7 +416,6 @@ class _BottomNavState extends State<BottomNav> {
       ),
     );
   }
-
   Widget _buildComingSoonScreen(String title) {
     return Container(
       color: AppColors.background,

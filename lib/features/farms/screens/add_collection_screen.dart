@@ -5,6 +5,7 @@ import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddCollectionScreen extends StatefulWidget {
   final String farmId;
@@ -33,6 +34,8 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
   late final TextEditingController _farmerNameController;
 
   bool _isLoading = false;
+  String _paymentMethod = 'Cash';
+  final List<String> _paymentOptions = ['Cash', 'Cheque', 'UPI', 'Other'];
 
   @override
   void initState() {
@@ -54,16 +57,54 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // 1. Generate Receipt Number (SAI[ExecID][ReceiptNo]/[Year])
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get Executive ID part (staff_number or extract from username)
+      final profile = await SupabaseService.getProfile();
+      String execPart = '0000';
+      if (profile != null) {
+        final staffNo = profile['staff_number']?.toString();
+        if (staffNo != null && staffNo.isNotEmpty) {
+          execPart = staffNo.padLeft(4, '0');
+          if (execPart.length > 4) execPart = execPart.substring(execPart.length - 4);
+        } else {
+          final username = profile['username']?.toString() ?? '';
+          final digits = username.replaceAll(RegExp(r'[^0-9]'), '');
+          if (digits.isNotEmpty) {
+            execPart = digits.padLeft(4, '0');
+            if (execPart.length > 4) execPart = execPart.substring(execPart.length - 4);
+          } else {
+            final id = profile['id']?.toString() ?? '';
+            if (id.length >= 4) execPart = id.substring(0, 4).toUpperCase();
+          }
+        }
+      }
+
+      // Get sequential receipt number
+      int globalCounter = prefs.getInt('global_receipt_counter') ?? 1;
+      final receiptPart = globalCounter.toString().padLeft(4, '0');
+      await prefs.setInt('global_receipt_counter', globalCounter + 1);
+
+      // Financial Year
+      final now = DateTime.now();
+      int startYear = now.month < 4 ? now.year - 1 : now.year;
+      final fy = '$startYear-${startYear + 1}';
+      
+      final receiptNo = 'SAI$execPart$receiptPart/$fy';
+
       final data = {
         'id': const Uuid().v4(),
         'farm_id': widget.farmId,
         'farmer_name': _farmerNameController.text.trim(),
         'amount': double.tryParse(_amountController.text) ?? 0.0,
+        'payment_method': _paymentMethod,
+        'receipt_no': receiptNo,
         'notes': _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
         'created_by': SupabaseService.client.auth.currentUser?.id,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': now.toIso8601String(),
       };
 
       if (kIsWeb) {
@@ -84,10 +125,10 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
               children: [
                 const Icon(Icons.check_circle_rounded, color: Colors.white),
                 const SizedBox(width: 12),
-                Text(
-                  '₹${_amountController.text} collected & saved!',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                  Text(
+                    '₹${_amountController.text} collected! (Rec: $receiptNo)',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
               ],
             ),
             backgroundColor: Colors.green,
@@ -252,6 +293,30 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                       labelText: 'Farmer Name',
                       prefixIcon: Icon(Icons.person_rounded),
                     ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Payment Method field
+                  DropdownButtonFormField<String>(
+                    value: _paymentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Method',
+                      prefixIcon: Icon(Icons.payment_rounded),
+                    ),
+                    items: _paymentOptions.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _paymentMethod = newValue;
+                        });
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 16),

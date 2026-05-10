@@ -29,6 +29,7 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
   Map<String, Map<String, dynamic>> _balances = {};
   List<Map<String, dynamic>> _allProducts = [];
   bool _isLoading = true;
+  String? _farmLocation;
 
   @override
   void initState() {
@@ -60,6 +61,22 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
       final profile = await SupabaseService.getProfile().catchError(
         (_) => null,
       );
+      
+      String? fetchedLocation;
+      try {
+        if (!kIsWeb) {
+          final localFarms = await LocalDatabaseService.getData('farms', where: 'id = ?', whereArgs: [widget.farmId]);
+          if (localFarms.isNotEmpty) {
+            fetchedLocation = localFarms.first['location']?.toString();
+          }
+        }
+        if (fetchedLocation == null) {
+          final farmData = await SupabaseService.client.from('farms').select('location').eq('id', widget.farmId).maybeSingle();
+          if (farmData != null) {
+            fetchedLocation = farmData['location']?.toString();
+          }
+        }
+      } catch (_) {}
       final role = profile?['role']?.toString().toLowerCase();
       final userId = SupabaseService.client.auth.currentUser?.id.toLowerCase();
 
@@ -93,6 +110,7 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
         setState(() {
           _transactions = sortedTransactions;
           _allProducts = products;
+          _farmLocation = fetchedLocation;
           _isLoading = false;
         });
       }
@@ -485,6 +503,7 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
       cropName: widget.cropName ?? 'N/A',
       transactionType: tx['transaction_type'],
       date: createdAt,
+      placeOfSupply: _farmLocation,
     );
   }
 

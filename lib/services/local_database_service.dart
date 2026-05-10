@@ -11,7 +11,7 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 13;
+  static const int _databaseVersion = 15;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -264,6 +264,27 @@ class LocalDatabaseService {
         debugPrint('DB Upgrade Error (v13): $e');
       }
     }
+
+    if (oldVersion < 14) {
+      // Version 14: Add payment_method to farm_collections
+      try {
+        await db.execute('''
+          ALTER TABLE farm_collections ADD COLUMN payment_method TEXT DEFAULT 'Cash'
+        ''');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v14): $e');
+      }
+    }
+    if (oldVersion < 15) {
+      // Version 15: Add receipt_no to farm_collections
+      try {
+        await db.execute('''
+          ALTER TABLE farm_collections ADD COLUMN receipt_no TEXT
+        ''');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v15): $e');
+      }
+    }
   }
 
   static Future<void> _onCreate(Database db, int version) async {
@@ -440,6 +461,8 @@ class LocalDatabaseService {
         farm_id TEXT NOT NULL,
         farmer_name TEXT,
         amount REAL NOT NULL,
+        payment_method TEXT DEFAULT 'Cash',
+        receipt_no TEXT,
         notes TEXT,
         created_by TEXT,
         created_at TEXT,

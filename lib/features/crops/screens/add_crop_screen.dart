@@ -485,7 +485,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                 borderRadius: BorderRadius.circular(24),
                               ),
                               child: DropdownButtonFormField<String>(
-                                initialValue:
+                                value:
                                     (_selectedFarmId != null &&
                                             _farms.any(
                                               (f) =>
@@ -535,7 +535,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                             child: Column(
                               children: [
                                 DropdownButtonFormField<int>(
-                                  initialValue:
+                                  value:
                                       (_selectedCropId != null &&
                                               _masterCrops.any(
                                                 (c) =>
@@ -569,7 +569,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 DropdownButtonFormField<int>(
-                                  initialValue:
+                                  value:
                                       (_selectedVarietyId != null &&
                                               ((_masterCrops.firstWhere(
                                                             (c) =>
