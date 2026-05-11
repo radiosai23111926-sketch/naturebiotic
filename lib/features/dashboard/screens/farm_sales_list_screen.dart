@@ -185,7 +185,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
     // 2. Process Dedicated Collections
     for (var col in widget.initialCollections) {
-      if (role != 'admin' && userId != null) {
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
         final creatorId = col['created_by']?.toString().toLowerCase();
         final currentId = userId.toLowerCase();
         if (creatorId != currentId) {
