@@ -719,7 +719,7 @@ class PdfService {
     );
   }
 
-  static Future<void> generateStockChallan({
+  static Future<Uint8List> generateStockChallanBytes({
     required List<Map<String, dynamic>> items,
     required String farmName,
     required String farmerName,
@@ -1041,9 +1041,37 @@ class PdfService {
       ),
     );
 
+    return await pdf.save();
+  }
+
+  static Future<void> generateStockChallan({
+    required List<Map<String, dynamic>> items,
+    required String farmName,
+    required String farmerName,
+    required String cropName,
+    required String transactionType,
+    required DateTime date,
+    String? farmerAddress,
+    String? farmerContact,
+    String? dcNumber,
+    String? placeOfSupply,
+  }) async {
+    final bytes = await generateStockChallanBytes(
+      items: items,
+      farmName: farmName,
+      farmerName: farmerName,
+      cropName: cropName,
+      transactionType: transactionType,
+      date: date,
+      farmerAddress: farmerAddress,
+      farmerContact: farmerContact,
+      dcNumber: dcNumber,
+      placeOfSupply: placeOfSupply,
+    );
+
     final nameFormatted = farmName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     await Printing.sharePdf(
-      bytes: await pdf.save(),
+      bytes: bytes,
       filename: 'DeliveryChallan_${nameFormatted}_${DateFormat('ddMMMyy').format(date)}.pdf',
     );
   }

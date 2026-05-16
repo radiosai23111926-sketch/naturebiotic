@@ -4,6 +4,7 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:nature_biotic/services/pdf_service.dart';
+import 'package:nature_biotic/features/farms/screens/challan_preview_screen.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -196,11 +197,38 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
               backgroundColor: Colors.red,
             ),
           );
-          setState(() => _isLoading = false);
           return;
         }
       }
     }
+
+    final itemsForChallan = _itemRows.map((row) => {
+      'name': row.selectedItem,
+      'unit': row.selectedUnit,
+      'quantity': double.tryParse(row.qtyController.text) ?? 0.0,
+      'price': row.selectedPrice,
+    }).toList();
+
+    final farmerData = _fullFarmData?['farmers'];
+    
+    final shouldSave = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChallanPreviewScreen(
+          items: itemsForChallan,
+          farmName: widget.farmName,
+          farmerName: widget.farmerName ?? farmerData?['name'] ?? 'N/A',
+          cropName: widget.cropName ?? 'N/A',
+          transactionType: _transactionType,
+          date: DateTime.now(),
+          farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
+          farmerContact: farmerData?['mobile'] ?? 'N/A',
+          placeOfSupply: _fullFarmData?['location']?.toString(),
+        ),
+      ),
+    );
+
+    if (shouldSave != true) return;
 
     setState(() => _isLoading = true);
     try {
@@ -351,7 +379,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                  : const Text('Save Sales Record'),
+                                  : const Text('Preview & Save'),
                         ),
                       ),
                       const SizedBox(height: 40),

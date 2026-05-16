@@ -45,7 +45,7 @@ dependencies:
   csv: ^6.0.0
   path_provider: ^2.1.5
   pdf: ^3.11.1
-  printing: ^5.13.2
+  printing: ^5.14.3
   signature: ^5.5.0
   geolocator: ^14.0.2
   geocoding: ^4.0.0
