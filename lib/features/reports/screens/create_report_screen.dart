@@ -57,6 +57,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   final ImagePicker _picker = ImagePicker();
 
   // Hierarchical Problems are now fetched dynamically
+  bool _isProblemIdentificationFinished = false;
 
   // Inputs
   final _additionalNotesController = TextEditingController();
@@ -412,6 +413,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           _activeSubcategory = null;
           _categoryIndex = -1;
           _subcategoryIndex = -1;
+          _isProblemIdentificationFinished = true;
         });
       }
     }
@@ -770,6 +772,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
       // Reset cost estimations
       _costEstimations.clear();
+      _isProblemIdentificationFinished = false;
     });
   }
 
@@ -1021,6 +1024,17 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             type: StepperType.vertical,
             currentStep: _currentStep,
             onStepContinue: () {
+              if (_currentStep == 1 && !_isProblemIdentificationFinished) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Please complete the problem identification sequence first.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
               _saveDraft(); // Safety snap-shot on each progression
               if (_currentStep < 5) {
                 if (_currentStep == 3) _syncCostEstimations();
@@ -1081,7 +1095,11 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: details.onStepContinue,
+                            onPressed:
+                                (_currentStep == 1 &&
+                                        !_isProblemIdentificationFinished)
+                                    ? null
+                                    : details.onStepContinue,
                             child:
                                 _isLoading
                                     ? const SizedBox(
@@ -2272,72 +2290,6 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Dose and Unit in one row
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  controller: row.dose,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Dose',
-                    isDense: true,
-                    filled: true,
-                    fillColor: AppColors.secondary.withOpacity(0.05),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.secondary.withOpacity(0.3)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.primary),
-                    ),
-                  ),
-                  onChanged: (_) => _syncCostEstimations(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 1,
-                child: DropdownButtonFormField<String>(
-                  value:
-                      _doseUnitOptions.any(
-                            (u) => u['label'].toString() == row.doseUnit,
-                          )
-                          ? row.doseUnit
-                          : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Unit',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-                  items:
-                      _doseUnitOptions.map((u) {
-                        return DropdownMenuItem<String>(
-                          value: u['label'].toString(),
-                          child: Text(
-                            u['label'].toString(),
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        );
-                      }).toList(),
-                  onChanged: (val) {
-                    setState(() => row.doseUnit = val);
-                    _syncCostEstimations();
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           // Per unit in its own row to prevent horizontal overflow
           Row(
             children: [
@@ -2345,8 +2297,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 child: DropdownButtonFormField<String>(
                   value:
                       _perUnitOptions.any(
-                            (u) => u['label'].toString() == row.perUnit,
-                          )
+                        (u) => u['label'].toString() == row.perUnit,
+                      )
                           ? row.perUnit
                           : null,
                   decoration: const InputDecoration(
@@ -2375,6 +2327,75 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          // Dose and Unit in one row
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: row.dose,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Dose',
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppColors.secondary.withOpacity(0.05),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: AppColors.secondary.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                  onChanged: (_) => _syncCostEstimations(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: DropdownButtonFormField<String>(
+                  value:
+                      _doseUnitOptions.any(
+                        (u) => u['label'].toString() == row.doseUnit,
+                      )
+                          ? row.doseUnit
+                          : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                  items:
+                      _doseUnitOptions.map((u) {
+                        return DropdownMenuItem<String>(
+                          value: u['label'].toString(),
+                          child: Text(
+                            u['label'].toString(),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        );
+                      }).toList(),
+                  onChanged: (val) {
+                    setState(() => row.doseUnit = val);
+                    _syncCostEstimations();
+                  },
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 6),
           Row(
             children: [

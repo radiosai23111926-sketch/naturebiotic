@@ -7,6 +7,7 @@ class VisitCalendarScreen extends StatefulWidget {
   final List<dynamic> allFarms;
   final List<dynamic> allCrops;
   final List<dynamic> allFarmers;
+  final bool isListView;
 
   const VisitCalendarScreen({
     super.key,
@@ -14,6 +15,7 @@ class VisitCalendarScreen extends StatefulWidget {
     required this.allFarms,
     required this.allCrops,
     required this.allFarmers,
+    this.isListView = false,
   });
 
   @override
@@ -80,26 +82,29 @@ class _VisitCalendarScreenState extends State<VisitCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final visits = _getVisitsForSelectedDate();
+    final visits = widget.isListView ? widget.reminders : _getVisitsForSelectedDate();
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Visit Schedule'),
+        title: Text(widget.isListView ? 'Upcoming Visits' : 'Visit Schedule'),
         actions: [
-          IconButton(
-            onPressed: () {
-              setState(() => _selectedDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day));
-              _scrollToToday();
-            },
-            icon: const Icon(Icons.today_rounded, color: AppColors.primary),
-          ),
+          if (!widget.isListView)
+            IconButton(
+              onPressed: () {
+                setState(() => _selectedDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day));
+                _scrollToToday();
+              },
+              icon: const Icon(Icons.today_rounded, color: AppColors.primary),
+            ),
         ],
       ),
       body: Column(
         children: [
-          _buildMonthHeader(),
-          _buildDateScroller(),
+          if (!widget.isListView) ...[
+            _buildMonthHeader(),
+            _buildDateScroller(),
+          ],
           Expanded(
             child: Container(
               width: double.infinity,
@@ -383,9 +388,11 @@ class _VisitCalendarScreenState extends State<VisitCalendarScreen> {
                         color: AppColors.secondary,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'Scheduled',
-                        style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
+                      child: Text(
+                        widget.isListView 
+                          ? DateFormat('dd MMM').format(DateTime.parse(reminder['follow_up_date']))
+                          : 'Scheduled',
+                        style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],

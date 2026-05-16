@@ -428,8 +428,22 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(isClaim ? 'Submit Claim' : 'Return Balance')),
-      body: Padding(
+      appBar: AppBar(
+        title: Text(isClaim ? 'Submit Claim' : 'Return Balance'),
+        actions: [
+          if (!isClaim)
+            TextButton.icon(
+              onPressed: () async {
+                setState(() => _isLoading = true);
+                await SupabaseService.resumeTrip(_activeExpense!['id']);
+                _loadActiveExpense();
+              },
+              icon: const Icon(Icons.play_circle_outline, size: 16),
+              label: const Text('Resume Trip', style: TextStyle(fontSize: 12)),
+            ),
+        ],
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
@@ -440,7 +454,7 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
               size: 64,
               color: isClaim ? Colors.orange : AppColors.primary,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Text(
               isClaim ? 'Expense Claim' : 'Trip Finished',
               style: GoogleFonts.outfit(
@@ -448,9 +462,9 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 8),
             if (_activeExpense!['start_odometer_reading'] != null &&
                 _activeExpense!['end_odometer_reading'] != null) ...[
-              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -468,49 +482,101 @@ class _ExecutiveExpenseDashboardState extends State<ExecutiveExpenseDashboard> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
             ],
-            const SizedBox(height: 8),
-            Text(
-              isClaim
-                  ? 'You have spent more than allotted. Submit a claim for the difference.'
-                  : 'Enter the amount you are returning to the manager.',
-              style: const TextStyle(color: AppColors.textGray),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: returnController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: isClaim ? 'Claim Amount' : 'Return Amount',
-                prefixText: '₹ ',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isClaim ? Colors.orange : AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: () async {
-                  final amount = double.tryParse(returnController.text) ?? 0.0;
-                  await SupabaseService.submitReturn(
-                    _activeExpense!['id'],
-                    isClaim ? -amount : amount,
-                  );
-                  _loadActiveExpense();
-                },
+            
+            // Expense Summary List
+            if (items.isNotEmpty) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  isClaim ? 'Submit Claim' : 'Submit Return',
-                  style: const TextStyle(color: Colors.white),
+                  'Expense Summary:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                ),
+                child: Column(
+                  children: items.map((item) {
+                    return ListTile(
+                      dense: true,
+                      leading: _categoryIcon(item['category']),
+                      title: Text(item['category'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                        DateFormat('hh:mm a').format(DateTime.parse(item['created_at'])),
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: Text(
+                        '₹${item['amount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    isClaim
+                        ? 'You have spent more than allotted. Submit a claim for the difference.'
+                        : 'Enter the amount you are returning to the manager.',
+                    style: const TextStyle(color: AppColors.textGray, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: returnController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: isClaim ? 'Claim Amount' : 'Return Amount',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isClaim ? Colors.orange : AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () async {
+                        final amount = double.tryParse(returnController.text) ?? 0.0;
+                        await SupabaseService.submitReturn(
+                          _activeExpense!['id'],
+                          isClaim ? -amount : amount,
+                        );
+                        _loadActiveExpense();
+                      },
+                      child: Text(
+                        isClaim ? 'Submit Claim' : 'Submit Return',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 40),
           ],
         ),
       ),

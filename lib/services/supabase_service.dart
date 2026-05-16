@@ -2356,6 +2356,14 @@ class SupabaseService {
     }).eq('id', expenseId);
   }
 
+  static Future<void> resumeTrip(String expenseId) async {
+    await client.from('expenses').update({
+      'end_odometer_reading': null,
+      'end_odometer_photo': null,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', expenseId);
+  }
+
   static Future<void> approveReturn(String expenseId) async {
     await client.from('expenses').update({
       'return_status': 'APPROVED',

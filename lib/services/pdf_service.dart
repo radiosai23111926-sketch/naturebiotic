@@ -1419,7 +1419,7 @@ class PdfService {
     return convert(number);
   }
 
-  static Future<void> generatePaymentReceipt({
+  static Future<Uint8List> generatePaymentReceiptBytes({
     required String receiptNo,
     required DateTime date,
     required String customerName,
@@ -1477,8 +1477,37 @@ class PdfService {
       ),
     );
 
-    final filename = 'NatureBiotic_Receipt_${receiptNo.replaceAll('/', '_')}.pdf';
-    await Printing.sharePdf(bytes: await pdf.save(), filename: filename);
+    return pdf.save();
+  }
+
+  static Future<void> generatePaymentReceipt({
+    required String receiptNo,
+    required DateTime date,
+    required String customerName,
+    required String contactNo,
+    required String customerAddress,
+    required double amount,
+    required String purpose,
+    double accAmount = 0.0,
+    double balanceDue = 0.0,
+    String paymentMethod = 'Cash',
+  }) async {
+    final bytes = await generatePaymentReceiptBytes(
+      receiptNo: receiptNo,
+      date: date,
+      customerName: customerName,
+      contactNo: contactNo,
+      customerAddress: customerAddress,
+      amount: amount,
+      purpose: purpose,
+      accAmount: accAmount,
+      balanceDue: balanceDue,
+      paymentMethod: paymentMethod,
+    );
+
+    final filename =
+        'NatureBiotic_Receipt_${receiptNo.replaceAll('/', '_')}.pdf';
+    await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 
   static Future<void> generateBulkReceiptsPdf({
@@ -1775,9 +1804,15 @@ class PdfService {
                             child: pw.Row(children: [
                               pw.Text('Paid by  ', style: pw.TextStyle(font: font, fontSize: baseSize - 0.5)),
                               checkBox('Cash', paymentMethod.toLowerCase() == 'cash'),
+                              checkBox('Bank', paymentMethod.toLowerCase() == 'bank'),
                               checkBox('Cheque', paymentMethod.toLowerCase() == 'cheque'),
                               checkBox('UPI', paymentMethod.toLowerCase() == 'upi'),
-                              checkBox('Other', !['cash', 'cheque', 'upi'].contains(paymentMethod.toLowerCase())),
+                              checkBox(
+                                'Other',
+                                !['cash', 'bank', 'cheque', 'upi'].contains(
+                                  paymentMethod.toLowerCase(),
+                                ),
+                              ),
                             ]),
                           ),
                         ),

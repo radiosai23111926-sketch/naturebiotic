@@ -517,16 +517,32 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
             onComplete: (farmer, farm, crop) {
               Navigator.pop(context); // close bottom sheet
               if (widget.mode == 'COLLECTION') {
+                final farmId = farm['id'].toString();
+                final farmSalesData = _farmSales[farmId] ?? {};
+                final accAmount =
+                    double.tryParse(
+                      farmSalesData['total_revenue']?.toString() ?? '0',
+                    ) ??
+                    0.0;
+                final totalCollection =
+                    double.tryParse(
+                      farmSalesData['total_collection']?.toString() ?? '0',
+                    ) ??
+                    0.0;
+                final balanceDue = accAmount - totalCollection;
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder:
                         (context) => AddCollectionScreen(
-                          farmId: farm['id'].toString(),
+                          farmId: farmId,
                           farmName: farm['name'] ?? 'Unknown Farm',
                           farmerName: farmer['name'],
                           cropId: crop?['id']?.toString(),
                           cropName: crop?['name']?.toString(),
+                          accAmount: accAmount,
+                          balanceDue: balanceDue,
                         ),
                   ),
                 ).then((_) => _processData());
@@ -1610,7 +1626,7 @@ class _SelectionFlowState extends State<_SelectionFlow> {
               ? _farmers
               : _farmers.where((f) {
                 final n = (f['name'] ?? '').toString().toLowerCase();
-                final p = (f['phone'] ?? '').toString().toLowerCase();
+                final p = (f['mobile'] ?? '').toString().toLowerCase();
                 return n.contains(query) || p.contains(query);
               }).toList();
 
@@ -1622,7 +1638,7 @@ class _SelectionFlowState extends State<_SelectionFlow> {
           final f = filtered[index];
           return _selectionTile(
             title: f['name'] ?? 'Unknown',
-            subtitle: f['phone'] ?? 'No Phone',
+            subtitle: f['mobile'] ?? 'No Phone',
             icon: Icons.person_rounded,
             onTap: () {
               setState(() {

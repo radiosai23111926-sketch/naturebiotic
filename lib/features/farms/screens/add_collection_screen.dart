@@ -7,12 +7,16 @@ import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:nature_biotic/features/farms/screens/collection_preview_screen.dart';
+
 class AddCollectionScreen extends StatefulWidget {
   final String farmId;
   final String farmName;
   final String? farmerName;
   final String? cropId;
   final String? cropName;
+  final double? accAmount;
+  final double? balanceDue;
 
   const AddCollectionScreen({
     super.key,
@@ -21,6 +25,8 @@ class AddCollectionScreen extends StatefulWidget {
     this.farmerName,
     this.cropId,
     this.cropName,
+    this.accAmount,
+    this.balanceDue,
   });
 
   @override
@@ -35,12 +41,35 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
 
   bool _isLoading = false;
   String _paymentMethod = 'Cash';
-  final List<String> _paymentOptions = ['Cash', 'Cheque', 'UPI', 'Other'];
+  final List<String> _paymentOptions = [
+    'Cash',
+    'Bank',
+    'Cheque',
+    'UPI',
+    'Other',
+  ];
+
+  Map<String, dynamic>? _farmerDetails;
 
   @override
   void initState() {
     super.initState();
-    _farmerNameController = TextEditingController(text: widget.farmerName ?? '');
+    _farmerNameController =
+        TextEditingController(text: widget.farmerName ?? '');
+    _loadFarmerDetails();
+  }
+
+  Future<void> _loadFarmerDetails() async {
+    try {
+      final info = await SupabaseService.getFarmAndFarmerInfo(widget.farmId);
+      if (info != null && info['farmers'] != null) {
+        if (mounted) {
+          setState(() {
+            _farmerDetails = info['farmers'];
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -57,23 +86,24 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Generate Receipt Number (SAI[ExecID][ReceiptNo]/[Year])
       final prefs = await SharedPreferences.getInstance();
-      
-      // Get Executive ID part (staff_number or extract from username)
       final profile = await SupabaseService.getProfile();
       String execPart = '0000';
       if (profile != null) {
         final staffNo = profile['staff_number']?.toString();
         if (staffNo != null && staffNo.isNotEmpty) {
           execPart = staffNo.padLeft(4, '0');
-          if (execPart.length > 4) execPart = execPart.substring(execPart.length - 4);
+          if (execPart.length > 4) {
+            execPart = execPart.substring(execPart.length - 4);
+          }
         } else {
           final username = profile['username']?.toString() ?? '';
           final digits = username.replaceAll(RegExp(r'[^0-9]'), '');
           if (digits.isNotEmpty) {
             execPart = digits.padLeft(4, '0');
-            if (execPart.length > 4) execPart = execPart.substring(execPart.length - 4);
+            if (execPart.length > 4) {
+              execPart = execPart.substring(execPart.length - 4);
+            }
           } else {
             final id = profile['id']?.toString() ?? '';
             if (id.length >= 4) execPart = id.substring(0, 4).toUpperCase();
@@ -81,28 +111,58 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
         }
       }
 
-      // Get sequential receipt number
       int globalCounter = prefs.getInt('global_receipt_counter') ?? 1;
       final receiptPart = globalCounter.toString().padLeft(4, '0');
-      await prefs.setInt('global_receipt_counter', globalCounter + 1);
 
-      // Financial Year
       final now = DateTime.now();
       int startYear = now.month < 4 ? now.year - 1 : now.year;
       final fy = '$startYear-${startYear + 1}';
-      
       final receiptNo = 'SAI$execPart$receiptPart/$fy';
+
+      final collectedAmount = double.tryParse(_amountController.text) ?? 0.0;
+      final currentAccAmount = widget.accAmount ?? 0.0;
+      final currentBalanceDue = widget.balanceDue ?? 0.0;
+
+      // PREVIEW STEP
+      final confirmed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => CollectionPreviewScreen(
+                receiptNo: receiptNo,
+                date: now,
+                customerName: _farmerNameController.text.trim(),
+                contactNo: _farmerDetails?['mobile'] ?? 'N/A',
+                customerAddress: _farmerDetails?['address'] ?? 'N/A',
+                amount: collectedAmount,
+                purpose:
+                    '${widget.farmName}${widget.cropName != null ? ' - ${widget.cropName}' : ''}',
+                accAmount: currentAccAmount,
+                balanceDue: currentBalanceDue - collectedAmount,
+                paymentMethod: _paymentMethod,
+              ),
+        ),
+      );
+
+      if (confirmed != true) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Increment counter only after confirmation
+      await prefs.setInt('global_receipt_counter', globalCounter + 1);
 
       final data = {
         'id': const Uuid().v4(),
         'farm_id': widget.farmId,
         'farmer_name': _farmerNameController.text.trim(),
-        'amount': double.tryParse(_amountController.text) ?? 0.0,
+        'amount': collectedAmount,
         'payment_method': _paymentMethod,
         'receipt_no': receiptNo,
-        'notes': _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        'notes':
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
         'created_by': SupabaseService.client.auth.currentUser?.id,
         'created_at': now.toIso8601String(),
       };
@@ -125,15 +185,20 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
               children: [
                 const Icon(Icons.check_circle_rounded, color: Colors.white),
                 const SizedBox(width: 12),
-                  Text(
-                    '₹${_amountController.text} collected! (Rec: $receiptNo)',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                Text(
+                  '₹${_amountController.text} collected! (Rec: $receiptNo)',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
+                ),
               ],
             ),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
         Navigator.pop(context, true);

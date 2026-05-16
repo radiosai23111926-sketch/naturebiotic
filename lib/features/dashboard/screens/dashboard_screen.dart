@@ -804,13 +804,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   value: _farmerCount.toString(),
                   icon: Icons.people_alt_rounded,
                   gradient: const [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                  onTap:
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const FarmerListScreen(),
-                        ),
-                      ),
                   isSmall: true,
                 ),
                 StatCard(
@@ -818,13 +811,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   value: _farmCount.toString(),
                   icon: Icons.agriculture_rounded,
                   gradient: const [Color(0xFF8BC34A), Color(0xFF558B2F)],
-                  onTap:
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const FarmListScreen(),
-                        ),
-                      ),
                   isSmall: true,
                 ),
                 StatCard(
@@ -832,13 +818,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   value: _cropCount.toString(),
                   icon: Icons.eco_rounded,
                   gradient: const [Color(0xFF009688), Color(0xFF00695C)],
-                  onTap:
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const CropListScreen(),
-                        ),
-                      ),
                   isSmall: true,
                 ),
               ],
@@ -2135,11 +2114,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                   context,
                   MaterialPageRoute(
                     builder:
-                        (context) => FarmSalesListScreen(
-                          initialTransactions: _filteredTransactions,
-                          allProducts: _allProducts,
+                        (context) => VisitCalendarScreen(
+                          reminders: _reminders,
                           allFarms: _allFarms,
-                          mode: 'SALES',
+                          allCrops: _allCrops,
+                          allFarmers: _allFarmers,
+                          isListView: true,
                         ),
                   ),
                 );
