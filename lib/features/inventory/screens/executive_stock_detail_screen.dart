@@ -358,30 +358,64 @@ class _ExecutiveStockDetailScreenState extends State<ExecutiveStockDetailScreen>
               ),
               child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(width: 16),
+             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tx['item_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        color: AppColors.textBlack,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: tx['item_name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textBlack,
+                          ),
+                        ),
+                        const TextSpan(text: '  '),
+                        TextSpan(
+                          text: '(${unit.toString().split(' {₹')[0]})',
+                          style: TextStyle(
+                            color: AppColors.textGray.withOpacity(0.7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
                   Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
                   Text(dateStr, style: const TextStyle(color: AppColors.textGray, fontSize: 10)),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  category == 'store' && type == 'DELIVERY' ? '+$qty' : '-$qty',
-                  style: TextStyle(
-                    color: category == 'store' && type == 'DELIVERY' ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+            const SizedBox(width: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: (category == 'store' && type == 'DELIVERY' ? Colors.green : Colors.red).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: (category == 'store' && type == 'DELIVERY' ? Colors.green : Colors.red).withOpacity(0.2),
+                  width: 1,
                 ),
-                Text(unit, style: const TextStyle(fontSize: 10, color: AppColors.textGray)),
-              ],
+              ),
+              child: Text(
+                category == 'store' && type == 'DELIVERY' ? '+$qty' : '-$qty',
+                style: TextStyle(
+                  color: category == 'store' && type == 'DELIVERY' ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
         ),

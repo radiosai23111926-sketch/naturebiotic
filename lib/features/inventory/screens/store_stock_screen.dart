@@ -1537,11 +1537,34 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    tx['item_name'] ?? 'Unknown',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        color: AppColors.textBlack,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: tx['item_name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textBlack,
+                          ),
+                        ),
+                        const TextSpan(text: '  '),
+                        TextSpan(
+                          text: '(${tx['unit']?.toString().split(' {₹')[0] ?? 'Units'})',
+                          style: TextStyle(
+                            color: AppColors.textGray.withOpacity(0.7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Container(
@@ -1581,8 +1604,10 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 ],
               ),
             ),
+            const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (tx['status'] != null && tx['status'] != 'ACCEPTED') ...[
                   Text(
@@ -1593,21 +1618,25 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                       fontSize: 10,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                 ],
-                Text(
-                  '${(type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? '-' : '+'}${tx['quantity']}',
-                  style: TextStyle(
-                    color: (type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? Colors.orange : Colors.green,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: ((type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? Colors.orange : Colors.green).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: ((type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? Colors.orange : Colors.green).withOpacity(0.2),
+                      width: 1,
+                    ),
                   ),
-                ),
-                Text(
-                  tx['unit']?.toString().split(' {₹')[0] ?? 'Units',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textGray,
+                  child: Text(
+                    '${(type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? '-' : '+'}${tx['quantity']}',
+                    style: TextStyle(
+                      color: (type == 'DELIVERY' || (isField && type == 'RECEIVED')) ? Colors.orange : Colors.green,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
                ],

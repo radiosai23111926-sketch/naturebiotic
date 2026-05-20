@@ -1614,6 +1614,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildTripActionButton(bool showLabels) {
+    if (_isTelecaller) {
+      return const SizedBox.shrink();
+    }
     bool hasActiveTrip = _activeTrip != null;
     bool needsOdometer =
         hasActiveTrip && _activeTrip!['start_odometer_reading'] == null;

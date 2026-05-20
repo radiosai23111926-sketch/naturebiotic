@@ -58,6 +58,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   final Map<String, Uint8List?> _problemImages = {};
   final Map<String, String> _problemImageNames = {};
   final ImagePicker _picker = ImagePicker();
+  String? _userRole;
 
   // Hierarchical Problems are now fetched dynamically
   bool _isProblemIdentificationFinished = false;
@@ -104,7 +105,21 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     _initializeAll();
   }
 
+  Future<void> _loadUserRole() async {
+    try {
+      final profile = await SupabaseService.getProfile();
+      if (mounted) {
+        setState(() {
+          _userRole = profile?['role'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user role: $e');
+    }
+  }
+
   Future<void> _initializeAll() async {
+    await _loadUserRole();
     await _loadFarms();
     await _fetchProblemData();
     
@@ -1915,7 +1930,12 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             setState(() {
               if (!isChecked) {
                 _selectedProblems.add(label);
-                _pickImage(label, ImageSource.camera);
+                _pickImage(
+                  label,
+                  _userRole == 'telecaller'
+                      ? ImageSource.gallery
+                      : ImageSource.camera,
+                );
               } else {
                 _selectedProblems.remove(label);
                 _problemImages.remove(label);
@@ -1996,9 +2016,16 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            onPressed: () => _pickImage(item, ImageSource.camera),
+            onPressed: () => _pickImage(
+              item,
+              _userRole == 'telecaller'
+                  ? ImageSource.gallery
+                  : ImageSource.camera,
+            ),
             icon: Icon(
-              Icons.camera_alt_rounded,
+              _userRole == 'telecaller'
+                  ? Icons.photo_library_rounded
+                  : Icons.camera_alt_rounded,
               size: 16,
               color: hasImage ? Colors.green : AppColors.primary,
             ),
