@@ -191,6 +191,34 @@ class SupabaseService {
     });
   }
 
+  // Create Data Entry Account (Admin only)
+  static Future<void> createDataEntryAccount({
+    required String username,
+    required String password,
+    required String fullName,
+  }) async {
+    final email = '$username@naturebiotic.local';
+
+    // Create auth user
+    final userId = await _signUpDirect(email, password, {
+      'username': username,
+      'full_name': fullName,
+      'role': 'data_entry',
+    });
+
+    if (userId.isEmpty) {
+      throw 'Failed to create data entry account';
+    }
+
+    // Create profile record
+    await client.from('profiles').insert({
+      'id': userId,
+      'full_name': fullName,
+      'username': username,
+      'role': 'data_entry',
+    });
+  }
+
   static Map<String, dynamic>? _cachedProfile;
 
   // Get current user profile
@@ -563,8 +591,8 @@ class SupabaseService {
 
   static Future<void> addFarm(Map<String, dynamic> farmData) async {
     await client.from('farms').insert({
-      ..._cleanPayload(farmData),
       'created_by': client.auth.currentUser?.id,
+      ..._cleanPayload(farmData),
     });
   }
 
@@ -738,8 +766,8 @@ class SupabaseService {
   // Stock Transaction Methods
   static Future<void> addStockTransaction(Map<String, dynamic> data) async {
     await client.from('stock_transactions').insert({
-      ..._cleanPayload(data),
       'executive_id': client.auth.currentUser?.id,
+      ..._cleanPayload(data),
     });
   }
 
@@ -895,8 +923,8 @@ class SupabaseService {
     debugPrint('DEBUG: addReport - Inserting report with ID: ${reportData['id']}');
     try {
       await client.from('reports').insert({
-        ..._cleanPayload(reportData),
         'created_by': client.auth.currentUser?.id,
+        ..._cleanPayload(reportData),
       });
       debugPrint('DEBUG: addReport - Successfully inserted report with ID: ${reportData['id']}');
     } catch (e) {
@@ -1008,8 +1036,8 @@ class SupabaseService {
   /// Insert a new amount-collection entry for a farm.
   static Future<void> addFarmCollection(Map<String, dynamic> data) async {
     await client.from('farm_collections').insert({
-      ..._cleanPayload(data),
       'created_by': client.auth.currentUser?.id,
+      ..._cleanPayload(data),
     });
   }
 
@@ -1696,6 +1724,27 @@ class SupabaseService {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> getStaffProfiles() async {
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('profiles')
+          .select()
+          .or('role.eq.executive,role.eq.telecaller,role.eq.store,role.eq.data_entry')
+          .order('full_name');
+      final data = List<Map<String, dynamic>>.from(response);
+      if (!kIsWeb) await LocalDatabaseService.saveCache('staff_profiles', data);
+      return data;
+    } catch (e) {
+      debugPrint('Error in getStaffProfiles: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('staff_profiles');
+        if (cached != null) return cached;
+      }
+      return [];
+    }
+  }
+
   static Future<void> syncAllDropdownOptions() async {
     try {
       if (await isOffline()) return;
@@ -1709,6 +1758,9 @@ class SupabaseService {
       final mapResponse = await client.from('crop_problem_mapping').select('*, dropdown_options(*)');
       final mapData = List<Map<String, dynamic>>.from(mapResponse);
       if (!kIsWeb) await LocalDatabaseService.saveCache('all_crop_problem_mappings', mapData);
+
+      // Sync and cache staff profiles
+      await getStaffProfiles().catchError((_) => <Map<String, dynamic>>[]);
       
       debugPrint('SYNC: All dropdowns and mappings cached.');
     } catch (e) {

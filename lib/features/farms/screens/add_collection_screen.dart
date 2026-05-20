@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nature_biotic/features/farms/screens/collection_preview_screen.dart';
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class AddCollectionScreen extends StatefulWidget {
   final String farmId;
@@ -40,6 +41,8 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
   late final TextEditingController _farmerNameController;
 
   bool _isLoading = false;
+  Map<String, dynamic>? _overrideStaffProfile;
+  DateTime _overrideDate = DateTime.now();
   String _paymentMethod = 'Cash';
   final List<String> _paymentOptions = [
     'Cash',
@@ -87,7 +90,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final profile = await SupabaseService.getProfile();
+      final profile = _overrideStaffProfile ?? await SupabaseService.getProfile();
       String execPart = '0000';
       if (profile != null) {
         final staffNo = profile['staff_number']?.toString();
@@ -114,7 +117,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
       int globalCounter = prefs.getInt('global_receipt_counter') ?? 1;
       final receiptPart = globalCounter.toString().padLeft(4, '0');
 
-      final now = DateTime.now();
+      final now = _overrideStaffProfile != null ? _overrideDate : DateTime.now();
       int startYear = now.month < 4 ? now.year - 1 : now.year;
       final fy = '$startYear-${startYear + 1}';
       final receiptNo = 'SAI$execPart$receiptPart/$fy';
@@ -163,8 +166,8 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
             _notesController.text.trim().isEmpty
                 ? null
                 : _notesController.text.trim(),
-        'created_by': SupabaseService.client.auth.currentUser?.id,
         'created_at': now.toIso8601String(),
+        'created_by': _overrideStaffProfile?['id']?.toString() ?? SupabaseService.client.auth.currentUser?.id,
       };
 
       if (kIsWeb) {
@@ -232,6 +235,10 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  DataEntrySelector(
+                    onStaffChanged: (profile) => _overrideStaffProfile = profile,
+                    onDateChanged: (dt) => _overrideDate = dt,
+                  ),
                   // Farm context info
                   Container(
                     padding: const EdgeInsets.all(16),

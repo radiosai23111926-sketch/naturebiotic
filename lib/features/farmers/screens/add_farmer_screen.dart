@@ -9,6 +9,7 @@ import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class AddFarmerScreen extends StatefulWidget {
   final Map<String, dynamic>? farmer;
@@ -29,6 +30,8 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
   String? _selectedCategory;
   List<String> _categories = ['Hot', 'Warm', 'Cold'];
   bool _isLoading = false;
+  String? _overrideStaffId;
+  DateTime _overrideDate = DateTime.now();
 
   @override
   void initState() {
@@ -85,8 +88,12 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'address':
             '${_talukController.text.trim()}\n${_districtController.text.trim()}\n${_landmarkController.text.trim()}',
         'category': _selectedCategory,
-        'created_at': DateTime.now().toIso8601String(),
-        'created_by': currentUserId,
+        'created_at': widget.farmer != null
+            ? (widget.farmer!['created_at'] ?? DateTime.now().toIso8601String())
+            : (_overrideStaffId != null ? _overrideDate.toIso8601String() : DateTime.now().toIso8601String()),
+        'created_by': widget.farmer != null
+            ? widget.farmer!['created_by']
+            : (_overrideStaffId ?? currentUserId),
       };
 
       // NEW OFFLINE-FIRST LOGIC
@@ -399,6 +406,10 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  DataEntrySelector(
+                    onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
+                    onDateChanged: (dt) => _overrideDate = dt,
+                  ),
                   const Text(
                     'Farmer Information',
                     style: TextStyle(

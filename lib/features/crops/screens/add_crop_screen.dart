@@ -4,6 +4,7 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class AddCropScreen extends StatefulWidget {
   final String? farmId;
@@ -21,11 +22,14 @@ class _AddCropScreenState extends State<AddCropScreen> {
   final _countController = TextEditingController();
   final _acreController = TextEditingController();
   final _yieldController = TextEditingController();
+  final _otherVarietyController = TextEditingController();
 
   bool _isLoading = true;
   bool _isConfigLoading = true;
   bool _isEdit = false;
   String? _userRole;
+  bool _isDataEntryMode = false;
+  DateTime _overrideDate = DateTime.now();
 
   List<Map<String, dynamic>> _masterCrops = [];
   List<Map<String, dynamic>> _farms = [];
@@ -71,6 +75,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
     try {
       final profile = await SupabaseService.getProfile();
       _userRole = profile?['role'];
+      _isDataEntryMode = _userRole == 'data_entry';
     } catch (_) {}
 
     await Future.wait([
@@ -107,10 +112,16 @@ class _AddCropScreenState extends State<AddCropScreen> {
       final varieties = List<Map<String, dynamic>>.from(
         matchedCrop['master_crop_varieties'] ?? [],
       );
-      final matchedVariety = varieties.firstWhere(
-        (v) => v['variety_name'] == varietyName,
-      );
-      _selectedVarietyId = matchedVariety['id'];
+      
+      try {
+        final matchedVariety = varieties.firstWhere(
+          (v) => v['variety_name'] == varietyName,
+        );
+        _selectedVarietyId = matchedVariety['id'];
+      } catch (_) {
+        _selectedVarietyId = -1;
+        _otherVarietyController.text = varietyName ?? '';
+      }
     } catch (_) {
       // If master data changed, we just keep IDs null and user selects again
     }
@@ -255,6 +266,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
     _countController.dispose();
     _acreController.dispose();
     _yieldController.dispose();
+    _otherVarietyController.dispose();
     super.dispose();
   }
 
@@ -367,13 +379,20 @@ class _AddCropScreenState extends State<AddCropScreen> {
       (c) => c['id'] == _selectedCropId,
       orElse: () => <String, dynamic>{'name': 'Unknown'},
     );
-    final varieties = List<Map<String, dynamic>>.from(
-      crop['master_crop_varieties'] ?? [],
-    );
-    final variety = varieties.firstWhere(
-      (v) => v['id'] == _selectedVarietyId,
-      orElse: () => <String, dynamic>{'variety_name': 'Unknown'},
-    );
+    
+    String varietyName;
+    if (_selectedVarietyId == -1) {
+      varietyName = _otherVarietyController.text.trim();
+    } else {
+      final varieties = List<Map<String, dynamic>>.from(
+        crop['master_crop_varieties'] ?? [],
+      );
+      final variety = varieties.firstWhere(
+        (v) => v['id'] == _selectedVarietyId,
+        orElse: () => <String, dynamic>{'variety_name': 'Unknown'},
+      );
+      varietyName = variety['variety_name'];
+    }
 
     final farmIdToUse = widget.farmId ?? _selectedFarmId;
     if (farmIdToUse == null) {
@@ -391,7 +410,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
       final cropData = {
         'farm_id': farmIdToUse,
         'name': crop['name'],
-        'variety': variety['variety_name'],
+        'variety': varietyName,
         'age': '${_ageController.text.trim()} $_selectedAgeUnit',
         'life': '${_lifeController.text.trim()} $_selectedLifeUnit',
         'count': '${_countController.text.trim()} $_selectedCountUnit',
@@ -402,7 +421,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
             _isEdit
                 ? (widget.crop!['created_at'] ??
                     DateTime.now().toIso8601String())
-                : DateTime.now().toIso8601String(),
+                : (_isDataEntryMode ? _overrideDate.toIso8601String() : DateTime.now().toIso8601String()),
       };
 
       if (kIsWeb) {
@@ -468,6 +487,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          DataEntrySelector(
+                            showStaffSelector: false,
+                            onStaffChanged: (profile) {},
+                            onDateChanged: (dt) => _overrideDate = dt,
+                          ),
                           if (widget.farmId == null) ...[
                             const Text(
                               'Farm Selection',
@@ -571,7 +595,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                 DropdownButtonFormField<int>(
                                   value:
                                       (_selectedVarietyId != null &&
-                                              ((_masterCrops.firstWhere(
+                                              (_selectedVarietyId == -1 || ((_masterCrops.firstWhere(
                                                             (c) =>
                                                                 c['id'] ==
                                                                 _selectedCropId,
@@ -583,7 +607,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                                     (v) =>
                                                         v['id'] ==
                                                         _selectedVarietyId,
-                                                  ))
+                                                  )))
                                           ? _selectedVarietyId
                                           : null,
                                   decoration: const InputDecoration(
@@ -591,31 +615,35 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                     fillColor: Colors.white,
                                   ),
                                   hint: const Text('Select a variety'),
-                                  items:
-                                      (_masterCrops.firstWhere(
-                                                (c) =>
-                                                    c['id'] == _selectedCropId,
-                                                orElse:
-                                                    () => {
-                                                      'master_crop_varieties':
-                                                          [],
-                                                    },
-                                              )['master_crop_varieties']
-                                              as List)
-                                          .map(
-                                            (v) => DropdownMenuItem<int>(
-                                              value: v['id'],
-                                              child: Text(v['variety_name']),
-                                            ),
-                                          )
-                                          .toList(),
+                                  items: [
+                                    ...((_masterCrops.firstWhere(
+                                              (c) =>
+                                                  c['id'] == _selectedCropId,
+                                              orElse:
+                                                  () => {
+                                                    'master_crop_varieties':
+                                                        [],
+                                                  },
+                                            )['master_crop_varieties']
+                                            as List)
+                                        .map(
+                                          (v) => DropdownMenuItem<int>(
+                                            value: v['id'],
+                                            child: Text(v['variety_name']),
+                                          ),
+                                        )),
+                                    const DropdownMenuItem<int>(
+                                      value: -1,
+                                      child: Text('Other'),
+                                    ),
+                                  ],
                                   onChanged:
                                       _selectedCropId == null
                                           ? null
                                           : (id) {
                                             setState(() {
                                               _selectedVarietyId = id;
-                                              if (id != null) {
+                                              if (id != null && id != -1) {
                                                 final crop = _masterCrops
                                                     .firstWhere(
                                                       (c) =>
@@ -657,12 +685,26 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                                       lifeVal;
                                                   _selectedLifeUnit = 'Years';
                                                 }
+                                              } else if (id == -1) {
+                                                _lifeController.clear();
+                                                _selectedLifeUnit = 'Years';
                                               }
                                             });
                                           },
                                   validator:
                                       (v) => v == null ? 'Required' : null,
                                 ),
+                                if (_selectedVarietyId == -1) ...[
+                                  const SizedBox(height: 16),
+                                  TextFormField(
+                                    controller: _otherVarietyController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Other Variety Name',
+                                      fillColor: Colors.white,
+                                    ),
+                                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                                  ),
+                                ],
                                 if (_selectedCropId != null &&
                                     _userRole == 'admin' &&
                                     (_masterCrops.firstWhere(

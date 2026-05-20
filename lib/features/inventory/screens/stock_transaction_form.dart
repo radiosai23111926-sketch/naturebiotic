@@ -5,6 +5,7 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:uuid/uuid.dart';
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class StockTransactionForm extends StatefulWidget {
   final String transactionType; // PURCHASE, DELIVERY, RETURN
@@ -39,6 +40,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
   List<Map<String, dynamic>> _masterProducts = [];
   List<_StockItem> _items = [];
   int? _editingIndex = 0; // Track which item is currently being edited
+  DateTime _overrideDate = DateTime.now();
 
   @override
   void initState() {
@@ -58,6 +60,12 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           _selectedExecutiveId = user?.id;
         }
       });
+    }
+
+    if (widget.initialData != null && widget.initialData!['created_at'] != null) {
+      try {
+        _overrideDate = DateTime.parse(widget.initialData!['created_at'].toString());
+      } catch (_) {}
     }
 
     try {
@@ -276,9 +284,16 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           'created_by': user?.id,
           'created_at':
               widget.initialData?['created_at'] ??
-              DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-          if (isDirectPurchase) 'accepted_at': DateTime.now().toIso8601String(),
+              ((_userRole == 'data_entry')
+                  ? _overrideDate.toIso8601String()
+                  : DateTime.now().toIso8601String()),
+          'updated_at': (_userRole == 'data_entry')
+              ? _overrideDate.toIso8601String()
+              : DateTime.now().toIso8601String(),
+          if (isDirectPurchase)
+            'accepted_at': (_userRole == 'data_entry')
+                ? _overrideDate.toIso8601String()
+                : DateTime.now().toIso8601String(),
         });
         itemIndex++;
       }
@@ -346,6 +361,13 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                 child: ListView(
                   padding: const EdgeInsets.all(24),
                   children: [
+                    DataEntrySelector(
+                      showStaffSelector: false,
+                      onStaffChanged: (_) {},
+                      onDateChanged: (dt) {
+                        setState(() => _overrideDate = dt);
+                      },
+                    ),
                     if (widget.transactionType == 'PURCHASE') ...[
                       const SizedBox(height: 8),
                     ],

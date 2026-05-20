@@ -7,6 +7,7 @@ import 'package:nature_biotic/services/pdf_service.dart';
 import 'package:nature_biotic/features/farms/screens/challan_preview_screen.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class AddStockEntryScreen extends StatefulWidget {
   final String farmId;
@@ -38,6 +39,28 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
 
   bool _isLoading = false;
   bool _isDataLoading = true;
+  String? _overrideStaffId;
+  String? _overrideStaffRole;
+  DateTime _overrideDate = DateTime.now();
+
+  Future<void> _loadOverrideStaffStock(String staffId) async {
+    setState(() => _isLoading = true);
+    try {
+      final overrideStock = await SupabaseService.getDetailedExecutiveStock(userId: staffId);
+      if (mounted) {
+        setState(() {
+          _myStock = overrideStock;
+          for (var row in _itemRows) {
+            _updateRowPacketOptions(row);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading override stock: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
   String _userRole = 'executive';
   Map<String, Map<String, double>> _myStock = {};
   Map<String, dynamic>? _fullFarmData;
@@ -183,7 +206,8 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
 
     // Check if any row has no product selected
     // Check stock for executives and telecallers
-    if ((_userRole == 'executive' || _userRole == 'telecaller') &&
+    final checkRole = _overrideStaffId != null ? _overrideStaffRole : _userRole;
+    if ((checkRole == 'executive' || checkRole == 'telecaller') &&
         _transactionType == 'RECEIVED') {
       for (var row in _itemRows) {
         final requestedQty = double.tryParse(row.qtyController.text) ?? 0.0;
@@ -220,7 +244,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           farmerName: widget.farmerName ?? farmerData?['name'] ?? 'N/A',
           cropName: widget.cropName ?? 'N/A',
           transactionType: _transactionType,
-          date: DateTime.now(),
+          date: _overrideStaffId != null ? _overrideDate : DateTime.now(),
           farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
           farmerContact: farmerData?['mobile'] ?? 'N/A',
           placeOfSupply: _fullFarmData?['location']?.toString(),
@@ -242,8 +266,8 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           'transaction_type': _transactionType,
           'quantity': double.tryParse(row.qtyController.text) ?? 0.0,
           'unit': row.selectedUnit,
-          'executive_id': SupabaseService.client.auth.currentUser?.id,
-          'created_at': timestamp,
+          'executive_id': _overrideStaffId ?? SupabaseService.client.auth.currentUser?.id,
+          'created_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : timestamp,
         };
 
         if (kIsWeb) {
@@ -307,6 +331,16 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      DataEntrySelector(
+                        onStaffChanged: (profile) {
+                          _overrideStaffId = profile?['id']?.toString();
+                          _overrideStaffRole = profile?['role']?.toString();
+                          if (_overrideStaffId != null) {
+                            _loadOverrideStaffStock(_overrideStaffId!);
+                          }
+                        },
+                        onDateChanged: (dt) => _overrideDate = dt,
+                      ),
                       if (widget.cropName != null)
                         Container(
                           padding: const EdgeInsets.symmetric(

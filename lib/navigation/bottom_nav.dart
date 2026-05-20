@@ -81,7 +81,7 @@ class _BottomNavState extends State<BottomNav> {
       const DashboardScreen(),
       const ExecutiveDialerScreen(),
       const StoreStockScreen(),
-      (_userRole == 'admin' || _userRole == 'manager')
+      (_userRole == 'admin' || _userRole == 'manager' || _userRole == 'data_entry')
           ? const ManagerExpenseControl()
           : const ExecutiveExpenseDashboard(),
       const FarmPdfFolderScreen(),

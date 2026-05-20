@@ -8,6 +8,7 @@ import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:nature_biotic/features/reports/screens/report_generator_screen.dart';
 import 'package:signature/signature.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class CreateReportScreen extends StatefulWidget {
   final String? preSelectedFarmId;
@@ -28,6 +29,8 @@ class CreateReportScreen extends StatefulWidget {
 class _CreateReportScreenState extends State<CreateReportScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
+  String? _overrideStaffId;
+  DateTime _overrideDate = DateTime.now();
 
   // Data
   List<Map<String, dynamic>> _farms = [];
@@ -928,6 +931,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       }
 
       final reportData = {
+        if (widget.existingReport != null) 'id': widget.existingReport!['id'].toString(),
         'farm_id': _selectedFarmId,
         'crop_id': _selectedCropId, // Use the last crop ID as the primary reference
         'problem': finalProblemData.trim(),
@@ -935,7 +939,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         'recommendations': combinedRecommendations.trim(),
         'estimated_cost': combinedCost.trim(),
         'follow_up_date': _nextVisitDate?.toIso8601String(),
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : DateTime.now().toIso8601String(),
+        'created_by': _overrideStaffId ?? SupabaseService.client.auth.currentUser?.id,
         '_local_images': failedImages.isNotEmpty ? failedImages : null,
       };
 
@@ -1020,9 +1025,20 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
-          child: Stepper(
-            type: StepperType.vertical,
-            currentStep: _currentStep,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: DataEntrySelector(
+                  onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
+                  onDateChanged: (dt) => _overrideDate = dt,
+                ),
+              ),
+              Expanded(
+                child: Stepper(
+                  type: StepperType.vertical,
+                  currentStep: _currentStep,
             onStepContinue: () {
               if (_currentStep == 1 && !_isProblemIdentificationFinished) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1594,9 +1610,12 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             ],
           ),
         ),
-      ),
-      ),
-    );
+      ],
+    ),
+  ),
+),
+),
+);
   }
 
   Widget _buildPreviewStep() {

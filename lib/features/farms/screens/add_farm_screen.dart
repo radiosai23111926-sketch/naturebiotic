@@ -10,6 +10,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
 
 class AddFarmScreen extends StatefulWidget {
   final Map<String, dynamic>? farm;
@@ -22,6 +23,9 @@ class AddFarmScreen extends StatefulWidget {
 
 class _AddFarmScreenState extends State<AddFarmScreen> {
   final _formKey = GlobalKey<FormState>();
+  String? _overrideStaffId;
+  String? _overrideStaffRole;
+  DateTime _overrideDate = DateTime.now();
   final _nameController = TextEditingController();
   final _placeController = TextEditingController();
   final _placeKeywordsController = TextEditingController();
@@ -586,8 +590,8 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
         'intercrop': _intercrop,
         'farmer_id': widget.farmerId ?? widget.farm?['farmer_id'],
         'report_url': reportUrl,
-        'created_at': DateTime.now().toIso8601String(),
-        'created_by': currentUserId,
+        'created_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : DateTime.now().toIso8601String(),
+        'created_by': _overrideStaffId ?? currentUserId,
       };
 
       // Collect additional contacts
@@ -610,10 +614,12 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
       }
 
       // Auto-assign if created by an executive/telecaller (and not just an edit)
-      if (!_isEdit &&
-          (userProfile?['role'] == 'executive' || userProfile?['role'] == 'telecaller') &&
-          currentUserId != null) {
-        farmData['assigned_to'] = currentUserId;
+      if (!_isEdit) {
+        final targetRole = _overrideStaffId != null ? _overrideStaffRole : userProfile?['role'];
+        final targetUserId = _overrideStaffId ?? currentUserId;
+        if ((targetRole == 'executive' || targetRole == 'telecaller') && targetUserId != null) {
+          farmData['assigned_to'] = targetUserId;
+        }
       } else if (_isEdit) {
         // Keep existing assignment if editing
         farmData['assigned_to'] = widget.farm?['assigned_to'];
@@ -681,6 +687,13 @@ class _AddFarmScreenState extends State<AddFarmScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  DataEntrySelector(
+                    onStaffChanged: (profile) {
+                      _overrideStaffId = profile?['id']?.toString();
+                      _overrideStaffRole = profile?['role']?.toString();
+                    },
+                    onDateChanged: (dt) => _overrideDate = dt,
+                  ),
                   const Text(
                     'Farm Details',
                     style: TextStyle(

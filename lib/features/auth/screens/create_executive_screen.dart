@@ -40,6 +40,12 @@ class _CreateStaffScreenState extends State<CreateStaffScreen> {
           password: _passwordController.text.trim(),
           fullName: _fullNameController.text.trim(),
         );
+      } else if (_selectedRole == 'data_entry') {
+        await SupabaseService.createDataEntryAccount(
+          username: _usernameController.text.trim(),
+          password: _passwordController.text.trim(),
+          fullName: _fullNameController.text.trim(),
+        );
       } else {
         await SupabaseService.createStoreAccount(
           username: _usernameController.text.trim(),
@@ -148,6 +154,11 @@ class _CreateStaffScreenState extends State<CreateStaffScreen> {
           value: 'telecaller',
           label: Text('Telecaller'),
           icon: Icon(Icons.headset_mic_rounded),
+        ),
+        ButtonSegment(
+          value: 'data_entry',
+          label: Text('Data Entry'),
+          icon: Icon(Icons.edit_note_rounded),
         ),
       ],
       selected: {_selectedRole},

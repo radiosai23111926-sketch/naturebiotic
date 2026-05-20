@@ -47,6 +47,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     'dose_unit': 'Dose Units',
     'filler_unit': 'Filler Units',
     'per_unit': 'Per Units (e.g. L, Acre, Plant)',
+    'vendor_name': 'Vendors List',
     'stock_vendor': 'Stock (Default Vendors)',
   };
 
@@ -796,7 +797,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                     ),
                                   ),
                                 ),
-                                ...['stock_vendor'].map(
+                                ...['vendor_name', 'stock_vendor'].map(
                                   (key) => DropdownMenuItem(
                                     value: key,
                                     child: Padding(
@@ -1044,47 +1045,99 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   }
 
   Future<void> _editStockVendor(Map<String, dynamic> item) async {
-    final controller = TextEditingController(text: item['default_vendor']);
-    final result = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Set Vendor for ${item['label']}'),
-            content: TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Default Vendor Name',
-                hintText: 'e.g. Astra Crop Care',
-              ),
-              autofocus: true,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save'),
-              ),
-            ],
+    setState(() => _isLoading = true);
+    List<Map<String, dynamic>> vendors = [];
+    try {
+      vendors = await SupabaseService.getDropdownOptions('vendor_name');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error fetching vendors: $e'),
+            backgroundColor: Colors.red,
           ),
+        );
+      }
+      setState(() => _isLoading = false);
+      return;
+    }
+    setState(() => _isLoading = false);
+
+    if (vendors.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please create Vendors first from "Vendors List".'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    String? selectedVendor = item['default_vendor'];
+    if (selectedVendor != null && selectedVendor.isEmpty) {
+      selectedVendor = null;
+    }
+    if (selectedVendor != null && !vendors.any((v) => v['label'] == selectedVendor)) {
+      selectedVendor = null;
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Set Vendor for ${item['label']}'),
+              content: DropdownButtonFormField<String>(
+                value: selectedVendor,
+                decoration: const InputDecoration(
+                  labelText: 'Select Vendor',
+                ),
+                items: vendors
+                    .map(
+                      (v) => DropdownMenuItem<String>(
+                        value: v['label'],
+                        child: Text(v['label']),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  setDialogState(() {
+                    selectedVendor = val;
+                  });
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, selectedVendor),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (result == true) {
+    if (result != null) {
       setState(() => _isLoading = true);
       try {
         if (item['mapping_id'] != null) {
           // Update existing
           await SupabaseService.updateDropdownOption(
             item['mapping_id'],
-            controller.text.trim(),
+            result.trim(),
           );
         } else {
           // Add new
           await SupabaseService.addDropdownOption(
             'product_vendor_map',
-            controller.text.trim(),
+            result.trim(),
             parentId: item['id'],
           );
         }
