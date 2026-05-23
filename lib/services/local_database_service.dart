@@ -11,7 +11,7 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 15;
+  static const int _databaseVersion = 16;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -285,6 +285,19 @@ class LocalDatabaseService {
         debugPrint('DB Upgrade Error (v15): $e');
       }
     }
+    if (oldVersion < 16) {
+      // Version 16: Add photo_url and _local_photo to farmers
+      try {
+        await db.execute('ALTER TABLE farmers ADD COLUMN photo_url TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v16 photo_url): $e');
+      }
+      try {
+        await db.execute('ALTER TABLE farmers ADD COLUMN _local_photo BLOB');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v16 _local_photo): $e');
+      }
+    }
   }
 
   static Future<void> _onCreate(Database db, int version) async {
@@ -297,6 +310,8 @@ class LocalDatabaseService {
         village TEXT,
         address TEXT,
         category TEXT,
+        photo_url TEXT,
+        _local_photo BLOB,
         created_by TEXT,
         created_at TEXT,
         is_verified INTEGER DEFAULT 0,
@@ -785,6 +800,18 @@ class LocalDatabaseService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Delete cached records by key.
+  static Future<void> deleteCache(String key) async {
+    final db = await database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cache_$key');
+      await prefs.remove('cache_ts_$key');
+      return;
+    }
+    await db.delete('cached_data', where: 'cache_key = ?', whereArgs: [key]);
   }
 
   /// Returns the ISO timestamp of when the cache was last written.

@@ -31,6 +31,7 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
   String? _userRole;
   bool _isLoadingReports = true;
   late Map<String, dynamic> _crop;
+  String? _cropImageUrl;
 
   @override
   void initState() {
@@ -38,6 +39,165 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
     _crop = widget.crop;
     _loadUserRole();
     _loadReports();
+    _loadCropImage();
+  }
+
+  bool _isCropNameMatch(String name1, String name2) {
+    final n1 = name1.trim().toLowerCase();
+    final n2 = name2.trim().toLowerCase();
+    if (n1 == n2) return true;
+    
+    // Handle Tomato / Tomoto
+    if ((n1.contains('tomato') || n1.contains('tomoto')) &&
+        (n2.contains('tomato') || n2.contains('tomoto'))) {
+      return true;
+    }
+    
+    // Handle Chilli / Chili
+    if ((n1.contains('chilli') || n1.contains('chili')) &&
+        (n2.contains('chilli') || n2.contains('chili'))) {
+      return true;
+    }
+    
+    // Handle Guava / Gauva
+    if ((n1.contains('guava') || n1.contains('gauva')) &&
+        (n2.contains('guava') || n2.contains('gauva'))) {
+      return true;
+    }
+
+    if (n1.contains(n2) || n2.contains(n1)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _getCropEmoji(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('tomato') || lower.contains('tomoto')) return '🍅';
+    if (lower.contains('paddy') || lower.contains('rice')) return '🌾';
+    if (lower.contains('onion')) return '🧅';
+    if (lower.contains('mango')) return '🥭';
+    if (lower.contains('maize') || lower.contains('corn')) return '🌽';
+    if (lower.contains('lemon')) return '🍋';
+    if (lower.contains('jasmine') || lower.contains('flower')) return '🌸';
+    if (lower.contains('gauva') || lower.contains('guava')) return '🍈';
+    if (lower.contains('coconut')) return '🥥';
+    if (lower.contains('chilli') || lower.contains('pepper')) return '🌶️';
+    if (lower.contains('cardamom') || lower.contains('spice')) return '🌿';
+    if (lower.contains('brinjal') || lower.contains('eggplant')) return '🍆';
+    if (lower.contains('banana')) return '🍌';
+    if (lower.contains('grape')) return '🍇';
+    if (lower.contains('apple')) return '🍎';
+    if (lower.contains('orange')) return '🍊';
+    if (lower.contains('chili')) return '🌶️';
+    return '🌱';
+  }
+
+  Color _getCropColor(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('tomato') || lower.contains('tomoto')) return const Color(0xFFFFEBEE);
+    if (lower.contains('paddy') || lower.contains('rice')) return const Color(0xFFFFF8E1);
+    if (lower.contains('onion')) return const Color(0xFFF3E5F5);
+    if (lower.contains('mango')) return const Color(0xFFFFF3E0);
+    if (lower.contains('maize') || lower.contains('corn')) return const Color(0xFFFFFDE7);
+    if (lower.contains('lemon')) return const Color(0xFFFFFDE7);
+    if (lower.contains('jasmine') || lower.contains('flower')) return const Color(0xFFFCE4EC);
+    if (lower.contains('gauva') || lower.contains('guava')) return const Color(0xFFE8F5E9);
+    if (lower.contains('coconut')) return const Color(0xFFEFEBE9);
+    if (lower.contains('chilli') || lower.contains('pepper')) return const Color(0xFFFFEBEE);
+    if (lower.contains('cardamom') || lower.contains('spice')) return const Color(0xFFE8F5E9);
+    if (lower.contains('brinjal') || lower.contains('eggplant')) return const Color(0xFFF3E5F5);
+    return const Color(0xFFE8F5E9);
+  }
+
+  Future<void> _loadCropImage() async {
+    try {
+      final cropName = _crop['name']?.toString().trim();
+      if (cropName == null || cropName.isEmpty) return;
+
+      final masterCrops = await SupabaseService.getMasterCrops();
+      final matchingCrop = masterCrops.firstWhere(
+        (c) {
+          final mName = c['name']?.toString().trim();
+          if (mName == null) return false;
+          return _isCropNameMatch(mName, cropName);
+        },
+        orElse: () => <String, dynamic>{},
+      );
+
+      String? imageUrl;
+      if (matchingCrop.isNotEmpty) {
+        imageUrl = matchingCrop['image_url'] as String?;
+      }
+
+      // Live Supabase fallback if image URL is not found in cache or masterCrops
+      if (imageUrl == null || imageUrl.isEmpty || imageUrl == 'null') {
+        try {
+          final liveData = await SupabaseService.client
+              .from('master_crops')
+              .select('image_url')
+              .ilike('name', cropName)
+              .maybeSingle();
+          if (liveData != null && liveData['image_url'] != null && liveData['image_url'] != 'null') {
+            imageUrl = liveData['image_url'] as String?;
+          }
+        } catch (e) {
+          debugPrint('Error loading crop image from live DB: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _cropImageUrl = (imageUrl != null && imageUrl.isNotEmpty && imageUrl != 'null') ? imageUrl : null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading crop image: $e');
+    }
+  }
+
+  Future<void> _refreshCropData() async {
+    try {
+      setState(() => _isLoadingReports = true);
+      
+      final cropId = _crop['id'].toString();
+      Map<String, dynamic>? updatedCrop;
+      
+      if (kIsWeb) {
+        final res = await SupabaseService.client
+            .from('crops')
+            .select()
+            .eq('id', cropId)
+            .maybeSingle();
+        if (res != null) {
+          updatedCrop = Map<String, dynamic>.from(res);
+        }
+      } else {
+        final res = await LocalDatabaseService.getData(
+          'crops',
+          where: 'id = ?',
+          whereArgs: [cropId],
+        );
+        if (res.isNotEmpty) {
+          updatedCrop = res.first;
+        }
+      }
+      
+      if (mounted && updatedCrop != null) {
+        setState(() {
+          _crop = updatedCrop!;
+        });
+        await _loadCropImage();
+        await _loadReports();
+      }
+    } catch (e) {
+      debugPrint('Error refreshing crop data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingReports = false);
+      }
+    }
   }
 
   Future<void> _loadUserRole() async {
@@ -51,20 +211,20 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
 
   Future<void> _loadReports() async {
     try {
-      final farmId = widget.crop['farm_id']?.toString();
+      final farmId = _crop['farm_id']?.toString();
       final remoteReports = await SupabaseService.getReportsForCrop(
-        widget.crop['id'].toString(),
-        cropName: widget.crop['name'],
+        _crop['id'].toString(),
+        cropName: _crop['name'],
         farmId: farmId,
       );
       List<Map<String, dynamic>> localReports = [];
 
       if (!kIsWeb) {
-        final cropName = widget.crop['name'] ?? '';
+        final cropName = _crop['name'] ?? '';
         localReports = await LocalDatabaseService.getData(
           'reports',
           where: 'farm_id = ? AND (crop_id = ? OR problem LIKE ?)',
-          whereArgs: [farmId ?? '', widget.crop['id'].toString(), '%--- Crop: $cropName ---%'],
+          whereArgs: [farmId ?? '', _crop['id'].toString(), '%--- Crop: $cropName ---%'],
           columns: [
             'id',
             'farm_id',
@@ -113,7 +273,7 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(widget.crop['name'] ?? 'Crop Details'),
+        title: Text(_crop['name'] ?? 'Crop Details'),
         actions: [
           if (_userRole == 'admin' || (_userRole != 'manager' && _crop['is_verified'] != true))
             IconButton(
@@ -128,9 +288,9 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                           farmId: _crop['farm_id']?.toString(),
                         ),
                   ),
-                ).then((value) {
+                ).then((value) async {
                   if (value == true) {
-                    Navigator.pop(context, true);
+                    await _refreshCropData();
                   }
                 });
               },
@@ -155,15 +315,57 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: _cropImageUrl != null && _cropImageUrl!.isNotEmpty && _cropImageUrl != 'null'
+                              ? Colors.white
+                              : _getCropColor(_crop['name'] ?? ''),
                           borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        child: const Icon(
-                          Icons.eco_rounded,
-                          size: 28,
-                          color: Colors.green,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: _cropImageUrl != null && _cropImageUrl!.isNotEmpty && _cropImageUrl != 'null'
+                              ? Image.network(
+                                  _cropImageUrl!,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: Text(
+                                        _getCropEmoji(_crop['name'] ?? ''),
+                                        style: const TextStyle(fontSize: 24),
+                                      ),
+                                    );
+                                  },
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Center(
+                                  child: Text(
+                                    _getCropEmoji(_crop['name'] ?? ''),
+                                    style: const TextStyle(fontSize: 24),
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -265,22 +467,22 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                         _infoCard(
                           Icons.history_rounded,
                           'Current Age',
-                          widget.crop['age'] ?? 'N/A',
+                          _crop['age'] ?? 'N/A',
                         ),
                         _infoCard(
                           Icons.timer_rounded,
                           'Total Life',
-                          widget.crop['life'] ?? 'N/A',
+                          _crop['life'] ?? 'N/A',
                         ),
                         _infoCard(
                           Icons.straighten_rounded,
                           'Acres',
-                          widget.crop['acre'] ?? 'N/A',
+                          _crop['acre'] ?? 'N/A',
                         ),
                         _infoCard(
                           Icons.numbers_rounded,
                           'Count',
-                          widget.crop['count'] ?? 'N/A',
+                          _crop['count'] ?? 'N/A',
                         ),
                       ],
                     );
@@ -297,49 +499,10 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.shadow.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.show_chart_rounded,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Expected Yield',
-                            style: TextStyle(
-                              color: AppColors.textGray,
-                              fontSize: 11,
-                            ),
-                          ),
-                          Text(
-                            widget.crop['expected_yield'] ?? 'N/A',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                _infoCard(
+                  Icons.show_chart_rounded,
+                  'Expected Yield',
+                  _crop['expected_yield'] ?? 'N/A',
                 ),
 
                 if (_userRole != 'manager')
@@ -540,7 +703,7 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
                                       (context) => ReportGeneratorScreen(
                                         report: report,
                                         farmName: widget.farmName,
-                                        cropName: widget.crop['name'],
+                                        cropName: _crop['name'],
                                         farmerName: widget.farmerName,
                                       ),
                                 ),
@@ -571,50 +734,195 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
     );
   }
 
+  _InfoCardTheme _getCardTheme(String label) {
+    switch (label.toLowerCase().trim()) {
+      case 'current age':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+          glowColor: Color(0xFFA5D6A7),
+          iconColor: Color(0xFF2E7D32),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF1B5E20),
+          labelColor: Color(0xCC2E7D32),
+        );
+      case 'total life':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE0F2F1), Color(0xFFB2DFDB)],
+          glowColor: Color(0xFF80CBC4),
+          iconColor: Color(0xFF00796B),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF004D40),
+          labelColor: Color(0xCC00796B),
+        );
+      case 'acres':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFFFF3E0), Color(0xFFFFE0B2)],
+          glowColor: Color(0xFFFFCC80),
+          iconColor: Color(0xFFE65100),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFFBF360C),
+          labelColor: Color(0xCCE65100),
+        );
+      case 'count':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFF3E5F5), Color(0xFFE1BEE7)],
+          glowColor: Color(0xFFCE93D8),
+          iconColor: Color(0xFF6A1B9A),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF4A148C),
+          labelColor: Color(0xCC6A1B9A),
+        );
+      case 'expected yield':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFFFFDE7), Color(0xFFFFF9C4)],
+          glowColor: Color(0xFFFFF59D),
+          iconColor: Color(0xFFF9A825),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFFF57F17),
+          labelColor: Color(0xCCF9A825),
+        );
+      default:
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+          glowColor: Color(0xFFE0E0E0),
+          iconColor: Color(0xFF616161),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF212121),
+          labelColor: Color(0xCC616161),
+        );
+    }
+  }
+
   Widget _infoCard(IconData icon, String label, String value) {
+    final theme = _getCardTheme(label);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadow.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: theme.glowColor.withOpacity(0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.textGray,
-                    fontSize: 9,
-                  ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Background with beautiful linear gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: theme.gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.6),
+                  width: 1.5,
                 ),
-                const Spacer(),
-              ],
+                borderRadius: BorderRadius.circular(24),
+              ),
             ),
-          ),
-        ],
+            
+            // "Light Element" 1: Glowing soft white radial sphere at the top-right
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.55),
+                      Colors.white.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // "Light Element" 2: Soft tinted glowing sphere at the bottom-left
+            Positioned(
+              bottom: -20,
+              left: -20,
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.glowColor.withOpacity(0.6),
+                      theme.glowColor.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Card Content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  // Glassmorphic translucent squircle icon container
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.iconBgColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.7),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: theme.iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: GoogleFonts.outfit(
+                            color: theme.labelColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          value,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: theme.textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -664,3 +972,22 @@ class __CropDetailScreenState extends State<CropDetailScreen> {
 }
 
 class _CropDetailScreenState extends __CropDetailScreenState {}
+
+class _InfoCardTheme {
+  final List<Color> gradientColors;
+  final Color glowColor;
+  final Color iconColor;
+  final Color iconBgColor;
+  final Color textColor;
+  final Color labelColor;
+
+  const _InfoCardTheme({
+    required this.gradientColors,
+    required this.glowColor,
+    required this.iconColor,
+    required this.iconBgColor,
+    required this.textColor,
+    required this.labelColor,
+  });
+}
+

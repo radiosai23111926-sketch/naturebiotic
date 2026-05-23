@@ -28,6 +28,7 @@ class FarmDetailScreen extends StatefulWidget {
 class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBindingObserver {
   late Map<String, dynamic> _farm;
   List<Map<String, dynamic>> _crops = [];
+  List<Map<String, dynamic>> _masterCrops = [];
   Map<String, dynamic>? _farmer;
   bool _isAdmin = false;
   bool _isManager = false;
@@ -119,6 +120,75 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
     }
   }
 
+  bool _isCropNameMatch(String name1, String name2) {
+    final n1 = name1.trim().toLowerCase();
+    final n2 = name2.trim().toLowerCase();
+    if (n1 == n2) return true;
+    
+    // Handle Tomato / Tomoto
+    if ((n1.contains('tomato') || n1.contains('tomoto')) &&
+        (n2.contains('tomato') || n2.contains('tomoto'))) {
+      return true;
+    }
+    
+    // Handle Chilli / Chili
+    if ((n1.contains('chilli') || n1.contains('chili')) &&
+        (n2.contains('chilli') || n2.contains('chili'))) {
+      return true;
+    }
+    
+    // Handle Guava / Gauva
+    if ((n1.contains('guava') || n1.contains('gauva')) &&
+        (n2.contains('guava') || n2.contains('gauva'))) {
+      return true;
+    }
+
+    if (n1.contains(n2) || n2.contains(n1)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _getCropEmoji(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('tomato') || lower.contains('tomoto')) return '🍅';
+    if (lower.contains('paddy') || lower.contains('rice')) return '🌾';
+    if (lower.contains('onion')) return '🧅';
+    if (lower.contains('mango')) return '🥭';
+    if (lower.contains('maize') || lower.contains('corn')) return '🌽';
+    if (lower.contains('lemon')) return '🍋';
+    if (lower.contains('jasmine') || lower.contains('flower')) return '🌸';
+    if (lower.contains('gauva') || lower.contains('guava')) return '🍈';
+    if (lower.contains('coconut')) return '🥥';
+    if (lower.contains('chilli') || lower.contains('pepper')) return '🌶️';
+    if (lower.contains('cardamom') || lower.contains('spice')) return '🌿';
+    if (lower.contains('brinjal') || lower.contains('eggplant')) return '🍆';
+    if (lower.contains('banana')) return '🍌';
+    if (lower.contains('grape')) return '🍇';
+    if (lower.contains('apple')) return '🍎';
+    if (lower.contains('orange')) return '🍊';
+    if (lower.contains('chili')) return '🌶️';
+    return '🌱';
+  }
+
+  Color _getCropColor(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('tomato') || lower.contains('tomoto')) return const Color(0xFFFFEBEE);
+    if (lower.contains('paddy') || lower.contains('rice')) return const Color(0xFFFFF8E1);
+    if (lower.contains('onion')) return const Color(0xFFF3E5F5);
+    if (lower.contains('mango')) return const Color(0xFFFFF3E0);
+    if (lower.contains('maize') || lower.contains('corn')) return const Color(0xFFFFFDE7);
+    if (lower.contains('lemon')) return const Color(0xFFFFFDE7);
+    if (lower.contains('jasmine') || lower.contains('flower')) return const Color(0xFFFCE4EC);
+    if (lower.contains('gauva') || lower.contains('guava')) return const Color(0xFFE8F5E9);
+    if (lower.contains('coconut')) return const Color(0xFFEFEBE9);
+    if (lower.contains('chilli') || lower.contains('pepper')) return const Color(0xFFFFEBEE);
+    if (lower.contains('cardamom') || lower.contains('spice')) return const Color(0xFFE8F5E9);
+    if (lower.contains('brinjal') || lower.contains('eggplant')) return const Color(0xFFF3E5F5);
+    return const Color(0xFFE8F5E9);
+  }
+
   Future<void> _loadFarmer() async {
     if (_farm['farmer_id'] != null) {
       try {
@@ -142,7 +212,14 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
     try {
       final remoteCrops = await SupabaseService.getCrops(_farm['id']);
       List<Map<String, dynamic>> localCrops = [];
+      List<Map<String, dynamic>> masterCrops = [];
       
+      try {
+        masterCrops = await SupabaseService.getMasterCrops();
+      } catch (e) {
+        debugPrint('Error loading master crops in farm details: $e');
+      }
+
       if (!kIsWeb) {
         localCrops = await LocalDatabaseService.getData(
           'crops', 
@@ -165,6 +242,7 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
 
           _crops = combinedMap.values.toList();
           _crops.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
+          _masterCrops = masterCrops;
         });
       }
     } catch (e) {
@@ -731,6 +809,23 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
   }
 
   Widget _cropCard(Map<String, dynamic> crop) {
+    final cropName = crop['name'] ?? 'Unknown';
+    // Robust defensive check for _masterCrops to avoid null/undefined crashes during hot-reload or load state
+    final matchingCrop = (_masterCrops == null || _masterCrops.isEmpty)
+        ? <String, dynamic>{}
+        : _masterCrops.firstWhere(
+            (c) {
+              final mName = c['name']?.toString().trim();
+              if (mName == null) return false;
+              return _isCropNameMatch(mName, cropName);
+            },
+            orElse: () => <String, dynamic>{},
+          );
+    String? imageUrl;
+    if (matchingCrop.isNotEmpty) {
+      imageUrl = matchingCrop['image_url'] as String?;
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -766,17 +861,61 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    shape: BoxShape.circle,
+                    color: imageUrl != null && imageUrl.isNotEmpty && imageUrl != 'null'
+                        ? Colors.white
+                        : _getCropColor(cropName),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1.5),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.eco_rounded, color: Colors.green, size: 18),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: imageUrl != null && imageUrl.isNotEmpty && imageUrl != 'null'
+                        ? Image.network(
+                            imageUrl,
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Text(
+                                _getCropEmoji(cropName),
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  width: 10,
+                                  height: 10,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Center(
+                            child: Text(
+                              _getCropEmoji(cropName),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    crop['name'] ?? 'N/A',
+                    cropName,
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w800, 
                       fontSize: 16,
@@ -852,65 +991,240 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> with WidgetsBinding
     );
   }
 
+  _InfoCardTheme _getCardTheme(String label, bool isLink) {
+    if (isLink) {
+      return const _InfoCardTheme(
+        gradientColors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+        glowColor: Color(0xFFA5D6A7),
+        iconColor: Color(0xFF2E7D32),
+        iconBgColor: Color(0x66FFFFFF),
+        textColor: Color(0xFF1B5E20),
+        labelColor: Color(0xCC2E7D32),
+      );
+    }
+
+    switch (label.toLowerCase().trim()) {
+      case 'place':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
+          glowColor: Color(0xFF90CAF9),
+          iconColor: Color(0xFF1565C0),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF0D47A1),
+          labelColor: Color(0xCC1565C0),
+        );
+      case 'area':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+          glowColor: Color(0xFFA5D6A7),
+          iconColor: Color(0xFF2E7D32),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF1B5E20),
+          labelColor: Color(0xCC2E7D32),
+        );
+      case 'soil':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFEFEBE9), Color(0xFFD7CCC8)],
+          glowColor: Color(0xFFBCAAA4),
+          iconColor: Color(0xFF5D4037),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF3E2723),
+          labelColor: Color(0xCC5D4037),
+        );
+      case 'irrigation':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE0F2F1), Color(0xFFB2DFDB)],
+          glowColor: Color(0xFF80CBC4),
+          iconColor: Color(0xFF00796B),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF004D40),
+          labelColor: Color(0xCC00796B),
+        );
+      case 'source':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFE0F7FA), Color(0xFFB2EBF2)],
+          glowColor: Color(0xFF80DEEA),
+          iconColor: Color(0xFF00838F),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF006064),
+          labelColor: Color(0xCC00838F),
+        );
+      case 'qty':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFF1F8E9), Color(0xFFDCEDC8)],
+          glowColor: Color(0xFFC5E1A5),
+          iconColor: Color(0xFF558B2F),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF33691E),
+          labelColor: Color(0xCC558B2F),
+        );
+      case 'power':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFFFFDE7), Color(0xFFFFF9C4)],
+          glowColor: Color(0xFFFFF59D),
+          iconColor: Color(0xFFF9A825),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFFF57F17),
+          labelColor: Color(0xCCF9A825),
+        );
+      case 'strategy':
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFF3E5F5), Color(0xFFE1BEE7)],
+          glowColor: Color(0xFFCE93D8),
+          iconColor: Color(0xFF6A1B9A),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF4A148C),
+          labelColor: Color(0xCC6A1B9A),
+        );
+      default:
+        return const _InfoCardTheme(
+          gradientColors: [Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+          glowColor: Color(0xFFE0E0E0),
+          iconColor: Color(0xFF616161),
+          iconBgColor: Color(0x66FFFFFF),
+          textColor: Color(0xFF212121),
+          labelColor: Color(0xCC616161),
+        );
+    }
+  }
+
   Widget _infoCard(IconData icon, String label, String value, {bool isLink = false}) {
+    final theme = _getCardTheme(label, isLink);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isLink ? AppColors.primary.withOpacity(0.05) : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isLink ? AppColors.primary.withOpacity(0.2) : Colors.black.withOpacity(0.01),
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 15,
+            color: theme.glowColor.withOpacity(0.25),
+            blurRadius: 12,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isLink ? AppColors.primary.withOpacity(0.1) : AppColors.background.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label, 
-                  style: GoogleFonts.outfit(
-                    color: AppColors.textGray.withOpacity(0.6), 
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  )
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Background with beautiful linear gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: theme.gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value, 
-                  style: GoogleFonts.outfit(
-                    fontSize: 14, 
-                    fontWeight: FontWeight.w700,
-                    color: isLink ? AppColors.primary : AppColors.textBlack,
-                    decoration: isLink ? TextDecoration.underline : null,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.6),
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            
+            // "Light Element" 1: Glowing soft white radial sphere at the top-right
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.55),
+                      Colors.white.withOpacity(0.0),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+
+            // "Light Element" 2: Soft tinted glowing sphere at the bottom-left
+            Positioned(
+              bottom: -20,
+              left: -20,
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.glowColor.withOpacity(0.6),
+                      theme.glowColor.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Card Content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  // Glassmorphic translucent squircle icon container
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.iconBgColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.7),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: theme.iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: GoogleFonts.outfit(
+                            color: theme.labelColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          value,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: theme.textColor,
+                            decoration: isLink ? TextDecoration.underline : null,
+                            decorationColor: theme.textColor,
+                            decorationThickness: 1.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   String _formatDate(dynamic dateStr) {
     if (dateStr == null || dateStr.toString().isEmpty) return 'N/A';
@@ -1038,3 +1352,22 @@ class _AssignExecutiveDialogState extends State<_AssignExecutiveDialog> {
     );
   }
 }
+
+class _InfoCardTheme {
+  final List<Color> gradientColors;
+  final Color glowColor;
+  final Color iconColor;
+  final Color iconBgColor;
+  final Color textColor;
+  final Color labelColor;
+
+  const _InfoCardTheme({
+    required this.gradientColors,
+    required this.glowColor,
+    required this.iconColor,
+    required this.iconBgColor,
+    required this.textColor,
+    required this.labelColor,
+  });
+}
+

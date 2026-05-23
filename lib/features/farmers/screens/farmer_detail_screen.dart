@@ -10,6 +10,9 @@ import 'package:nature_biotic/core/call_tracker.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:nature_biotic/features/profile/screens/edit_request_dialog.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'package:nature_biotic/services/sync_manager.dart';
 
 class FarmerDetailScreen extends StatefulWidget {
   final Map<String, dynamic> farmer;
@@ -30,6 +33,148 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   // Tracking
   DateTime? _callStartTime;
   String? _dialedNumber;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _editPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Update Profile Photo',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textBlack,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.blue),
+              ),
+              title: Text('Take Photo', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_library_rounded, color: Colors.green),
+              ),
+              title: Text('Choose from Gallery', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await _picker.pickImage(source: source, imageQuality: 50);
+      if (image == null) return;
+      
+      setState(() => _isLoading = true);
+      
+      final Uint8List bytes = await image.readAsBytes();
+      final farmerId = _farmer['id'].toString();
+      
+      if (kIsWeb) {
+        final fileName = 'farmer_${farmerId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final url = await SupabaseService.uploadImage(
+          bytes,
+          fileName,
+          'farmers',
+        );
+        
+        final updatedData = {
+          ..._farmer,
+          'photo_url': url,
+        };
+        
+        await SupabaseService.updateFarmer(farmerId, {'photo_url': url});
+        
+        if (mounted) {
+          setState(() {
+            _farmer = updatedData;
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo updated successfully'),
+              backgroundColor: AppColors.primary,
+            ),
+          );
+        }
+      } else {
+        // Mobile / Offline-first path
+        final updatedData = {
+          ..._farmer,
+          '_local_photo': bytes,
+        };
+        
+        await LocalDatabaseService.saveAndQueue(
+          tableName: 'farmers',
+          data: updatedData,
+          operation: 'UPDATE',
+        );
+        
+        if (mounted) {
+          setState(() {
+            _farmer = updatedData;
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo updated locally. Syncing in background...'),
+              backgroundColor: AppColors.primary,
+            ),
+          );
+        }
+        
+        // Trigger sync in background
+        SyncManager().sync();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating photo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -337,7 +482,33 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
       ),
       child: Row(
         children: [
-          _buildAvatar(size: 100),
+          GestureDetector(
+            onTap: _userRole == 'admin' ? _editPhoto : null,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _buildAvatar(size: 100),
+                if (_userRole == 'admin')
+                  Positioned(
+                    bottom: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(width: 32),
           Expanded(
             child: Column(
@@ -542,40 +713,64 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   }
 
   Widget _buildAvatar({double size = 120}) {
+    ImageProvider? imageProvider;
+    final localPhoto = _farmer['_local_photo'];
+    final photoUrl = _farmer['photo_url'];
+
+    if (localPhoto != null) {
+      if (localPhoto is Uint8List) {
+        imageProvider = MemoryImage(localPhoto);
+      } else if (localPhoto is List) {
+        imageProvider = MemoryImage(Uint8List.fromList(List<int>.from(localPhoto)));
+      }
+    } else if (photoUrl != null && photoUrl.toString().isNotEmpty) {
+      imageProvider = NetworkImage(photoUrl.toString());
+    }
+
+    final categoryColor = _getCategoryColor(_farmer['category']);
+
     return Hero(
       tag: 'farmer_icon_${_farmer['id']}',
       child: Container(
         height: size,
         width: size,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              _getCategoryColor(_farmer['category']).withOpacity(0.8),
-              _getCategoryColor(_farmer['category']),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: imageProvider != null ? Colors.white : null,
+          gradient: imageProvider != null
+              ? null
+              : LinearGradient(
+                  colors: [categoryColor.withOpacity(0.8), categoryColor],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           borderRadius: BorderRadius.circular(size * 0.25),
           boxShadow: [
             BoxShadow(
-              color: _getCategoryColor(_farmer['category']).withOpacity(0.3),
+              color: categoryColor.withOpacity(0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
           ],
+          image: imageProvider != null
+              ? DecorationImage(
+                  image: imageProvider,
+                  fit: BoxFit.cover,
+                )
+              : null,
         ),
-        child: Center(
-          child: Text(
-            _getInitials(_farmer['name'] ?? 'F'),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: size * 0.33,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-            ),
-          ),
-        ),
+        child: imageProvider == null
+            ? Center(
+                child: Text(
+                  _getInitials(_farmer['name'] ?? 'F'),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * 0.33,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                  ),
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -655,15 +850,53 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
         Center(
           child: Stack(
             alignment: Alignment.bottomRight,
+            clipBehavior: Clip.none,
             children: [
-              _buildAvatar(size: 120),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+              GestureDetector(
+                onTap: _userRole == 'admin' ? _editPhoto : null,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildAvatar(size: 120),
+                    if (_userRole == 'admin')
+                      Positioned(
+                        bottom: -4,
+                        left: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                child: _buildCategoryBadge(),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: _buildCategoryBadge(),
+                ),
               ),
             ],
           ),

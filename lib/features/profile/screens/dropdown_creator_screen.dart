@@ -1,4 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,7 +25,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   int? _selectedParentId;
   int? _selectedSubParentId; // Added for 3-level hierarchy
   bool _tableMissing = false;
-  final bool _isUploadingImage = false;
+  int? _uploadingCropId;
 
   final Map<String, String> _typeLabels = {
     'farmer_category': 'Farmer Categories',
@@ -56,10 +59,12 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     super.initState();
   }
 
-  Future<void> _fetchOptions() async {
+  Future<void> _fetchOptions({bool showLoader = true}) async {
     if (_selectedType == null) return;
 
-    setState(() => _isLoading = true);
+    if (showLoader) {
+      setState(() => _isLoading = true);
+    }
     try {
       if (_selectedType == 'problem_subcategory') {
         if (_problemCategories.isEmpty) {
@@ -167,20 +172,57 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   }
 
   Future<String?> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 50,
-    );
-    if (image == null) return null;
+    try {
+      Uint8List? bytes;
+      String? name;
 
-    final bytes = await image.readAsBytes();
-    final fileName = '${const Uuid().v4()}.jpg';
-    return await SupabaseService.uploadImage(
-      bytes,
-      fileName,
-      'dropdown_covers',
-    );
+      if (kIsWeb) {
+        debugPrint('[ImageUpload] Picking image on Web...');
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+        );
+        if (result == null || result.files.isEmpty) {
+          debugPrint('[ImageUpload] Web picker returned null or empty files');
+          return null;
+        }
+        final file = result.files.first;
+        bytes = file.bytes;
+        name = file.name;
+        debugPrint('[ImageUpload] Web picked file: $name, size: ${bytes?.length} bytes');
+      } else {
+        debugPrint('[ImageUpload] Picking image on Mobile...');
+        final picker = ImagePicker();
+        final image = await picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 50,
+        );
+        if (image == null) {
+          debugPrint('[ImageUpload] Mobile picker returned null');
+          return null;
+        }
+        bytes = await image.readAsBytes();
+        name = image.name;
+        debugPrint('[ImageUpload] Mobile picked file: $name, size: ${bytes.length} bytes');
+      }
+
+      if (bytes == null) throw 'Failed to read image bytes';
+
+      final extension = name.split('.').last.toLowerCase();
+      final fileName = '${const Uuid().v4()}.$extension';
+      
+      debugPrint('[ImageUpload] Uploading $fileName to bucket: dropdown_covers...');
+      final url = await SupabaseService.uploadImage(
+        bytes,
+        fileName,
+        'dropdown_covers',
+      );
+      debugPrint('[ImageUpload] Upload success. Public URL: $url');
+      return url;
+    } catch (e) {
+      debugPrint('[ImageUpload] Error in _pickAndUploadImage: $e');
+      rethrow;
+    }
   }
 
   Future<void> _addOption() async {
@@ -1273,12 +1315,108 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.secondary.withOpacity(0.5),
-                child: const Icon(
-                  Icons.eco_rounded,
-                  color: AppColors.primary,
-                  size: 20,
+              leading: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () async {
+                  if (_uploadingCropId != null) return;
+                  try {
+                    setState(() {
+                      _uploadingCropId = crop['id'];
+                    });
+                    final uploadedUrl = await _pickAndUploadImage();
+                    if (uploadedUrl != null) {
+                      // Optimistically update the UI instantly
+                      setState(() {
+                        crop['image_url'] = uploadedUrl;
+                      });
+
+                      await SupabaseService.updateMasterCropImageUrl(
+                        crop['id'],
+                        uploadedUrl,
+                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Crop image updated successfully!'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                      }
+                      await _fetchOptions(showLoader: false);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error updating crop image: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _uploadingCropId = null;
+                      });
+                    }
+                  }
+                },
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppColors.secondary.withOpacity(0.5),
+                      backgroundImage: crop['image_url'] != null &&
+                              crop['image_url'].toString().isNotEmpty &&
+                              crop['image_url'].toString() != 'null'
+                          ? NetworkImage(crop['image_url'].toString())
+                          : null,
+                      child: crop['image_url'] != null &&
+                              crop['image_url'].toString().isNotEmpty &&
+                              crop['image_url'].toString() != 'null'
+                          ? null
+                          : const Icon(
+                              Icons.eco_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                    if (_uploadingCropId == crop['id'])
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                           Icons.camera_alt_rounded,
+                           color: Colors.white,
+                           size: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               title: Text(
@@ -1697,6 +1835,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
               'create table if not exists public.master_crops (\n'
               '  id bigint generated by default as identity primary key,\n'
               '  name text not null unique,\n'
+              '  image_url text,\n'
               '  created_at timestamptz default now()\n'
               ');\n\n'
               'create table if not exists public.master_crop_varieties (\n'
