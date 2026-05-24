@@ -382,8 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onPressed: () async {
                     await SupabaseService.signOut();
                     if (mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
+                      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (context) => const LoginScreen()),
                         (route) => false,
                       );

@@ -22,6 +22,7 @@ class _ExecutiveStockDetailScreenState extends State<ExecutiveStockDetailScreen>
   bool _isLoading = true;
   Map<String, Map<String, double>> _stockInHand = {};
   List<Map<String, dynamic>> _history = [];
+  List<Map<String, dynamic>> _productOptions = [];
 
   @override
   void initState() {
@@ -34,11 +35,13 @@ class _ExecutiveStockDetailScreenState extends State<ExecutiveStockDetailScreen>
     try {
       final stock = await SupabaseService.getDetailedExecutiveStock(userId: widget.executiveId);
       final history = await SupabaseService.getExecutiveTransactions(widget.executiveId);
+      final products = await SupabaseService.getHierarchicalDropdownOptions('product_name');
       
       if (mounted) {
         setState(() {
           _stockInHand = stock;
           _history = history;
+          _productOptions = products;
           _isLoading = false;
         });
       }
@@ -209,14 +212,26 @@ class _ExecutiveStockDetailScreenState extends State<ExecutiveStockDetailScreen>
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary, size: 20),
-                            ),
+                            (() {
+                              final prod = _productOptions.firstWhere(
+                                (p) => p['label']?.toString().trim().toLowerCase() == productName.trim().toLowerCase(),
+                                orElse: () => {},
+                              );
+                              final imgUrl = prod['image_url']?.toString();
+                              final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                              return CircleAvatar(
+                                radius: 20,
+                                backgroundColor: AppColors.secondary.withOpacity(0.5),
+                                backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                                child: hasImg
+                                    ? null
+                                    : const Icon(
+                                        Icons.inventory_2_outlined,
+                                        color: AppColors.primary,
+                                        size: 20,
+                                      ),
+                              );
+                            })(),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Text(
@@ -350,14 +365,23 @@ class _ExecutiveStockDetailScreenState extends State<ExecutiveStockDetailScreen>
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
+            (() {
+              final itemName = tx['item_name']?.toString().trim().toLowerCase();
+              final prod = _productOptions.firstWhere(
+                (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+                orElse: () => {},
+              );
+              final imgUrl = prod['image_url']?.toString();
+              final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+              return CircleAvatar(
+                radius: 20,
+                backgroundColor: color.withOpacity(0.1),
+                backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                child: hasImg
+                    ? null
+                    : Icon(icon, color: color, size: 20),
+              );
+            })(),
              const SizedBox(width: 16),
             Expanded(
               child: Column(

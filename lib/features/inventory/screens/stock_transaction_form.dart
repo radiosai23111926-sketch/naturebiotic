@@ -785,11 +785,30 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       ),
       items:
           _masterProducts.map((p) {
+            final imgUrl = p['image_url']?.toString();
+            final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
             return DropdownMenuItem<Map<String, dynamic>>(
               value: p,
-              child: Text(
-                p['label'] ?? 'Unknown',
-                style: const TextStyle(fontSize: 14),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: AppColors.secondary.withOpacity(0.5),
+                    backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                    child: hasImg
+                        ? null
+                        : const Icon(
+                            Icons.inventory_2_rounded,
+                            color: AppColors.primary,
+                            size: 12,
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    p['label'] ?? 'Unknown',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
               ),
             );
           }).toList(),

@@ -42,6 +42,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   List<Map<String, dynamic>> _fillerUnitOptions = [];
   List<Map<String, dynamic>> _fillerMaterialOptions = [];
   List<Map<String, dynamic>> _perUnitOptions = [];
+  List<Map<String, dynamic>> _productDropdownMappings = [];
   List<String> _suggestedProblems = [];
 
   // Selection
@@ -358,6 +359,13 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       final fillerUnits = await SupabaseService.getDropdownOptions('filler_unit');
       final fillerMaterials = await SupabaseService.getDropdownOptions('filler_material');
       final perUnits = await SupabaseService.getDropdownOptions('per_unit');
+      
+      List<Map<String, dynamic>> productMappings = [];
+      try {
+        productMappings = await SupabaseService.getProductDropdownMappingsAll();
+      } catch (me) {
+        debugPrint('Error fetching product mapping options: $me');
+      }
 
       setState(() {
         _problemCategoriesList = categories;
@@ -367,6 +375,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         _fillerUnitOptions = fillerUnits;
         _fillerMaterialOptions = fillerMaterials;
         _perUnitOptions = perUnits;
+        _productDropdownMappings = productMappings;
       });
     } catch (_) {}
   }
@@ -1626,7 +1635,26 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, size: 14, color: AppColors.primary),
+                  (() {
+                    final prodOpt = _productOptions.firstWhere(
+                      (p) => p['label']?.toString() == r.product.text,
+                      orElse: () => {},
+                    );
+                    final imgUrl = prodOpt['image_url']?.toString();
+                    final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                    return CircleAvatar(
+                      radius: 8,
+                      backgroundColor: AppColors.secondary.withOpacity(0.5),
+                      backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                      child: hasImg
+                          ? null
+                          : const Icon(
+                              Icons.inventory_2_rounded,
+                              color: AppColors.primary,
+                              size: 8,
+                            ),
+                    );
+                  })(),
                   const SizedBox(width: 8),
                   Expanded(child: Text('${r.product.text} (${r.application.text})', style: const TextStyle(fontSize: 12))),
                 ],
@@ -2075,12 +2103,33 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            row.productName,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
+          Row(
+            children: [
+              (() {
+                final imgUrl = product['image_url']?.toString();
+                final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                return CircleAvatar(
+                  radius: 12,
+                  backgroundColor: AppColors.secondary.withOpacity(0.5),
+                  backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                  child: hasImg
+                      ? null
+                      : const Icon(
+                          Icons.inventory_2_rounded,
+                          color: AppColors.primary,
+                          size: 12,
+                        ),
+                );
+              })(),
+              const SizedBox(width: 8),
+              Text(
+                row.productName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
@@ -2217,6 +2266,41 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   Widget _recommendationRowWidget(int index, RecommendationRow row) {
+    final selectedProductName = row.product.text;
+    final productOption = _productOptions.firstWhere(
+      (p) => p['label']?.toString() == selectedProductName,
+      orElse: () => {},
+    );
+    final int? productId = productOption['id'];
+
+    // Get all mapped option IDs for this product
+    List<int> mappedOptionIds = [];
+    if (productId != null) {
+      mappedOptionIds = _productDropdownMappings
+          .where((m) => m['product_id'] == productId)
+          .map((m) => m['option_id'] as int)
+          .toList();
+    }
+
+    // Filter helper
+    List<Map<String, dynamic>> getFilteredOptions(
+      List<Map<String, dynamic>> originalOptions,
+    ) {
+      if (selectedProductName.isEmpty || productId == null || mappedOptionIds.isEmpty) {
+        return originalOptions; // Fallback: show all if no product selected or no mappings set
+      }
+      final filtered = originalOptions.where((opt) => mappedOptionIds.contains(opt['id'])).toList();
+      if (filtered.isEmpty) {
+        return originalOptions; // Avoid completely empty dropdown
+      }
+      return filtered;
+    }
+
+    final filteredApplications = getFilteredOptions(_applicationOptions);
+    final filteredPerUnits = getFilteredOptions(_perUnitOptions);
+    final filteredDoseUnits = getFilteredOptions(_doseUnitOptions);
+    final filteredFillerMaterials = getFilteredOptions(_fillerMaterialOptions);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
@@ -2249,17 +2333,98 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     ),
                     items:
                         _productOptions.map((p) {
+                          final imgUrl = p['image_url']?.toString();
+                          final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
                           return DropdownMenuItem<String>(
                             value: p['label'].toString(),
-                            child: Text(
-                              p['label'].toString(),
-                              style: const TextStyle(fontSize: 14),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: AppColors.secondary.withOpacity(0.5),
+                                  backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                                  child: hasImg
+                                      ? null
+                                      : const Icon(
+                                          Icons.inventory_2_rounded,
+                                          color: AppColors.primary,
+                                          size: 12,
+                                        ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  p['label'].toString(),
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ],
                             ),
                           );
                         }).toList(),
                     onChanged: (val) {
                       setState(() {
                         row.product.text = val ?? '';
+                        
+                        // Clear invalid fields for this product to prevent crashes
+                        if (val != null && val.isNotEmpty) {
+                          final prodOpt = _productOptions.firstWhere(
+                            (p) => p['label']?.toString() == val,
+                            orElse: () => {},
+                          );
+                          final int? prodId = prodOpt['id'];
+                          if (prodId != null) {
+                            final List<int> mappedIds = _productDropdownMappings
+                                .where((m) => m['product_id'] == prodId)
+                                .map((m) => m['option_id'] as int)
+                                .toList();
+                            
+                            if (mappedIds.isNotEmpty) {
+                              // Verify application method
+                              if (row.application.text.isNotEmpty) {
+                                final opt = _applicationOptions.firstWhere(
+                                  (a) => a['label'].toString() == row.application.text,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.application.clear();
+                                }
+                              }
+                              
+                              // Verify perUnit
+                              if (row.perUnit != null && row.perUnit!.isNotEmpty) {
+                                final opt = _perUnitOptions.firstWhere(
+                                  (u) => u['label'].toString() == row.perUnit,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.perUnit = null;
+                                }
+                              }
+                              
+                              // Verify doseUnit
+                              if (row.doseUnit != null && row.doseUnit!.isNotEmpty) {
+                                final opt = _doseUnitOptions.firstWhere(
+                                  (u) => u['label'].toString() == row.doseUnit,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.doseUnit = null;
+                                }
+                              }
+                              
+                              // Verify filler material
+                              if (row.filler.text.isNotEmpty) {
+                                final opt = _fillerMaterialOptions.firstWhere(
+                                  (m) => m['label'].toString() == row.filler.text,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.filler.clear();
+                                }
+                              }
+                            }
+                          }
+                        }
                       });
                       _syncCostEstimations();
                     },
@@ -2284,7 +2449,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value:
-                      _applicationOptions.any(
+                      filteredApplications.any(
                             (a) => a['label'].toString() == row.application.text,
                           )
                           ? row.application.text
@@ -2298,7 +2463,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     ),
                   ),
                   items:
-                      _applicationOptions.map((a) {
+                      filteredApplications.map((a) {
                         return DropdownMenuItem<String>(
                           value: a['label'].toString(),
                           child: Text(
@@ -2323,7 +2488,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value:
-                      _perUnitOptions.any(
+                      filteredPerUnits.any(
                         (u) => u['label'].toString() == row.perUnit,
                       )
                           ? row.perUnit
@@ -2337,7 +2502,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     ),
                   ),
                   items:
-                      _perUnitOptions.map((u) {
+                      filteredPerUnits.map((u) {
                         return DropdownMenuItem<String>(
                           value: u['label'].toString(),
                           child: Text(
@@ -2391,7 +2556,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 flex: 1,
                 child: DropdownButtonFormField<String>(
                   value:
-                      _doseUnitOptions.any(
+                      filteredDoseUnits.any(
                         (u) => u['label'].toString() == row.doseUnit,
                       )
                           ? row.doseUnit
@@ -2405,7 +2570,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     ),
                   ),
                   items:
-                      _doseUnitOptions.map((u) {
+                      filteredDoseUnits.map((u) {
                         return DropdownMenuItem<String>(
                           value: u['label'].toString(),
                           child: Text(
@@ -2434,7 +2599,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                       flex: 3,
                       child: DropdownButtonFormField<String>(
                         value:
-                            _fillerMaterialOptions.any(
+                            filteredFillerMaterials.any(
                                   (m) => m['label'].toString() == row.filler.text,
                                 )
                                 ? row.filler.text
@@ -2448,7 +2613,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                           ),
                         ),
                         items:
-                            _fillerMaterialOptions.map((m) {
+                            filteredFillerMaterials.map((m) {
                               return DropdownMenuItem<String>(
                                 value: m['label'].toString(),
                                 child: Text(

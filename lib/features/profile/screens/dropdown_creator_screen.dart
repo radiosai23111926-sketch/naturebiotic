@@ -24,6 +24,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   int? _selectedParentId;
   bool _tableMissing = false;
   int? _uploadingCropId;
+  int? _uploadingProductId;
+  int? _uploadingOptionId;
 
   final Map<String, String> _typeLabels = {
     'farmer_category': 'Farmer Categories',
@@ -120,7 +122,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
         if (errorStr.contains('PGRST205') ||
             errorStr.contains('PGRST200') ||
             errorStr.contains('dropdown_options') ||
-            errorStr.contains('master_crops')) {
+            errorStr.contains('master_crops') ||
+            errorStr.contains('product_dropdown_mapping')) {
           setState(() => _tableMissing = true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1449,12 +1452,109 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.secondary.withOpacity(0.5),
-                child: const Icon(
-                  Icons.inventory_2_rounded,
-                  color: AppColors.primary,
-                  size: 20,
+              leading: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () async {
+                  if (_uploadingProductId != null) return;
+                  try {
+                    setState(() {
+                      _uploadingProductId = product['id'];
+                    });
+                    final uploadedUrl = await _pickAndUploadImage();
+                    if (uploadedUrl != null) {
+                      // Optimistically update the UI instantly
+                      setState(() {
+                        product['image_url'] = uploadedUrl;
+                      });
+
+                      await SupabaseService.updateDropdownOption(
+                        product['id'],
+                        product['label'],
+                        imageUrl: uploadedUrl,
+                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Product image updated successfully!'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                      }
+                      await _fetchOptions(showLoader: false);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error updating product image: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _uploadingProductId = null;
+                      });
+                    }
+                  }
+                },
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppColors.secondary.withOpacity(0.5),
+                      backgroundImage: product['image_url'] != null &&
+                              product['image_url'].toString().isNotEmpty &&
+                              product['image_url'].toString() != 'null'
+                          ? NetworkImage(product['image_url'].toString())
+                          : null,
+                      child: product['image_url'] != null &&
+                              product['image_url'].toString().isNotEmpty &&
+                              product['image_url'].toString() != 'null'
+                          ? null
+                          : const Icon(
+                              Icons.inventory_2_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                    if (_uploadingProductId == product['id'])
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                           Icons.camera_alt_rounded,
+                           color: Colors.white,
+                           size: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               title: Text(
@@ -1533,6 +1633,11 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                         onPressed: () => _editOption(product),
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text('Edit Product Name'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _showProductMappingDialog(product),
+                        icon: const Icon(Icons.playlist_add_check_rounded, color: AppColors.primary),
+                        label: const Text('Map Treatment Options'),
                       ),
                     ],
                   ),
@@ -1785,7 +1890,18 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
               "('count_unit', 'Plants'), ('count_unit', 'Saplings'),\n"
               "('acre_unit', 'Acres'), ('acre_unit', 'Cent'),\n"
               "('yield_unit', 'Tons'), ('yield_unit', 'Kg'), ('yield_unit', 'Quintals')\n"
-              'on conflict do nothing;',
+              'on conflict do nothing;\n\n'
+              '-- 4. Create product dropdown mappings table\n'
+              'create table if not exists public.product_dropdown_mapping (\n'
+              '  id bigint generated by default as identity primary key,\n'
+              '  product_id bigint references public.dropdown_options(id) on delete cascade,\n'
+              '  option_id bigint references public.dropdown_options(id) on delete cascade,\n'
+              '  created_at timestamptz default now(),\n'
+              '  unique(product_id, option_id)\n'
+              ');\n\n'
+              'alter table public.product_dropdown_mapping enable row level security;\n'
+              'create policy "Allow public read access" on public.product_dropdown_mapping for select using (true);\n'
+              'create policy "Allow authenticated full access" on public.product_dropdown_mapping for all using (auth.role() = \'authenticated\');',
               style: TextStyle(fontFamily: 'monospace', fontSize: 11),
             ),
           ),
@@ -1825,6 +1941,191 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showProductMappingDialog(Map<String, dynamic> product) async {
+    final productId = product['id'] as int;
+
+    // Show a loading indicator in the main screen
+    setState(() => _isLoading = true);
+    
+    List<Map<String, dynamic>> applicationOptions = [];
+    List<Map<String, dynamic>> doseUnitOptions = [];
+    List<Map<String, dynamic>> perUnitOptions = [];
+    List<Map<String, dynamic>> fillerMaterialOptions = [];
+    List<Map<String, dynamic>> existingMappings = [];
+
+    try {
+      applicationOptions = await SupabaseService.getDropdownOptions('application_method');
+      doseUnitOptions = await SupabaseService.getDropdownOptions('dose_unit');
+      perUnitOptions = await SupabaseService.getDropdownOptions('per_unit');
+      fillerMaterialOptions = await SupabaseService.getDropdownOptions('filler_material');
+      existingMappings = await SupabaseService.getProductDropdownMappings(productId);
+    } catch (e) {
+      debugPrint('Error loading mapping options: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+
+    final List<int> selectedOptionIds = existingMappings
+        .map((m) => m['option_id'] as int)
+        .toList();
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return DefaultTabController(
+          length: 4,
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: Text(
+                  'Map Options for ${product['label']}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                content: SizedBox(
+                  width: 500,
+                  height: 450,
+                  child: Column(
+                    children: [
+                      const TabBar(
+                        isScrollable: true,
+                        labelColor: AppColors.primary,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: AppColors.primary,
+                        tabs: [
+                          Tab(text: 'Application'),
+                          Tab(text: 'Dose Units'),
+                          Tab(text: 'Per Units'),
+                          Tab(text: 'Filler Materials'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            // 1. Application Methods
+                            _buildMappingCheckboxList(
+                              options: applicationOptions,
+                              selectedIds: selectedOptionIds,
+                              onChanged: setDialogState,
+                            ),
+                            // 2. Dose Units
+                            _buildMappingCheckboxList(
+                              options: doseUnitOptions,
+                              selectedIds: selectedOptionIds,
+                              onChanged: setDialogState,
+                            ),
+                            // 3. Per Units
+                            _buildMappingCheckboxList(
+                              options: perUnitOptions,
+                              selectedIds: selectedOptionIds,
+                              onChanged: setDialogState,
+                            ),
+                            // 4. Filler Materials
+                            _buildMappingCheckboxList(
+                              options: fillerMaterialOptions,
+                              selectedIds: selectedOptionIds,
+                              onChanged: setDialogState,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context); // Close dialog
+                      setState(() => _isLoading = true);
+                      try {
+                        await SupabaseService.updateProductDropdownMappings(
+                          productId,
+                          selectedOptionIds,
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Mappings saved successfully!'),
+                              backgroundColor: AppColors.primary,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error saving mappings: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                    child: const Text('Save Mappings'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMappingCheckboxList({
+    required List<Map<String, dynamic>> options,
+    required List<int> selectedIds,
+    required StateSetter onChanged,
+  }) {
+    if (options.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No options available.\nAdd them in the main dropdown selector first.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: options.length,
+      itemBuilder: (context, index) {
+        final option = options[index];
+        final id = option['id'] as int;
+        final isSelected = selectedIds.contains(id);
+
+        return CheckboxListTile(
+          title: Text(option['label'] ?? '', style: const TextStyle(fontSize: 14)),
+          value: isSelected,
+          activeColor: AppColors.primary,
+          onChanged: (bool? value) {
+            onChanged(() {
+              if (value == true) {
+                selectedIds.add(id);
+              } else {
+                selectedIds.remove(id);
+              }
+            });
+          },
+        );
+      },
     );
   }
 }

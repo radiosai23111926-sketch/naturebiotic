@@ -13,6 +13,7 @@ class ExecutiveStockAcceptanceScreen extends StatefulWidget {
 class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanceScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _pendingTransactions = [];
+  List<Map<String, dynamic>> _productOptions = [];
   String? _currentUserId;
   String? _userRole;
 
@@ -27,9 +28,11 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
     try {
       final pending = await SupabaseService.getPendingStoreTransactions();
       final profile = await SupabaseService.getProfile();
+      final products = await SupabaseService.getHierarchicalDropdownOptions('product_name');
       if (mounted) {
         setState(() {
           _pendingTransactions = pending;
+          _productOptions = products;
           _currentUserId = SupabaseService.client.auth.currentUser?.id;
           _userRole = profile?['role'];
           _isLoading = false;
@@ -174,13 +177,46 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  tx['item_name'] ?? 'Unknown Item',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                Text(
-                  'Quantity: ${tx['quantity']} x ${tx['unit']}',
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    (() {
+                      final itemName = tx['item_name']?.toString().trim().toLowerCase();
+                      final prod = _productOptions.firstWhere(
+                        (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+                        orElse: () => {},
+                      );
+                      final imgUrl = prod['image_url']?.toString();
+                      final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                      return CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.secondary.withOpacity(0.5),
+                        backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                        child: hasImg
+                            ? null
+                            : const Icon(
+                                Icons.inventory_2_rounded,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                      );
+                    })(),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tx['item_name'] ?? 'Unknown Item',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                          Text(
+                            'Quantity: ${tx['quantity']} x ${tx['unit']}',
+                            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 const Divider(),

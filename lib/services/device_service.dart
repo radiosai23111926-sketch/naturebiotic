@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:device_info_plus/device_info_plus.dart';
 
 class DeviceService {
@@ -6,6 +7,13 @@ class DeviceService {
 
   static Future<Map<String, String>> getDeviceInfo() async {
     try {
+      if (kIsWeb) {
+        return {
+          'id': 'Web-Browser',
+          'name': 'Web Browser',
+          'os': 'Web Client',
+        };
+      }
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
         return {
@@ -22,7 +30,7 @@ class DeviceService {
         };
       }
     } catch (e) {
-      print('DEBUG: Error getting device info: $e');
+      debugPrint('DEBUG: Error getting device info: $e');
     }
     return {
       'id': 'Unknown',

@@ -28,6 +28,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   List<Map<String, dynamic>> _allTransactions = [];
   List<Map<String, dynamic>> _staffMembers = [];
   Map<String, double> _staffStockTotals = {};
+  List<Map<String, dynamic>> _productOptions = [];
 
   @override
   void initState() {
@@ -38,18 +39,31 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
     try {
-      final profile = await SupabaseService.getProfile();
+      final initResults = await Future.wait([
+        SupabaseService.getProfile(),
+        SupabaseService.getHierarchicalDropdownOptions('product_name'),
+      ]);
+      final profile = initResults[0] as Map<String, dynamic>?;
+      _productOptions = initResults[1] as List<Map<String, dynamic>>;
       _userRole = profile?['role'] ?? 'executive';
       _userName = profile?['full_name'] ?? 'User';
 
       if (_userRole == 'executive' || _userRole == 'telecaller') {
-        final stock = await SupabaseService.getExecutiveStock();
-        final detailed = await SupabaseService.getDetailedExecutiveStock();
-        final usage = await SupabaseService.getExecutiveStockUsage();
-        final pending = await SupabaseService.getPendingStoreTransactions();
-        final transactions = await SupabaseService.getExecutiveTransactions(SupabaseService.client.auth.currentUser!.id);
+        final results = await Future.wait([
+          SupabaseService.getExecutiveStock(),
+          SupabaseService.getDetailedExecutiveStock(),
+          SupabaseService.getExecutiveStockUsage(),
+          SupabaseService.getPendingStoreTransactions(),
+          SupabaseService.getExecutiveTransactions(SupabaseService.client.auth.currentUser!.id),
+          SupabaseService.getPendingDetailedStock(),
+        ]);
 
-        final pendingDetailed = await SupabaseService.getPendingDetailedStock();
+        final stock = results[0] as Map<String, double>;
+        final detailed = results[1] as Map<String, Map<String, double>>;
+        final usage = results[2] as List<Map<String, dynamic>>;
+        final pending = results[3] as List<Map<String, dynamic>>;
+        final transactions = results[4] as List<Map<String, dynamic>>;
+        final pendingDetailed = results[5] as Map<String, Map<String, double>>;
 
         if (mounted) {
           setState(() {
@@ -63,12 +77,21 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
           });
         }
       } else {
-        final pending = await SupabaseService.getPendingStoreTransactions();
-        final rejected = await SupabaseService.getRejectedStoreTransactions();
-        final stock = await SupabaseService.getUnifiedStoreStock();
-        final detailed = await SupabaseService.getDetailedStoreStock();
-        final storeTxs = await SupabaseService.getStoreTransactions();
-        final fieldTxs = await SupabaseService.getAllStockTransactions();
+        final results = await Future.wait([
+          SupabaseService.getPendingStoreTransactions(),
+          SupabaseService.getRejectedStoreTransactions(),
+          SupabaseService.getUnifiedStoreStock(),
+          SupabaseService.getDetailedStoreStock(),
+          SupabaseService.getStoreTransactions(),
+          SupabaseService.getAllStockTransactions(),
+        ]);
+
+        final pending = results[0] as List<Map<String, dynamic>>;
+        final rejected = results[1] as List<Map<String, dynamic>>;
+        final stock = results[2] as Map<String, double>;
+        final detailed = results[3] as Map<String, Map<String, double>>;
+        final storeTxs = results[4] as List<Map<String, dynamic>>;
+        final fieldTxs = results[5] as List<Map<String, dynamic>>;
 
         // Tag them to distinguish in UI
         final List<Map<String, dynamic>> combinedTxs = [];
@@ -91,14 +114,18 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
 
         if (_userRole == 'admin' || _userRole == 'store') {
           staff = await SupabaseService.getAllStaff();
-          // Pre-calculate stock totals for each staff member to show in the list
-          for (var member in staff) {
+          // Pre-calculate stock totals for each staff member concurrently using Future.wait
+          final staffFutures = staff.map((member) async {
             final staffStock = await SupabaseService.getExecutiveStock(
               userId: member['id'],
             );
             double total = 0;
             staffStock.forEach((key, value) => total += value);
-            staffStockTotals[member['id']] = total;
+            return MapEntry(member['id'].toString(), total);
+          });
+          final staffResults = await Future.wait(staffFutures);
+          for (var entry in staffResults) {
+            staffStockTotals[entry.key] = entry.value;
           }
         }
 
@@ -621,18 +648,26 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isLow ? Colors.red.withOpacity(0.05) : AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              isLow ? Icons.error_outline_rounded : Icons.inventory_2_outlined,
-              color: isLow ? Colors.red : AppColors.primary.withOpacity(0.6),
-              size: 24,
-            ),
-          ),
+          (() {
+            final prod = _productOptions.firstWhere(
+              (p) => p['label']?.toString().trim().toLowerCase() == name.trim().toLowerCase(),
+              orElse: () => {},
+            );
+            final imgUrl = prod['image_url']?.toString();
+            final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+            return CircleAvatar(
+              radius: 24,
+              backgroundColor: isLow ? Colors.red.withOpacity(0.05) : AppColors.background,
+              backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+              child: hasImg
+                  ? null
+                  : Icon(
+                      isLow ? Icons.error_outline_rounded : Icons.inventory_2_outlined,
+                      color: isLow ? Colors.red : AppColors.primary.withOpacity(0.6),
+                      size: 24,
+                    ),
+            );
+          })(),
           const SizedBox(width: 24),
           Expanded(
             flex: 3,
@@ -1171,9 +1206,29 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              (() {
+                                final prod = _productOptions.firstWhere(
+                                  (p) => p['label']?.toString().trim().toLowerCase() == productName.trim().toLowerCase(),
+                                  orElse: () => {},
+                                );
+                                final imgUrl = prod['image_url']?.toString();
+                                final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                                return CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: color.withOpacity(0.1),
+                                  backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                                  child: hasImg
+                                      ? null
+                                      : Icon(
+                                          isLow ? Icons.error_outline_rounded : Icons.inventory_2_outlined,
+                                          color: color,
+                                          size: 18,
+                                        ),
+                                );
+                              })(),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1520,18 +1575,23 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 20,
-              ),
-            ),
+            (() {
+              final itemName = tx['item_name']?.toString().trim().toLowerCase();
+              final prod = _productOptions.firstWhere(
+                (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+                orElse: () => {},
+              );
+              final imgUrl = prod['image_url']?.toString();
+              final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+              return CircleAvatar(
+                radius: 20,
+                backgroundColor: color.withOpacity(0.1),
+                backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                child: hasImg
+                    ? null
+                    : Icon(icon, color: color, size: 20),
+              );
+            })(),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -2321,13 +2381,34 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      key,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                    (() {
+                                      final prod = _productOptions.firstWhere(
+                                        (p) => p['label']?.toString().trim().toLowerCase() == key.trim().toLowerCase(),
+                                        orElse: () => {},
+                                      );
+                                      final imgUrl = prod['image_url']?.toString();
+                                      final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                                      return CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor: AppColors.secondary.withOpacity(0.5),
+                                        backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                                        child: hasImg
+                                            ? null
+                                            : const Icon(
+                                                Icons.inventory_2_rounded,
+                                                color: AppColors.primary,
+                                                size: 16,
+                                              ),
+                                      );
+                                    })(),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        key,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                     Text(

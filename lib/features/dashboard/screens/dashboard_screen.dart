@@ -1826,8 +1826,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (confirm == true) {
       await SupabaseService.signOut();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
         );

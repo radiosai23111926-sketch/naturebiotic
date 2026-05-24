@@ -444,16 +444,39 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                   ),
                 ),
                 items:
-                    _itemOptions
+                    _allProducts
                         .map(
-                          (e) => DropdownMenuItem(
-                            value: e,
-                            child: Text(
-                              e,
-                              style: const TextStyle(fontSize: 12),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                          (e) {
+                            final imgUrl = e['image_url']?.toString();
+                            final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                            return DropdownMenuItem(
+                              value: e['label'].toString(),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: AppColors.secondary.withOpacity(0.5),
+                                    backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                                    child: hasImg
+                                        ? null
+                                        : const Icon(
+                                            Icons.inventory_2_rounded,
+                                            color: AppColors.primary,
+                                            size: 12,
+                                          ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      e['label'].toString(),
+                                      style: const TextStyle(fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
                         )
                         .toList(),
                 onChanged: (v) {

@@ -16,6 +16,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
   bool _isLoading = true;
   List<Map<String, dynamic>> _pendingReturns = [];
   List<Map<String, dynamic>> _returnHistory = [];
+  List<Map<String, dynamic>> _productOptions = [];
 
   @override
   void initState() {
@@ -28,9 +29,11 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
     try {
       final pending = await SupabaseService.getPendingStoreTransactions();
       final all = await SupabaseService.getStoreTransactions();
+      final products = await SupabaseService.getHierarchicalDropdownOptions('product_name');
       
       if (mounted) {
         setState(() {
+          _productOptions = products;
           // Filter for returns and requests
           _pendingReturns = pending.where((tx) => tx['transaction_type'] == 'RETURN' || tx['transaction_type'] == 'REQUEST').toList();
           _returnHistory = all.where((tx) => 
@@ -216,14 +219,47 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    tx['item_name'] ?? 'Unknown Item',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: -0.5),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Quantity: ${tx['quantity']} x ${tx['unit']}',
-                    style: const TextStyle(color: AppColors.textBlack, fontWeight: FontWeight.w600, fontSize: 16),
+                  Row(
+                    children: [
+                      (() {
+                        final itemName = tx['item_name']?.toString().trim().toLowerCase();
+                        final prod = _productOptions.firstWhere(
+                          (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+                          orElse: () => {},
+                        );
+                        final imgUrl = prod['image_url']?.toString();
+                        final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                        return CircleAvatar(
+                          radius: 20,
+                          backgroundColor: AppColors.secondary.withOpacity(0.5),
+                          backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                          child: hasImg
+                              ? null
+                              : const Icon(
+                                  Icons.inventory_2_rounded,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                        );
+                      })(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx['item_name'] ?? 'Unknown Item',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: -0.5),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Quantity: ${tx['quantity']} x ${tx['unit']}',
+                              style: const TextStyle(color: AppColors.textBlack, fontWeight: FontWeight.w600, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   if (isRequest)
@@ -316,18 +352,27 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isAccepted ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isAccepted ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
-                    color: isAccepted ? Colors.green : Colors.red,
-                    size: 20,
-                  ),
-                ),
+                (() {
+                  final itemName = tx['item_name']?.toString().trim().toLowerCase();
+                  final prod = _productOptions.firstWhere(
+                    (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+                    orElse: () => {},
+                  );
+                  final imgUrl = prod['image_url']?.toString();
+                  final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                  return CircleAvatar(
+                    radius: 20,
+                    backgroundColor: isAccepted ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                    child: hasImg
+                        ? null
+                        : Icon(
+                            isAccepted ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                            color: isAccepted ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                  );
+                })(),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(

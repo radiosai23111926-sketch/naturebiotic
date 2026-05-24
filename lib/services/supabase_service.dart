@@ -1433,7 +1433,7 @@ class SupabaseService {
       final profile = await getProfile();
       final role = profile?['role'];
 
-      var query = client.from('store_transactions').select('*, profiles:executive_id(full_name)').eq('status', 'PENDING');
+      var query = client.from('store_transactions').select('*, profiles!store_transactions_executive_id_fkey(full_name)').eq('status', 'PENDING');
 
       if (role == 'executive' || role == 'telecaller') {
         // Executive/Telecaller only sees pending deliveries sent TO them
@@ -1466,7 +1466,7 @@ class SupabaseService {
       
       if (role == 'admin' || role == 'store') {
         final response = await client.from('store_transactions')
-            .select('*, profiles:executive_id(full_name)')
+            .select('*, profiles!store_transactions_executive_id_fkey(full_name)')
             .eq('status', 'REJECTED')
             .eq('transaction_type', 'DELIVERY')
             .order('created_at', ascending: false);
@@ -1475,7 +1475,7 @@ class SupabaseService {
       } else {
         final userId = user.id;
         final response = await client.from('store_transactions')
-            .select('*, profiles:executive_id(full_name)')
+            .select('*, profiles!store_transactions_executive_id_fkey(full_name)')
             .eq('executive_id', userId)
             .eq('status', 'REJECTED')
             .eq('transaction_type', 'DELIVERY')
@@ -1759,6 +1759,15 @@ class SupabaseService {
       final mapData = List<Map<String, dynamic>>.from(mapResponse);
       if (!kIsWeb) await LocalDatabaseService.saveCache('all_crop_problem_mappings', mapData);
 
+      // Fetch all product dropdown mappings
+      try {
+        final prodMapResponse = await client.from('product_dropdown_mapping').select();
+        final prodMapData = List<Map<String, dynamic>>.from(prodMapResponse);
+        if (!kIsWeb) await LocalDatabaseService.saveCache('all_product_dropdown_mappings', prodMapData);
+      } catch (pe) {
+        debugPrint('SYNC WARNING: product_dropdown_mapping sync failed (table might be missing yet): $pe');
+      }
+
       // Sync and cache staff profiles
       await getStaffProfiles().catchError((_) => <Map<String, dynamic>>[]);
       
@@ -1890,6 +1899,60 @@ class SupabaseService {
       }).toList();
       await client.from('crop_problem_mapping').insert(inserts);
     }
+  }
+
+  // --- Product-Dropdown Mapping Methods ---
+
+  static Future<List<Map<String, dynamic>>> getProductDropdownMappings(int productId) async {
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client
+          .from('product_dropdown_mapping')
+          .select()
+          .eq('product_id', productId);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error in getProductDropdownMappings: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('all_product_dropdown_mappings');
+        if (cached != null) {
+          return cached.where((m) => m['product_id'] == productId).toList();
+        }
+      }
+      return [];
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getProductDropdownMappingsAll() async {
+    try {
+      if (await isOffline()) throw 'Offline';
+      final response = await client.from('product_dropdown_mapping').select();
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error in getProductDropdownMappingsAll: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('all_product_dropdown_mappings');
+        if (cached != null) return cached;
+      }
+      return [];
+    }
+  }
+
+  static Future<void> updateProductDropdownMappings(int productId, List<int> optionIds) async {
+    // 1. Delete existing mappings for this product
+    await client.from('product_dropdown_mapping').delete().eq('product_id', productId);
+    
+    // 2. Insert new mappings
+    if (optionIds.isNotEmpty) {
+      final List<Map<String, dynamic>> inserts = optionIds.map((optionId) => {
+        'product_id': productId,
+        'option_id': optionId,
+      }).toList();
+      await client.from('product_dropdown_mapping').insert(inserts);
+    }
+
+    // 3. Sync cache
+    await syncAllDropdownOptions();
   }
 
   // Attendance Methods
@@ -2236,15 +2299,14 @@ class SupabaseService {
       final targetUserId = userId ?? client.auth.currentUser?.id;
       if (targetUserId == null) return {};
 
-      // 1. Get deliveries TO executive and returns FROM executive (all statuses)
-      final storeTxsResponse = await client.from('store_transactions')
-          .select()
-          .eq('executive_id', targetUserId);
+      // 1. Get deliveries TO executive and returns FROM executive (all statuses) and 2. Get field usage concurrently
+      final responses = await Future.wait([
+        client.from('store_transactions').select().eq('executive_id', targetUserId),
+        client.from('stock_transactions').select().eq('executive_id', targetUserId),
+      ]);
       
-      // 2. Get field usage
-      final usageResponse = await client.from('stock_transactions')
-          .select()
-          .eq('executive_id', targetUserId);
+      final storeTxsResponse = responses[0];
+      final usageResponse = responses[1];
 
       if (storeTxsResponse == null || usageResponse == null) return {};
 
