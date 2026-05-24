@@ -28,6 +28,7 @@ class CreateReportScreen extends StatefulWidget {
 
 class _CreateReportScreenState extends State<CreateReportScreen> {
   int _currentStep = 0;
+  final PageController _pageController = PageController(initialPage: 0);
   bool _isLoading = false;
   String? _overrideStaffId;
   DateTime _overrideDate = DateTime.now();
@@ -47,16 +48,13 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   String? _selectedFarmId;
   String? _selectedCropId;
   Map<String, dynamic>? _activeCategory;
-  Map<String, dynamic>? _activeSubcategory;
-  List<Map<String, dynamic>> _problemCategoriesList = [];
-  List<Map<String, dynamic>> _problemSubcategoriesList = [];
-  List<Map<String, dynamic>> _problemItemsList = [];
   int _categoryIndex = -1;
-  int _subcategoryIndex = -1;
+  List<Map<String, dynamic>> _problemCategoriesList = [];
+  List<Map<String, dynamic>> _problemItemsList = [];
   String _problemSearchQuery = '';
   final Set<String> _selectedProblems = {};
-  final Map<String, Uint8List?> _problemImages = {};
-  final Map<String, String> _problemImageNames = {};
+  final Map<String, List<Uint8List>> _problemImages = {};
+  final Map<String, List<String>> _problemImageNames = {};
   final ImagePicker _picker = ImagePicker();
   String? _userRole;
 
@@ -154,6 +152,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     _signatureController.dispose();
     _additionalNotesController.dispose();
     for (var rows in _previousInputsMap.values) {
@@ -312,6 +311,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         }
         if (widget.preSelectedFarmId != null && widget.preSelectedCropId != null) {
           _currentStep = 1;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) _pageController.jumpToPage(1);
+          });
         }
       } else {
         // If draft loading restored a cropId, don't clear it unless invalid for this farm
@@ -369,21 +371,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     } catch (_) {}
   }
 
-  Future<void> _fetchSubcategories(int categoryId) async {
+  Future<void> _fetchItems(int categoryId) async {
     setState(() => _isLoading = true);
     try {
-      final subs = await SupabaseService.getDropdownOptions('problem_subcategory', parentId: categoryId);
-      setState(() => _problemSubcategoriesList = subs);
-    } catch (_) {
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _fetchItems(int subcategoryId) async {
-    setState(() => _isLoading = true);
-    try {
-      final items = await SupabaseService.getDropdownOptions('problem_item', parentId: subcategoryId);
+      final items = await SupabaseService.getDropdownOptions('problem_item', parentId: categoryId);
       setState(() => _problemItemsList = items);
     } catch (_) {
     } finally {
@@ -391,94 +382,40 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     }
   }
 
-  void _goToNextSubcategory() async {
+  void _goToNextCategory() async {
     if (_categoryIndex == -1) return;
 
-    if (_subcategoryIndex < _problemSubcategoriesList.length - 1) {
-      // Next subcategory in same category
+    if (_categoryIndex < _problemCategoriesList.length - 1) {
       setState(() {
-        _subcategoryIndex++;
-        _activeSubcategory = _problemSubcategoriesList[_subcategoryIndex];
+        _categoryIndex++;
+        _activeCategory = _problemCategoriesList[_categoryIndex];
       });
-      await _fetchItems(_activeSubcategory!['id']);
+      await _fetchItems(_activeCategory!['id']);
     } else {
-      // Move to next category
-      if (_categoryIndex < _problemCategoriesList.length - 1) {
-        setState(() {
-          _categoryIndex++;
-          _activeCategory = _problemCategoriesList[_categoryIndex];
-          _subcategoryIndex = 0;
-          _activeSubcategory = null; // Reset to let fetchSubcategories handle it
-        });
-        
-        setState(() => _isLoading = true);
-        final subs = await SupabaseService.getDropdownOptions('problem_subcategory', parentId: _activeCategory!['id']);
-        setState(() {
-          _problemSubcategoriesList = subs;
-          if (_problemSubcategoriesList.isNotEmpty) {
-            _activeSubcategory = _problemSubcategoriesList[0];
-          }
-          _isLoading = false;
-        });
-
-        if (_activeSubcategory != null) {
-          await _fetchItems(_activeSubcategory!['id']);
-        }
-      } else {
-        // All categories done
-        setState(() {
-          _activeCategory = null;
-          _activeSubcategory = null;
-          _categoryIndex = -1;
-          _subcategoryIndex = -1;
-          _isProblemIdentificationFinished = true;
-        });
-      }
+      // All categories done
+      setState(() {
+        _activeCategory = null;
+        _categoryIndex = -1;
+        _isProblemIdentificationFinished = true;
+      });
     }
   }
 
-  void _goToPreviousSubcategory() async {
+  void _goToPreviousCategory() async {
     if (_categoryIndex == -1) return;
 
-    if (_subcategoryIndex > 0) {
-      // Previous subcategory in same category
+    if (_categoryIndex > 0) {
       setState(() {
-        _subcategoryIndex--;
-        _activeSubcategory = _problemSubcategoriesList[_subcategoryIndex];
+        _categoryIndex--;
+        _activeCategory = _problemCategoriesList[_categoryIndex];
       });
-      await _fetchItems(_activeSubcategory!['id']);
+      await _fetchItems(_activeCategory!['id']);
     } else {
-      // Move to previous category
-      if (_categoryIndex > 0) {
-        setState(() {
-          _categoryIndex--;
-          _activeCategory = _problemCategoriesList[_categoryIndex];
-          _activeSubcategory = null;
-        });
-
-        setState(() => _isLoading = true);
-        final subs = await SupabaseService.getDropdownOptions('problem_subcategory', parentId: _activeCategory!['id']);
-        setState(() {
-          _problemSubcategoriesList = subs;
-          _subcategoryIndex = _problemSubcategoriesList.length - 1;
-          if (_problemSubcategoriesList.isNotEmpty) {
-            _activeSubcategory = _problemSubcategoriesList[_subcategoryIndex];
-          }
-          _isLoading = false;
-        });
-
-        if (_activeSubcategory != null) {
-          await _fetchItems(_activeSubcategory!['id']);
-        }
-      } else {
-        // Back to category selection
-        setState(() {
-          _activeCategory = null;
-          _activeSubcategory = null;
-          _categoryIndex = -1;
-          _subcategoryIndex = -1;
-        });
-      }
+      // Back to category selection
+      setState(() {
+        _activeCategory = null;
+        _categoryIndex = -1;
+      });
     }
   }
 
@@ -572,8 +509,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       'crop_id': _selectedCropId,
       'crop_name': crop['name'],
       'selected_problems': Set<String>.from(_selectedProblems),
-      'problem_images': Map<String, Uint8List?>.from(_problemImages),
-      'problem_image_names': Map<String, String>.from(_problemImageNames),
+      'problem_images': Map<String, List<Uint8List>>.from(_problemImages),
+      'problem_image_names': Map<String, List<String>>.from(_problemImageNames),
       'additional_notes': _additionalNotesController.text.trim(),
       'previous_inputs': _previousInputsMap.map(
         (k, v) => MapEntry(
@@ -666,6 +603,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         final data = cache.first;
         setState(() {
           _currentStep = data['step'] ?? 0;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) _pageController.jumpToPage(_currentStep);
+          });
           _selectedFarmId = data['farmId'];
           _selectedCropId = data['cropId'];
           _additionalNotesController.text = data['notes'] ?? '';
@@ -808,8 +748,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       String combinedCost = '';
       double grandTotal = 0;
 
-      Map<String, Uint8List?> allProblemImages = {};
-      Map<String, String> allProblemImageNames = {};
+      Map<String, List<Uint8List>> allProblemImages = {};
+      Map<String, List<String>> allProblemImageNames = {};
 
       for (var cropData in allCrops) {
         final cropName = cropData['crop_name'];
@@ -822,20 +762,20 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         }
         
         // Handle images for this crop later during upload loop
-        final cropImages = cropData['problem_images'] as Map<String, Uint8List?>;
-        final cropImageNames = cropData['problem_image_names'] as Map<String, String>;
+        final cropImages = cropData['problem_images'] as Map<String, List<Uint8List>>;
+        final cropImageNames = cropData['problem_image_names'] as Map<String, List<String>>;
         
-        // We need to make problem names unique across crops if they repeat, 
-        // but for now let's just upload them. 
-        // Actually, the upload loop expects problem names as keys.
-        // Let's prefix them to be safe.
-        cropImages.forEach((prob, bytes) {
-          if (bytes != null) {
-            final uniqueKey = '${cropName}_$prob';
-            allProblemImages[uniqueKey] = bytes;
-            allProblemImageNames[uniqueKey] = cropImageNames[prob] ?? 'image.jpg';
-            // Update problem string to use the unique key for image matching
-            problemStr = problemStr.replaceFirst(prob, uniqueKey);
+        cropImages.forEach((prob, bytesList) {
+          if (bytesList.isNotEmpty) {
+            List<String> placeholders = [];
+            for (int i = 0; i < bytesList.length; i++) {
+              final uniqueKey = '${cropName}_${prob}_$i';
+              allProblemImages[uniqueKey] = [bytesList[i]];
+              allProblemImageNames[uniqueKey] = [(cropImageNames[prob] != null && cropImageNames[prob]!.length > i) ? cropImageNames[prob]![i] : 'image_$i.jpg'];
+              placeholders.add(uniqueKey);
+            }
+            // Update problem string to use the unique keys for image matching
+            problemStr = problemStr.replaceFirst(prob, placeholders.join(', '));
           }
         });
 
@@ -911,9 +851,13 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       
       // Upload problem images
       for (var entry in allProblemImages.entries) {
+        final problemKey = entry.key;
+        final imageBytes = entry.value.first;
+        final imageName = allProblemImageNames[problemKey]!.first;
+        
         try {
-          final url = await SupabaseService.uploadImage(entry.value!, allProblemImageNames[entry.key]!, 'reports');
-          uploadedImageUrls[entry.key] = url;
+          final url = await SupabaseService.uploadImage(imageBytes, '${problemKey}_$imageName', 'reports');
+          uploadedImageUrls[problemKey] = url;
         } catch (e) {
           debugPrint('Error uploading problem image: $e');
         }
@@ -924,7 +868,19 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         String processedLine = line;
         uploadedImageUrls.forEach((key, url) {
           if (processedLine.contains(key)) {
-            processedLine = processedLine.replaceFirst(key, '${key.split('_').last} {img: $url}');
+            // key is like "CropName_Problem_0"
+            // We want to extract the problem name which is the middle part.
+            // Split by '_' -> [CropName, Problem, 0]
+            final parts = key.split('_');
+            // Reconstruct the problem name without the CropName and index
+            String extractedName = key;
+            if (parts.length >= 3) {
+               parts.removeAt(0); // remove CropName
+               parts.removeLast(); // remove index
+               extractedName = parts.join('_');
+            }
+            
+            processedLine = processedLine.replaceFirst(key, '$extractedName {img: $url}');
           }
         });
         finalProblemData += processedLine + '\n';
@@ -935,12 +891,11 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       }
       combinedCost += 'Grand Total: ₹$grandTotal';
 
-      // Collect images that failed to upload to save them locally
       Map<String, Uint8List> failedImages = {};
       if (allProblemImages.isNotEmpty) {
-        allProblemImages.forEach((key, bytes) {
-          if (bytes != null && !uploadedImageUrls.containsKey(key)) {
-            failedImages[key] = bytes;
+        allProblemImages.forEach((key, bytesList) {
+          if (bytesList.isNotEmpty && !uploadedImageUrls.containsKey(key)) {
+            failedImages[key] = bytesList.first;
           }
         });
       }
@@ -1004,6 +959,45 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     }
   }
 
+  String _getStepTitle(int step) {
+    if (step == 0) return 'Select Farm & Crop';
+    if (step == 1) return 'Identify Problem';
+    if (step >= 2 && step <= 6) {
+      final categories = _previousInputsMap.keys.toList();
+      return 'Previous Inputs: ${categories[step - 2]}';
+    }
+    if (step == 7) return 'Recommendations';
+    if (step == 8) return 'Estimated Cost';
+    if (step == 9) return 'Preview Report';
+    return '';
+  }
+
+  void _onStepContinue() {
+    if (_currentStep == 1 && !_isProblemIdentificationFinished) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete the problem identification sequence first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    _saveDraft();
+    if (_currentStep < 9) {
+      if (_currentStep == 7) _syncCostEstimations();
+      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    } else {
+      _handleSave();
+    }
+  }
+
+  void _onStepCancel() {
+    _saveDraft();
+    if (_currentStep > 0) {
+      _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pwSubtitle = Column(
@@ -1050,133 +1044,44 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   onDateChanged: (dt) => _overrideDate = dt,
                 ),
               ),
-              Expanded(
-                child: Stepper(
-                  type: StepperType.vertical,
-                  currentStep: _currentStep,
-            onStepContinue: () {
-              if (_currentStep == 1 && !_isProblemIdentificationFinished) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Please complete the problem identification sequence first.',
-                    ),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
-              _saveDraft(); // Safety snap-shot on each progression
-              if (_currentStep < 5) {
-                if (_currentStep == 3) _syncCostEstimations();
-                setState(() => _currentStep += 1);
-              } else {
-                _handleSave();
-              }
-            },
-            onStepCancel: () {
-              _saveDraft(); // Safety snap-shot on backtrack
-              if (_currentStep > 0) {
-                setState(() => _currentStep -= 1);
-              }
-            },
-            controlsBuilder: (context, details) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_currentStep == 3) ...[
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          if (_selectedCropId == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please select a crop first')),
-                            );
-                            return;
-                          }
-                          
-                          final data = await _collectCurrentCropData();
-                          setState(() {
-                            _multiCropsData.add(data);
-                            _currentStep = 0; // Go back to Select Farm & Crop
-                          });
-                          _resetCropStepData();
-                          
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Crop added! Now select the next crop to continue.'),
-                                backgroundColor: AppColors.primary,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.add_circle_outline_rounded),
-                        label: const Text('Add Another Crop to this Report'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 45),
-                          foregroundColor: AppColors.primary,
-                          side: const BorderSide(color: AppColors.primary),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                    Text(
+                      _getStepTitle(_currentStep),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed:
-                                (_currentStep == 1 &&
-                                        !_isProblemIdentificationFinished)
-                                    ? null
-                                    : details.onStepContinue,
-                            child:
-                                _isLoading
-                                    ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                    : Text(
-                                      _currentStep == 5
-                                          ? 'Generate Report'
-                                          : 'Next Step',
-                                    ),
+                      children: List.generate(10, (index) {
+                        return Expanded(
+                          child: Container(
+                            height: 6,
+                            margin: EdgeInsets.only(right: index == 9 ? 0 : 6),
+                            decoration: BoxDecoration(
+                              color: _currentStep >= index ? AppColors.primary : Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
                           ),
-                        ),
-                        if (_currentStep > 0) ...[
-                          const SizedBox(width: 12),
-                          TextButton(
-                            onPressed: details.onStepCancel,
-                            child: const Text('Back'),
-                          ),
-                        ],
-                      ],
+                        );
+                      }),
                     ),
                   ],
                 ),
-              );
-            },
-            steps: [
-              Step(
-                title: const Text('Select Farm & Crop'),
-                subtitle:
-                    _selectedFarmId != null
-                        ? Text(
-                          '${_farms.firstWhere((f) => f['id'] == _selectedFarmId, orElse: () => {'name': 'Selected'})['name']} • '
-                          '${_selectedCropId != null ? _crops.firstWhere((c) => c['id'] == _selectedCropId, orElse: () => {'name': 'Selected'})['name'] : 'Select Crop'}',
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                          ),
-                        )
-                        : null,
-                isActive: _currentStep >= 0,
-                content: Column(
+              ),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (index) {
+                    setState(() => _currentStep = index);
+                  },
+                  children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   children: [
                     DropdownButtonFormField<String>(
                       value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId))
@@ -1247,22 +1152,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   ],
                 ),
               ),
-              Step(
-                title: const Text('Identify Problem'),
-                subtitle:
-                    _selectedProblems.isNotEmpty
-                        ? Text(
-                          _selectedProblems.join(', '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                          ),
-                        )
-                        : null,
-                isActive: _currentStep >= 1,
-                content: Column(
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (_activeCategory == null) ...[
@@ -1300,105 +1192,96 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                         }).toList(),
                       ),
                     ] else ...[
-                      // SEQUENTIAL WIZARD VIEW
-                      if (_activeSubcategory == null && !_isLoading)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(40.0),
-                            child: Text('No sub-categories found for this category.'),
-                          ),
-                        )
-                      else if (_activeSubcategory != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.primary.withOpacity(0.1)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${_activeCategory!['label']} > ${_activeSubcategory!['label']}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'Cat: ${_categoryIndex + 1}/${_problemCategoriesList.length} | Sub: ${_subcategoryIndex + 1}/${_problemSubcategoriesList.length}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: AppColors.textGray.withOpacity(0.8),
-                                ),
-                              ),
-                            ],
-                          ),
+                      // SEQUENTIAL WIZARD VIEW for category items
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.1)),
                         ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          onChanged: (v) => setState(() => _problemSearchQuery = v),
-                          decoration: InputDecoration(
-                            hintText: 'Search items...',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_isLoading)
-                          const Center(child: Padding(
-                            padding: EdgeInsets.all(40.0),
-                            child: CircularProgressIndicator(),
-                          ))
-                        else
-                          Container(
-                            constraints: const BoxConstraints(maxHeight: 350),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
-                            ),
-                            child: _buildNewProblemItemList(),
-                          ),
-                        
-                        const SizedBox(height: 20),
-                        Row(
+                        child: Row(
                           children: [
+                            const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 16),
+                            const SizedBox(width: 8),
                             Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _goToPreviousSubcategory,
-                                icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                                label: const Text('Back / Skip'),
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 45),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: Text(
+                                '${_activeCategory!['label']}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: AppColors.primary,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _goToNextSubcategory,
-                                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                                label: Text(_categoryIndex == _problemCategoriesList.length - 1 && _subcategoryIndex == _problemSubcategoriesList.length - 1 ? 'Finish Identification' : 'Next Section'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size(0, 45),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
+                            Text(
+                              'Cat: ${_categoryIndex + 1}/${_problemCategoriesList.length}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textGray.withOpacity(0.8),
                               ),
                             ),
                           ],
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        onChanged: (v) => setState(() => _problemSearchQuery = v),
+                        decoration: const InputDecoration(
+                          hintText: 'Search items...',
+                          prefixIcon: Icon(Icons.search_rounded),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_isLoading)
+                        const Center(child: Padding(
+                          padding: EdgeInsets.all(40.0),
+                          child: CircularProgressIndicator(),
+                        ))
+                      else
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 350),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
+                          ),
+                          child: _buildNewProblemItemList(),
+                        ),
+                      
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _goToPreviousCategory,
+                              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                              label: const Text('Back / Skip'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 45),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _goToNextCategory,
+                              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                              label: Text(_categoryIndex == _problemCategoriesList.length - 1 ? 'Finish Identification' : 'Next Section'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 45),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
 
                     if (_selectedProblems.isNotEmpty) ...[
@@ -1424,12 +1307,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      Column(
                         children:
                             _selectedProblems
-                                .map((p) => _selectedProblemChip(p))
+                                .map((p) => _buildProblemNotepadCard(p))
                                 .toList(),
                       ),
                     ],
@@ -1455,48 +1336,34 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   ],
                 ),
               ),
-              Step(
-                title: const Text('Previous Inputs'),
-                subtitle: const Text(
-                  'List products used since last visit',
-                  style: TextStyle(fontSize: 10, color: AppColors.primary),
-                ),
-                isActive: _currentStep >= 2,
-                content: Column(
-                  children: [
-                    if (_lastReport != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: ElevatedButton.icon(
-                          onPressed: _importLastReportData,
-                          icon: const Icon(Icons.history_rounded),
-                          label: const Text('Import from Last Visit'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
-                            foregroundColor: AppColors.primary,
-                            elevation: 0,
-                            minimumSize: const Size(double.infinity, 45),
+              ..._previousInputsMap.keys.map((category) => 
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      if (_lastReport != null && category == 'Pesticides')
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: ElevatedButton.icon(
+                            onPressed: _importLastReportData,
+                            icon: const Icon(Icons.history_rounded),
+                            label: const Text('Import from Last Visit (All Categories)'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary.withOpacity(0.1),
+                              foregroundColor: AppColors.primary,
+                              elevation: 0,
+                              minimumSize: const Size(double.infinity, 45),
+                            ),
                           ),
                         ),
-                      ),
-                    ..._previousInputsMap.keys.map((category) => _buildPreviousInputCategory(category)),
-                  ],
-                ),
+                      _buildPreviousInputCategory(category),
+                    ],
+                  ),
+                )
               ),
-              Step(
-                title: const Text('Recommendations'),
-                subtitle:
-                    _recommendationsList.any((r) => r.product.text.isNotEmpty)
-                        ? Text(
-                          '${_recommendationsList.where((r) => r.product.text.isNotEmpty).length} Products Recommended',
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                          ),
-                        )
-                        : null,
-                isActive: _currentStep >= 3,
-                content: Column(
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   children: [
                     ..._recommendationsList.asMap().entries.map(
                       (entry) =>
@@ -1514,14 +1381,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   ],
                 ),
               ),
-              Step(
-                title: const Text('Estimated Cost'),
-                subtitle:
-                    _costEstimations.isNotEmpty || _nextVisitDate != null
-                        ? pwSubtitle
-                        : null,
-                isActive: _currentStep >= 4,
-                content: Column(
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   children: [
                     ..._costEstimations.map(
                       (row) => _costEstimationRowWidget(row),
@@ -1616,13 +1478,101 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   ],
                 ),
               ),
-              Step(
-                title: const Text('Preview Report'),
-                subtitle: const Text('Review and finalize report data', style: TextStyle(fontSize: 10)),
-                isActive: _currentStep >= 5,
-                content: _buildPreviewStep(),
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: _buildPreviewStep(),
               ),
             ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4)),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_currentStep == 7) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      if (_selectedCropId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select a crop first')),
+                        );
+                        return;
+                      }
+                      
+                      final data = await _collectCurrentCropData();
+                      setState(() {
+                        _multiCropsData.add(data);
+                        _currentStep = 0; // Go back to Select Farm & Crop
+                        if (_pageController.hasClients) _pageController.jumpToPage(0);
+                      });
+                      _resetCropStepData();
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Crop added! Now select the next crop to continue.'),
+                            backgroundColor: AppColors.primary,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    label: const Text('Add Another Crop to this Report'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 45),
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    if (_currentStep > 0) ...[
+                      Expanded(
+                        flex: 1,
+                        child: OutlinedButton(
+                          onPressed: _onStepCancel,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 50),
+                            side: const BorderSide(color: AppColors.primary),
+                          ),
+                          child: const Text('Back', style: TextStyle(color: AppColors.primary)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: (_currentStep == 1 && !_isProblemIdentificationFinished) ? null : _onStepContinue,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 50),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : Text(_currentStep == 9 ? 'Generate Report' : 'Next Step', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1771,26 +1721,14 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           setState(() {
             _activeCategory = cat;
             _categoryIndex = catIndex;
-            _activeSubcategory = null; // Clear to prevent null access before loading
             _isLoading = true;
           });
           
-          final subs = await SupabaseService.getDropdownOptions('problem_subcategory', parentId: cat['id']);
+          await _fetchItems(cat['id']);
+          
           setState(() {
-            _problemSubcategoriesList = subs;
-            if (_problemSubcategoriesList.isNotEmpty) {
-              _subcategoryIndex = 0;
-              _activeSubcategory = _problemSubcategoriesList[0];
-            } else {
-              _subcategoryIndex = -1;
-              _activeSubcategory = null;
-            }
             _isLoading = false;
           });
-          
-          if (_activeSubcategory != null) {
-            await _fetchItems(_activeSubcategory!['id']);
-          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Category "$title" not found in database. Please add it in Dropdown Creator.')),
@@ -1857,48 +1795,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     );
   }
 
-  Widget _buildSubcategoryCard(Map<String, dynamic> sub) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _activeSubcategory = sub);
-        _fetchItems(sub['id']);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-          ],
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                child: sub['image_url'] != null
-                    ? Image.network(sub['image_url'], width: double.infinity, fit: BoxFit.cover)
-                    : Container(
-                        color: AppColors.secondary.withOpacity(0.3),
-                        child: const Icon(Icons.image_not_supported_outlined, color: AppColors.primary),
-                      ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                sub['label'],
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildNewProblemItemList() {
     final filtered = _problemItemsList
@@ -2003,55 +1900,135 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     );
   }
 
-  Widget _selectedProblemChip(String item) {
-    final hasImage = _problemImages[item] != null;
+  Widget _buildProblemNotepadCard(String item) {
+    final images = _problemImages[item] ?? [];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: const Color(0xFFFFFDF5), // Light yellow paper feel
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-            onPressed: () => _pickImage(
-              item,
-              _userRole == 'telecaller'
-                  ? ImageSource.gallery
-                  : ImageSource.camera,
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AppColors.primary.withOpacity(0.1)),
+              ),
             ),
-            icon: Icon(
-              _userRole == 'telecaller'
-                  ? Icons.photo_library_rounded
-                  : Icons.camera_alt_rounded,
-              size: 16,
-              color: hasImage ? Colors.green : AppColors.primary,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedProblems.remove(item);
+                    _problemImages.remove(item);
+                    _problemImageNames.remove(item);
+                  }),
+                  child: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
             ),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
           ),
-          const SizedBox(width: 8),
-          Text(
-            item,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap:
-                () => setState(() {
-                  _selectedProblems.remove(item);
-                  _problemImages.remove(item);
-                }),
-            child: const Icon(
-              Icons.close_rounded,
-              size: 16,
-              color: AppColors.primary,
+          
+          // Body (Images & Actions)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (images.isNotEmpty) ...[
+                  SizedBox(
+                    height: 80,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: images.length,
+                      itemBuilder: (context, index) {
+                        return Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          width: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                            image: DecorationImage(
+                              image: MemoryImage(images[index]),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _problemImages[item]!.removeAt(index);
+                                  _problemImageNames[item]!.removeAt(index);
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white70,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, size: 14, color: Colors.red),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                
+                OutlinedButton.icon(
+                  onPressed: () => _pickImage(
+                    item,
+                    _userRole == 'telecaller'
+                        ? ImageSource.gallery
+                        : ImageSource.camera,
+                  ),
+                  icon: Icon(
+                    _userRole == 'telecaller'
+                        ? Icons.photo_library_rounded
+                        : Icons.camera_alt_rounded,
+                    size: 16,
+                  ),
+                  label: const Text('Add Photo'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -2069,8 +2046,12 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     if (image != null) {
       final bytes = await image.readAsBytes();
       setState(() {
-        _problemImages[problem] = bytes;
-        _problemImageNames[problem] = image.name;
+        if (!_problemImages.containsKey(problem)) {
+          _problemImages[problem] = [];
+          _problemImageNames[problem] = [];
+        }
+        _problemImages[problem]!.add(bytes);
+        _problemImageNames[problem]!.add(image.name);
       });
     }
   }
@@ -2499,34 +2480,50 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   Widget _buildPreviousInputCategory(String category) {
     final rows = _previousInputsMap[category] ?? [];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              category,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: AppColors.textBlack,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFDF5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Add $category',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.primary,
+                ),
               ),
-            ),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _previousInputsMap[category]!.add(PreviousInputRow());
-                });
-              },
-              icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-              color: AppColors.primary,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _previousInputsMap[category]!.add(PreviousInputRow());
+                  });
+                },
+                icon: const Icon(Icons.add_circle_rounded, size: 24),
+                color: AppColors.primary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: AppColors.primary, thickness: 0.2),
+          const SizedBox(height: 12),
         ...rows.asMap().entries.map((entry) {
           final index = entry.key;
           final row = entry.value;
@@ -2622,8 +2619,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             ),
           );
         }),
-        const Divider(height: 24),
+        const SizedBox(height: 8),
       ],
+    ),
     );
   }
 

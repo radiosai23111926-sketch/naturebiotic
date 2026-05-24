@@ -20,10 +20,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   String? _selectedType;
   List<Map<String, dynamic>> _options = [];
   List<Map<String, dynamic>> _problemCategories = [];
-  List<Map<String, dynamic>> _problemSubCategories = [];
   List<Map<String, dynamic>> _masterCrops = [];
   int? _selectedParentId;
-  int? _selectedSubParentId; // Added for 3-level hierarchy
   bool _tableMissing = false;
   int? _uploadingCropId;
 
@@ -35,7 +33,6 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     'water_quantity': 'Water Quantities',
     'power_source': 'Power Sources',
     'problem_category': 'Problem Categories',
-    'problem_subcategory': 'Problem Sub-Categories',
     'problem_item': 'Problem Items (Specific)',
     'master_crop': 'Crops & Varieties',
     'age_unit': 'Age Units',
@@ -66,24 +63,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
       setState(() => _isLoading = true);
     }
     try {
-      if (_selectedType == 'problem_subcategory') {
-        if (_problemCategories.isEmpty) {
-          _problemCategories = await SupabaseService.getDropdownOptions(
-            'problem_category',
-          );
-        }
-        if (_selectedParentId == null && _problemCategories.isNotEmpty) {
-          _selectedParentId = _problemCategories[0]['id'];
-        }
-        if (_selectedParentId != null) {
-          _options = await SupabaseService.getDropdownOptions(
-            _selectedType!,
-            parentId: _selectedParentId,
-          );
-        } else {
-          _options = [];
-        }
-      } else if (_selectedType == 'problem_item') {
+      if (_selectedType == 'problem_item') {
         if (_problemCategories.isEmpty) {
           _problemCategories = await SupabaseService.getDropdownOptions(
             'problem_category',
@@ -93,25 +73,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           _selectedParentId = _problemCategories[0]['id'];
         }
 
-        // Fetch subcategories for the selected category
         if (_selectedParentId != null) {
-          _problemSubCategories = await SupabaseService.getDropdownOptions(
-            'problem_subcategory',
-            parentId: _selectedParentId,
-          );
-          if (_selectedSubParentId == null &&
-              _problemSubCategories.isNotEmpty) {
-            _selectedSubParentId = _problemSubCategories[0]['id'];
-          }
-        } else {
-          _problemSubCategories = [];
-          _selectedSubParentId = null;
-        }
-
-        if (_selectedSubParentId != null) {
           _options = await SupabaseService.getDropdownOptions(
             _selectedType!,
-            parentId: _selectedSubParentId,
+            parentId: _selectedParentId,
           );
         } else {
           _options = [];
@@ -244,10 +209,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     if (result != null && result['label'].isNotEmpty) {
       setState(() => _isLoading = true);
       try {
-        final parentToUse =
-            (_selectedType == 'problem_item')
-                ? _selectedSubParentId
-                : _selectedParentId;
+        final parentToUse = _selectedParentId;
         final newOption = await SupabaseService.addDropdownOption(
           _selectedType!,
           result['label'],
@@ -757,7 +719,6 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 ),
                                 ...[
                                   'problem_category',
-                                  'problem_subcategory',
                                   'problem_item',
                                 ].map(
                                   (key) => DropdownMenuItem(
@@ -858,8 +819,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 _fetchOptions();
                               },
                             ),
-                            if (_selectedType == 'problem_subcategory' ||
-                                _selectedType == 'problem_item') ...[
+                            if (_selectedType == 'problem_item') ...[
                               const SizedBox(height: 16),
                               const Text(
                                 'Select Parent Category',
@@ -889,41 +849,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 onChanged: (v) {
                                   setState(() {
                                     _selectedParentId = v;
-                                    _selectedSubParentId = null;
                                   });
-                                  _fetchOptions();
-                                },
-                              ),
-                            ],
-                            if (_selectedType == 'problem_item') ...[
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Select Parent Sub-Category',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              DropdownButtonFormField<int>(
-                                value: _selectedSubParentId,
-                                decoration: const InputDecoration(
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                items:
-                                    _problemSubCategories
-                                        .map(
-                                          (c) => DropdownMenuItem<int>(
-                                            value: c['id'],
-                                            child: Text(c['label']),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged: (v) {
-                                  setState(() => _selectedSubParentId = v);
                                   _fetchOptions();
                                 },
                               ),
