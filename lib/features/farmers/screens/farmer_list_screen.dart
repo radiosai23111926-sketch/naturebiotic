@@ -8,6 +8,7 @@ import 'package:nature_biotic/features/farmers/screens/farmer_detail_screen.dart
 import 'package:nature_biotic/services/local_database_service.dart';
 import 'package:nature_biotic/core/widgets/animations.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
 
 class FarmerListScreen extends StatefulWidget {
   const FarmerListScreen({super.key});
@@ -360,6 +361,8 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                                     categoryColor: _getCategoryColor(
                                       farmer['category'],
                                     ),
+                                    photoUrl: farmer['photo_url'],
+                                    localPhotoBytes: farmer['_local_photo'],
                                     isVerified: farmer['is_verified'] == true,
                                     isGrid: true,
                                     isAdmin: _userRole == 'admin',
@@ -407,6 +410,8 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                                   categoryColor: _getCategoryColor(
                                     farmer['category'],
                                   ),
+                                  photoUrl: farmer['photo_url'],
+                                  localPhotoBytes: farmer['_local_photo'],
                                   isVerified: farmer['is_verified'] == true,
                                   isAdmin: _userRole == 'admin',
                                   onEdit: () => _handleEditFarmer(farmer),
@@ -602,6 +607,8 @@ class FarmerCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final bool isGrid;
   final bool isAdmin;
+  final String? photoUrl;
+  final dynamic localPhotoBytes;
 
   const FarmerCard({
     super.key,
@@ -616,6 +623,8 @@ class FarmerCard extends StatelessWidget {
     this.onDelete,
     this.isGrid = false,
     this.isAdmin = false,
+    this.photoUrl,
+    this.localPhotoBytes,
   });
 
   String _getInitials(String name) {
@@ -631,29 +640,85 @@ class FarmerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Map categories to modern organic-themed dark premium gradients
+    final List<Color> gradientColors;
+    if (category == 'Hot') {
+      gradientColors = [const Color(0xFFC62828), const Color(0xFF880E4F)]; // Crimson/Burgundy
+    } else if (category == 'Warm') {
+      gradientColors = [const Color(0xFFE65100), const Color(0xFFBF360C)]; // Deep Flame Amber/Rust
+    } else if (category == 'Cold') {
+      gradientColors = [const Color(0xFF1565C0), const Color(0xFF0D47A1)]; // Classic Navy/Indigo
+    } else {
+      // Default / Owner / Emerald Green
+      gradientColors = [const Color(0xFF2E7D32), const Color(0xFF1B5E20)]; // Deep Forest/Vibrant Green
+    }
+
     return Container(
       margin: isGrid ? EdgeInsets.zero : const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
+            color: gradientColors.last.withOpacity(0.35),
+            blurRadius: 18,
             offset: const Offset(0, 10),
           ),
         ],
-        border: Border.all(color: Colors.black.withOpacity(0.03), width: 1),
+        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.5),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: isGrid ? _buildGridLayout() : _buildListLayout(),
-          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            // Watermark leaf icon at bottom right corner
+            Positioned(
+              right: isGrid ? -35 : -20,
+              bottom: isGrid ? -35 : -40,
+              child: Transform.rotate(
+                angle: -0.25,
+                child: Opacity(
+                  opacity: 0.08,
+                  child: const Icon(
+                    Icons.eco_rounded,
+                    size: 160,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            // Watermark small leaf icon at top left corner
+            Positioned(
+              left: -20,
+              top: -20,
+              child: Transform.rotate(
+                angle: 0.6,
+                child: Opacity(
+                  opacity: 0.04,
+                  child: const Icon(
+                    Icons.eco_rounded,
+                    size: 90,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(28),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+                  child: isGrid ? _buildGridLayout() : _buildListLayout(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -672,7 +737,7 @@ class FarmerCard extends StatelessWidget {
 
   Widget _buildAdminMenu() {
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert_rounded, color: AppColors.primary),
+      icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
       onSelected: (value) {
         if (value == 'edit') onEdit?.call();
         if (value == 'delete') onDelete?.call();
@@ -714,37 +779,56 @@ class FarmerCard extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
+    ImageProvider? imageProvider;
+    if (localPhotoBytes != null) {
+      if (localPhotoBytes is Uint8List) {
+        imageProvider = MemoryImage(localPhotoBytes as Uint8List);
+      } else if (localPhotoBytes is List) {
+        imageProvider = MemoryImage(Uint8List.fromList(List<int>.from(localPhotoBytes as List)));
+      }
+    } else if (photoUrl != null && photoUrl!.isNotEmpty) {
+      imageProvider = NetworkImage(photoUrl!);
+    }
+
     return Hero(
       tag: 'farmer_icon_$id',
       child: Container(
-        height: 64,
-        width: 64,
+        height: 68,
+        width: 68,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [categoryColor.withOpacity(0.8), categoryColor],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.3),
+            width: 1.5,
           ),
-          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: categoryColor.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.15),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
+          image: imageProvider != null
+              ? DecorationImage(
+                  image: imageProvider,
+                  fit: BoxFit.cover,
+                )
+              : null,
         ),
-        child: Center(
-          child: Text(
-            _getInitials(name),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
-        ),
+        child: imageProvider == null
+            ? Center(
+                child: Text(
+                  _getInitials(name),
+                  style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -757,10 +841,10 @@ class FarmerCard extends StatelessWidget {
         Text(
           name,
           style: GoogleFonts.outfit(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textBlack,
-            letterSpacing: -0.2,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
           ),
           maxLines: 1,
           textAlign: isGrid ? TextAlign.center : TextAlign.start,
@@ -774,25 +858,29 @@ class FarmerCard extends StatelessWidget {
             Icon(
               Icons.location_on_rounded,
               size: 14,
-              color: AppColors.textGray.withOpacity(0.6),
+              color: Colors.white.withOpacity(0.7),
             ),
             const SizedBox(width: 4),
             Text(
               village,
               style: GoogleFonts.outfit(
                 fontSize: 14,
-                color: AppColors.textGray.withOpacity(0.8),
+                color: Colors.white.withOpacity(0.85),
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: categoryColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -800,16 +888,16 @@ class FarmerCard extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(
-                  color: categoryColor,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 category.toUpperCase(),
-                style: TextStyle(
-                  color: categoryColor,
+                style: const TextStyle(
+                  color: Colors.white,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -826,13 +914,13 @@ class FarmerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(14),
       ),
       child: const Icon(
         Icons.chevron_right_rounded,
         size: 20,
-        color: AppColors.primary,
+        color: Colors.white,
       ),
     );
   }

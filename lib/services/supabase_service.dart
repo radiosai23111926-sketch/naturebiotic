@@ -1792,6 +1792,37 @@ class SupabaseService {
 
   static Future<void> addMasterCrop(String name) async {
     await client.from('master_crops').insert({'name': name});
+    if (!kIsWeb) {
+      await LocalDatabaseService.deleteCache('master_crops');
+    }
+  }
+
+  static Future<void> updateMasterCropImageUrl(int id, String imageUrl) async {
+    await client.from('master_crops').update({
+      'image_url': imageUrl,
+    }).eq('id', id);
+
+    // Sync with local cache to avoid stale reads on mobile/desktop
+    if (!kIsWeb) {
+      try {
+        final cached = await LocalDatabaseService.getCache('master_crops');
+        if (cached != null) {
+          bool updated = false;
+          for (var crop in cached) {
+            if (crop['id'] == id) {
+              crop['image_url'] = imageUrl;
+              updated = true;
+              break;
+            }
+          }
+          if (updated) {
+            await LocalDatabaseService.saveCache('master_crops', cached);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error updating local cache for master_crops: $e');
+      }
+    }
   }
 
   static Future<void> addMasterVariety(int cropId, String variety, String life) async {

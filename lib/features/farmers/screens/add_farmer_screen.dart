@@ -10,6 +10,8 @@ import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AddFarmerScreen extends StatefulWidget {
   final Map<String, dynamic>? farmer;
@@ -33,9 +35,110 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
   String? _overrideStaffId;
   DateTime _overrideDate = DateTime.now();
 
+  Uint8List? _localPhotoBytes;
+  String? _initialPhotoUrl;
+  final ImagePicker _picker = ImagePicker();
+  String? _userRole;
+
+  Future<void> _loadUserRole() async {
+    try {
+      final profile = await SupabaseService.getProfile();
+      if (mounted) {
+        setState(() {
+          _userRole = profile?['role'] ?? 'executive';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user role: $e');
+    }
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Select Photo Source',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textBlack,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.blue),
+              ),
+              title: Text('Take Photo', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_library_rounded, color: Colors.green),
+              ),
+              title: Text('Choose from Gallery', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await _picker.pickImage(source: source, imageQuality: 50);
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _localPhotoBytes = bytes;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadUserRole();
     _fetchCategories();
     if (widget.farmer != null) {
       _nameController.text = widget.farmer!['name'] ?? '';
@@ -51,6 +154,14 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         _talukController.text = addr;
       }
       _selectedCategory = widget.farmer!['category'];
+      _initialPhotoUrl = widget.farmer!['photo_url'];
+      if (widget.farmer!['_local_photo'] != null) {
+        if (widget.farmer!['_local_photo'] is Uint8List) {
+          _localPhotoBytes = widget.farmer!['_local_photo'];
+        } else if (widget.farmer!['_local_photo'] is List) {
+          _localPhotoBytes = Uint8List.fromList(List<int>.from(widget.farmer!['_local_photo']));
+        }
+      }
     }
   }
 
@@ -81,6 +192,16 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
     try {
       final currentUserId = SupabaseService.client.auth.currentUser?.id;
 
+      String? photoUrl = _initialPhotoUrl;
+      if (kIsWeb && _localPhotoBytes != null) {
+        final fileName = 'farmer_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        photoUrl = await SupabaseService.uploadImage(
+          _localPhotoBytes!,
+          fileName,
+          'farmers',
+        );
+      }
+
       final data = {
         'name': _nameController.text.trim(),
         'village': _villageController.text.trim(),
@@ -88,6 +209,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'address':
             '${_talukController.text.trim()}\n${_districtController.text.trim()}\n${_landmarkController.text.trim()}',
         'category': _selectedCategory,
+        'photo_url': photoUrl,
         'created_at': widget.farmer != null
             ? (widget.farmer!['created_at'] ?? DateTime.now().toIso8601String())
             : (_overrideStaffId != null ? _overrideDate.toIso8601String() : DateTime.now().toIso8601String()),
@@ -101,6 +223,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
       final Map<String, dynamic> offlineData = {
         ...data,
         if (widget.farmer != null) 'id': widget.farmer!['id'].toString(),
+        if (_localPhotoBytes != null) '_local_photo': _localPhotoBytes,
       };
 
       if (kIsWeb) {
@@ -410,6 +533,49 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                     onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
                     onDateChanged: (dt) => _overrideDate = dt,
                   ),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: GestureDetector(
+                      onTap: _userRole == 'admin' ? _pickPhoto : null,
+                      child: Stack(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.secondary, width: 2),
+                            ),
+                            child: CircleAvatar(
+                              radius: 60,
+                              backgroundColor: const Color(0xFFE8F5E9),
+                              backgroundImage: _localPhotoBytes != null
+                                  ? MemoryImage(_localPhotoBytes!)
+                                  : (_initialPhotoUrl != null
+                                      ? NetworkImage(_initialPhotoUrl!)
+                                      : null) as ImageProvider?,
+                              child: _localPhotoBytes == null && _initialPhotoUrl == null
+                                  ? const Icon(Icons.person, size: 60, color: AppColors.primary)
+                                  : null,
+                            ),
+                          ),
+                          if (_userRole == 'admin')
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
                   const Text(
                     'Farmer Information',
                     style: TextStyle(

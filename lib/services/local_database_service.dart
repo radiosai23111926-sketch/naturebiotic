@@ -286,13 +286,23 @@ class LocalDatabaseService {
       }
     }
     if (oldVersion < 16) {
-      // Version 16: Add proof_url to farm_collections
+      // Version 16: Add proof_url to farm_collections, and photo_url, _local_photo to farmers
       try {
         await db.execute('''
           ALTER TABLE farm_collections ADD COLUMN proof_url TEXT
         ''');
       } catch (e) {
-        debugPrint('DB Upgrade Error (v16): $e');
+        debugPrint('DB Upgrade Error (v16 proof_url): $e');
+      }
+      try {
+        await db.execute('ALTER TABLE farmers ADD COLUMN photo_url TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v16 photo_url): $e');
+      }
+      try {
+        await db.execute('ALTER TABLE farmers ADD COLUMN _local_photo BLOB');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v16 _local_photo): $e');
       }
     }
   }
@@ -307,6 +317,8 @@ class LocalDatabaseService {
         village TEXT,
         address TEXT,
         category TEXT,
+        photo_url TEXT,
+        _local_photo BLOB,
         created_by TEXT,
         created_at TEXT,
         is_verified INTEGER DEFAULT 0,
@@ -796,6 +808,18 @@ class LocalDatabaseService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Delete cached records by key.
+  static Future<void> deleteCache(String key) async {
+    final db = await database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cache_$key');
+      await prefs.remove('cache_ts_$key');
+      return;
+    }
+    await db.delete('cached_data', where: 'cache_key = ?', whereArgs: [key]);
   }
 
   /// Returns the ISO timestamp of when the cache was last written.

@@ -161,24 +161,50 @@ class SyncManager {
     final cleanPayload = Map<String, dynamic>.from(payload);
 
     // Handle Attendance Photos
-    if (cleanPayload.containsKey('_local_photo') &&
-        cleanPayload['_local_photo'] != null) {
-      final List<int> bytes = List<int>.from(cleanPayload['_local_photo']);
-      final fileName = 'att_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final url = await SupabaseService.uploadImage(
-        Uint8List.fromList(bytes),
-        fileName,
-        'attendance',
-      );
+    if (tableName == 'attendance') {
+      if (cleanPayload.containsKey('_local_photo') &&
+          cleanPayload['_local_photo'] != null) {
+        final List<int> bytes = List<int>.from(cleanPayload['_local_photo']);
+        final fileName = 'att_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final url = await SupabaseService.uploadImage(
+          Uint8List.fromList(bytes),
+          fileName,
+          'attendance',
+        );
 
-      if (operation == 'INSERT') {
-        cleanPayload['check_in_photo'] = url;
-      } else {
-        cleanPayload['check_out_photo'] = url;
+        if (operation == 'INSERT') {
+          cleanPayload['check_in_photo'] = url;
+        } else {
+          cleanPayload['check_out_photo'] = url;
+        }
       }
-
       cleanPayload.remove('_local_photo');
-    } else {
+    }
+
+    // Handle Farmer Photos
+    if (tableName == 'farmers') {
+      if (cleanPayload.containsKey('_local_photo') &&
+          cleanPayload['_local_photo'] != null) {
+        final List<int> bytes = List<int>.from(cleanPayload['_local_photo']);
+        final fileName = 'farmer_${cleanPayload['id'] ?? DateTime.now().millisecondsSinceEpoch}.jpg';
+        final url = await SupabaseService.uploadImage(
+          Uint8List.fromList(bytes),
+          fileName,
+          'farmers',
+        );
+        cleanPayload['photo_url'] = url;
+
+        // Also update local SQLite database if it's an UPDATE operation to save the photo_url
+        if (operation == 'UPDATE') {
+          final db = await LocalDatabaseService.database;
+          await db?.update(
+            'farmers',
+            {'photo_url': url, '_local_photo': null},
+            where: 'id = ?',
+            whereArgs: [cleanPayload['id'].toString()],
+          );
+        }
+      }
       cleanPayload.remove('_local_photo');
     }
 
