@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
@@ -37,6 +38,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   );
   Map<String, Map<String, dynamic>> _farmSales = {};
   List<Map<String, dynamic>> _availableFarms = [];
+  Set<String> _expandedFarmIds = {};
   bool _isLoading = true;
   TextEditingController? _cachedSearchController;
   TextEditingController get _searchController =>
@@ -787,240 +789,341 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   Widget _buildFarmCard(Map<String, dynamic> data) {
     double displayValue = 0;
     String label = '';
-    Color valueColor = AppColors.primary;
+    Color gradientStart = const Color(0xFF4CAF50); // Green
+    Color gradientEnd = const Color(0xFF2E7D32);
+    IconData mainIcon = Icons.agriculture_rounded;
 
     if (widget.mode == 'SALES') {
       displayValue = data['total_revenue'];
       label = 'Revenue';
+      gradientStart = const Color(0xFF66BB6A);
+      gradientEnd = const Color(0xFF2E7D32);
+      mainIcon = Icons.agriculture_rounded;
     } else if (widget.mode == 'COLLECTION') {
       displayValue = data['total_collection'];
       label = 'Collected';
-      valueColor = Colors.teal;
+      gradientStart = const Color(0xFF26C6DA);
+      gradientEnd = const Color(0xFF00838F);
+      mainIcon = Icons.payments_rounded;
     } else if (widget.mode == 'OUTSTANDING') {
       displayValue = data['total_revenue'] - data['total_collection'];
       label = 'Outstanding';
-      valueColor = Colors.orange;
+      gradientStart = const Color(0xFFFFA726);
+      gradientEnd = const Color(0xFFE65100);
+      mainIcon = Icons.account_balance_wallet_rounded;
     }
+
+    final farmId = data['farm_id']?.toString() ?? '';
+    final isExpanded = _expandedFarmIds.contains(farmId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [gradientStart, gradientEnd],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
-        elevation: 2,
-        shadowColor: AppColors.shadow.withOpacity(0.1),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: valueColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      widget.mode == 'COLLECTION'
-                          ? Icons.payments_rounded
-                          : Icons.agriculture_rounded,
-                      color: valueColor,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${data['farmer_name']} • ${data['farm_name']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+        boxShadow: [
+          BoxShadow(
+            color: gradientEnd.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Large Transparent Watermark Icon
+          Positioned(
+            right: -20,
+            bottom: -20,
+            child: Icon(
+              mainIcon,
+              size: 150,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          // Foreground Content
+          Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedFarmIds.remove(farmId);
+                    } else {
+                      _expandedFarmIds.add(farmId);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top-Left Icon Box
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        Text(
-                          '${data['crop_name'] ?? 'No Crop'} • ${data['location']}',
-                          style: const TextStyle(
-                            color: AppColors.textGray,
-                            fontSize: 12,
-                          ),
+                        child: Icon(
+                          mainIcon,
+                          color: Colors.white,
+                          size: 24,
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                      ),
+                      const SizedBox(width: 16),
+                      // Main Text Content
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (widget.mode == 'SALES' ||
-                                widget.mode == 'OUTSTANDING')
-                              _buildMiniBadge(
-                                Icons.inventory_2_outlined,
-                                '${data['total_items'].toInt()} Items',
-                                Colors.blueGrey,
+                            Text(
+                              data['farmer_name']?.toString() ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: Colors.white,
+                                letterSpacing: -0.2,
                               ),
-                            if (data['total_returned'] > 0 &&
-                                widget.mode == 'SALES')
-                              _buildMiniBadge(
-                                Icons.replay_circle_filled_rounded,
-                                '${data['total_returned'].toInt()} Returned',
-                                Colors.redAccent,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              data['farm_name']?.toString() ?? '',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: Colors.white.withValues(alpha: 0.8),
                               ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on_rounded,
+                                  size: 14,
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    data['location']?.toString() ?? 'N/A',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.7),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.grass_rounded, size: 14, color: Colors.white.withValues(alpha: 0.9)),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          data['crop_name']?.toString() ?? 'No Crop',
+                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING')
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.inventory_2_outlined, size: 14, color: Colors.white.withValues(alpha: 0.9)),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            '${data['total_items'].toInt()} Items',
+                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        currencyFormat.format(displayValue),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: valueColor,
-                        ),
                       ),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: AppColors.textGray,
-                          fontSize: 10,
-                        ),
-                      ),
-                      if (widget.mode == 'SALES' ||
-                          widget.mode == 'OUTSTANDING') ...[
-                        const SizedBox(height: 4),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(
-                            Icons.file_download_outlined,
-                            color: AppColors.primary,
-                            size: 22,
+                      const SizedBox(width: 8),
+                      // Amount and Actions
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  currencyFormat.format(displayValue),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  isExpanded
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ],
+                            ),
                           ),
-                          tooltip: 'Download Sales Challan',
-                          onPressed: () {
-                            _downloadConsolidatedChallan(data);
-                          },
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Text(
+                            label.toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING') ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                padding: const EdgeInsets.all(10),
+                                constraints: const BoxConstraints(),
+                                icon: const Icon(
+                                  Icons.file_download_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                tooltip: 'Download Sales Challan',
+                                onPressed: () {
+                                  _downloadConsolidatedChallan(data);
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-            Builder(
-              builder: (context) {
-                final rawMap = data['balances'];
-                if (rawMap == null || rawMap is! Map) {
-                  return const SizedBox.shrink();
-                }
-                final bMap = rawMap;
-                if (bMap.isEmpty) return const SizedBox.shrink();
-
-                final items = bMap.values.toList();
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(height: 1, indent: 20, endIndent: 20),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children:
-                            items.map((it) {
+              if (isExpanded) ...[
+                // Balances Section
+                Builder(
+                  builder: (context) {
+                    final rawMap = data['balances'];
+                    if (rawMap == null || rawMap is! Map) return const SizedBox.shrink();
+                    final bMap = rawMap;
+                    if (bMap.isEmpty) return const SizedBox.shrink();
+                    final items = bMap.values.toList();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Divider(height: 1, indent: 20, endIndent: 20, color: Colors.white.withValues(alpha: 0.2)),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: items.map((it) {
                               if (it is! Map) return const SizedBox.shrink();
-                              final qty =
-                                  double.tryParse(
-                                    it['qty']?.toString() ?? '0',
-                                  ) ??
-                                  0.0;
-                              if (qty.abs() < 0.01)
-                                return const SizedBox.shrink();
-
+                              final qty = double.tryParse(it['qty']?.toString() ?? '0') ?? 0.0;
+                              if (qty.abs() < 0.01) return const SizedBox.shrink();
                               return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.05),
+                                  color: Colors.white.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColors.primary.withOpacity(0.15),
-                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
-                                      Icons.inventory_2_rounded,
-                                      size: 12,
-                                      color: AppColors.primary,
-                                    ),
+                                    const Icon(Icons.inventory_2_rounded, size: 12, color: Colors.white),
                                     const SizedBox(width: 6),
                                     Text(
                                       '${it['item']} (${it['unit']}) : ',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.textBlack,
-                                      ),
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.9)),
                                     ),
                                     Text(
                                       '${qty.toInt()}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.primary,
-                                      ),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                                     ),
                                   ],
                                 ),
                               );
                             }).toList(),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            Builder(
-              builder: (context) {
-                final rawLogs = data['logs'];
-                final logs = (rawLogs is List) ? rawLogs : [];
-                if (logs.isEmpty) return const SizedBox.shrink();
-
-                return Column(
-                  children: [
-                    const Divider(height: 1, indent: 20, endIndent: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 20,
-                      ),
-                      child: Column(
-                        children:
-                            logs
-                                .map(
-                                  (l) => _buildInnerLogItem(
-                                    l as Map<String, dynamic>,
-                                    data,
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                // Logs Section
+                Builder(
+                  builder: (context) {
+                    final rawLogs = data['logs'];
+                    final logs = (rawLogs is List) ? rawLogs : [];
+                    if (logs.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      children: [
+                        Divider(height: 1, indent: 20, endIndent: 20, color: Colors.white.withValues(alpha: 0.2)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                          child: Column(
+                            children: logs.map((l) => _buildInnerLogItem(l as Map<String, dynamic>, data)).toList(),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1237,97 +1340,221 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   Widget _buildFlatCollectionCard(Map<String, dynamic> log, Map<String, dynamic> farmData) {
     final amt = double.tryParse(log['amount']?.toString() ?? '0') ?? 0.0;
     final date = _formatDate(log['created_at']);
-    final color = Colors.teal;
+    
+    // Teal Gradient for Collection
+    Color gradientStart = const Color(0xFF26C6DA);
+    Color gradientEnd = const Color(0xFF00838F);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.08)),
+        gradient: LinearGradient(
+          colors: [gradientStart, gradientEnd],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadow.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: gradientEnd.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet_rounded,
-              color: Colors.teal,
-              size: 20,
+          // Large Transparent Watermark Icon
+          Positioned(
+            right: -20,
+            bottom: -20,
+            child: Icon(
+              Icons.payments_rounded,
+              size: 150,
+              color: Colors.white.withValues(alpha: 0.1),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${farmData['farmer_name']} • ${farmData['farm_name']}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: AppColors.textBlack,
+                // Top-Left Icon Box
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.payments_rounded,
+                    color: Colors.white,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Crop: ${farmData['crop_name'] ?? 'N/A'}',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        farmData['farmer_name']?.toString() ?? '',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        farmData['farm_name']?.toString() ?? '',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 14,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              farmData['location']?.toString() ?? 'N/A',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.grass_rounded, size: 14, color: Colors.white.withValues(alpha: 0.9)),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    farmData['crop_name']?.toString() ?? 'No Crop',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.receipt_long_rounded, size: 14, color: Colors.white.withValues(alpha: 0.9)),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    log['receipt_no']?.toString() ?? 'No Receipt',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '+${currencyFormat.format(amt)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'COLLECTED',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      date,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        padding: const EdgeInsets.all(10),
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(
+                          Icons.print_outlined,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: 'Print Receipt',
+                        onPressed: () {
+                          _downloadPaymentReceipt(log, farmData);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '+₹${amt.toInt()}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.teal,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                date,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textGray,
-                ),
-              ),
-              const SizedBox(height: 4),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(
-                  Icons.print_rounded,
-                  color: Colors.teal,
-                  size: 20,
-                ),
-                tooltip: 'Download Payment Receipt',
-                onPressed: () {
-                  _downloadPaymentReceipt(log, farmData);
-                },
-              ),
-            ],
           ),
         ],
       ),

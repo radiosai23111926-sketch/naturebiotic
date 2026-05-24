@@ -11,7 +11,7 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 15;
+  static const int _databaseVersion = 16;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -285,6 +285,16 @@ class LocalDatabaseService {
         debugPrint('DB Upgrade Error (v15): $e');
       }
     }
+    if (oldVersion < 16) {
+      // Version 16: Add proof_url to farm_collections
+      try {
+        await db.execute('''
+          ALTER TABLE farm_collections ADD COLUMN proof_url TEXT
+        ''');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v16): $e');
+      }
+    }
   }
 
   static Future<void> _onCreate(Database db, int version) async {
@@ -466,7 +476,8 @@ class LocalDatabaseService {
         notes TEXT,
         created_by TEXT,
         created_at TEXT,
-        sync_status TEXT DEFAULT 'pending'
+        sync_status TEXT DEFAULT 'pending',
+        proof_url TEXT
       )
     ''');
     // Cached Data table (universal local cache for read-only remote data)

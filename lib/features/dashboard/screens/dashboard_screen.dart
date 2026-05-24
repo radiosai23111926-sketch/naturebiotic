@@ -1072,25 +1072,24 @@ class _DashboardScreenState extends State<DashboardScreen>
               }
 
               return Container(
-                width:
-                    MediaQuery.sizeOf(context).width *
-                    0.72, // REDUCED: 72% width creates a clear 'PEEK' for the next card
+                width: MediaQuery.sizeOf(context).width * 0.72,
                 margin: const EdgeInsets.only(right: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F8E9), // Soft Nature Tint
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: AppColors.primary.withOpacity(0.12),
-                    width: 1,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)], // Vibrant Green
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Stack(
                   children: [
                     // Watermark / Pattern
@@ -1099,12 +1098,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                       bottom: -20,
                       child: Icon(
                         mainIcon,
-                        size: 120,
-                        color: AppColors.primary.withOpacity(0.03),
+                        size: 150,
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1117,7 +1116,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
@@ -1127,7 +1126,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       _isManager
                                           ? Icons.pending_actions_rounded
                                           : Icons.history_toggle_off_rounded,
-                                      color: AppColors.primary,
+                                      color: Colors.white,
                                       size: 14,
                                     ),
                                     const SizedBox(width: 6),
@@ -1138,7 +1137,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                               .toUpperCase()
                                           : _getReminderLabel(date),
                                       style: const TextStyle(
-                                        color: AppColors.primary,
+                                        color: Colors.white,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1146,12 +1145,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   ],
                                 ),
                               ),
-                              Text(
-                                DateFormat('dd MMM').format(date),
-                                style: TextStyle(
-                                  color: AppColors.textGray.withOpacity(0.6),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  DateFormat('dd MMM').format(date),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1160,9 +1166,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                           Text(
                             title,
                             style: const TextStyle(
-                              color: AppColors.textBlack,
-                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
                               fontSize: 18,
+                              letterSpacing: -0.2,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1174,7 +1181,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 _isManager
                                     ? Icons.info_outline_rounded
                                     : Icons.eco_outlined,
-                                color: AppColors.accent,
+                                color: Colors.white.withValues(alpha: 0.7),
                                 size: 14,
                               ),
                               const SizedBox(width: 6),
@@ -1182,7 +1189,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 child: Text(
                                   subtitle,
                                   style: TextStyle(
-                                    color: AppColors.textGray.withOpacity(0.9),
+                                    color: Colors.white.withValues(alpha: 0.8),
                                     fontSize: 13,
                                   ),
                                   maxLines: 1,
@@ -1199,12 +1206,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 child: Container(
                                   height: 36,
                                   decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF1B5E20),
-                                        Color(0xFF2E7D32),
-                                      ],
-                                    ),
+                                    color: Colors.white.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: ElevatedButton(
@@ -1248,7 +1250,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                         // ... navigate to visit or report creation
                                       }
                                     },
-                                    style: ElevatedButton.styleFrom(
+                                                                        style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       foregroundColor: Colors.white,
                                       shadowColor: Colors.transparent,
@@ -1274,17 +1276,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 width: 36,
                                 height: 36,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: Colors.white.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppColors.primary.withOpacity(0.1),
-                                  ),
                                 ),
                                 child: IconButton(
                                   onPressed: () {},
                                   icon: const Icon(
                                     Icons.directions_outlined,
-                                    color: AppColors.primary,
+                                    color: Colors.white,
                                     size: 16,
                                   ),
                                   padding: EdgeInsets.zero,
@@ -1296,8 +1295,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                   ],
-                ),
-              );
+                ),              );
             },
           ),
         ),

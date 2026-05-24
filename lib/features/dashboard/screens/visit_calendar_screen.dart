@@ -323,82 +323,102 @@ class _VisitCalendarScreenState extends State<VisitCalendarScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)], // Vibrant Green
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.secondary, width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.agriculture_rounded, color: AppColors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayName,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Text(
-                            subName,
-                            style: TextStyle(color: AppColors.textGray, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, color: AppColors.textGray),
-                  ],
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -20,
+                bottom: -20,
+                child: Icon(
+                  Icons.agriculture_rounded,
+                  size: 150,
+                  color: Colors.white.withValues(alpha: 0.1),
                 ),
-                const Divider(height: 32, thickness: 0.5),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.person_outline_rounded, size: 14, color: AppColors.textGray),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Owner: $ownerName',
-                          style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.agriculture_rounded, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white, letterSpacing: -0.2),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subName,
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.person_outline_rounded, size: 14, color: Colors.white.withValues(alpha: 0.8)),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Owner: $ownerName',
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            widget.isListView 
+                              ? DateFormat('dd MMM').format(DateTime.parse(reminder['follow_up_date']))
+                              : 'Scheduled',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        widget.isListView 
-                          ? DateFormat('dd MMM').format(DateTime.parse(reminder['follow_up_date']))
-                          : 'Scheduled',
-                        style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },

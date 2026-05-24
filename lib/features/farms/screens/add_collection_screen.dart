@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/services/local_database_service.dart';
@@ -40,6 +42,10 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
   final _notesController = TextEditingController();
   late final TextEditingController _farmerNameController;
 
+  final ImagePicker _picker = ImagePicker();
+  XFile? _paymentProofFile;
+  Uint8List? _paymentProofBytes;
+
   bool _isLoading = false;
   Map<String, dynamic>? _overrideStaffProfile;
   DateTime _overrideDate = DateTime.now();
@@ -60,6 +66,56 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
     _farmerNameController =
         TextEditingController(text: widget.farmerName ?? '');
     _loadFarmerDetails();
+  }
+
+  Future<void> _pickPaymentProof() async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _paymentProofFile = image;
+          _paymentProofBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error selecting image: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _loadFarmerDetails() async {
@@ -85,6 +141,15 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_paymentMethod != 'Cash' && _paymentProofBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment proof is required for non-cash payments'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -155,6 +220,20 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
       // Increment counter only after confirmation
       await prefs.setInt('global_receipt_counter', globalCounter + 1);
 
+      String? proofUrl;
+      if (_paymentMethod != 'Cash' && _paymentProofBytes != null) {
+        try {
+          final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          proofUrl = await SupabaseService.uploadImage(
+            _paymentProofBytes!,
+            fileName,
+            'collections',
+          );
+        } catch (e) {
+          debugPrint('Error uploading proof: $e');
+        }
+      }
+
       final data = {
         'id': const Uuid().v4(),
         'farm_id': widget.farmId,
@@ -168,6 +247,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                 : _notesController.text.trim(),
         'created_at': now.toIso8601String(),
         'created_by': _overrideStaffProfile?['id']?.toString() ?? SupabaseService.client.auth.currentUser?.id,
+        'proof_url': proofUrl,
       };
 
       if (kIsWeb) {
@@ -390,6 +470,62 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                       }
                     },
                   ),
+
+                  if (_paymentMethod != 'Cash') ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _paymentProofBytes == null ? Colors.red.withValues(alpha: 0.5) : AppColors.primary.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Payment Proof (Required)',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: _pickPaymentProof,
+                                icon: const Icon(Icons.upload_file_rounded),
+                                label: Text(_paymentProofBytes == null ? 'Upload Proof' : 'Change Proof'),
+                              ),
+                            ],
+                          ),
+                          if (_paymentProofBytes != null) ...[
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                _paymentProofBytes!,
+                                height: 120,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ],
+                          if (_paymentProofBytes == null) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Please upload proof for non-cash payments.',
+                              style: TextStyle(color: Colors.red, fontSize: 12, fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
