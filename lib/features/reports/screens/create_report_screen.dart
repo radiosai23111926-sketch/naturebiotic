@@ -2236,6 +2236,285 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     return total;
   }
 
+  void _showProductGridSelection(RecommendationRow row) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Select Product',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: _productOptions.length,
+                  itemBuilder: (context, index) {
+                    final p = _productOptions[index];
+                    final imgUrl = p['image_url']?.toString();
+                    final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                    final label = p['label'].toString();
+                    final isSelected = row.product.text == label;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          row.product.text = label;
+                          
+                          final int? prodId = p['id'];
+                          if (prodId != null) {
+                            final List<int> mappedIds = _productDropdownMappings
+                                .where((m) => m['product_id'] == prodId)
+                                .map((m) => m['option_id'] as int)
+                                .toList();
+                            
+                            if (mappedIds.isNotEmpty) {
+                              if (row.application.text.isNotEmpty) {
+                                final opt = _applicationOptions.firstWhere(
+                                  (a) => a['label'].toString() == row.application.text,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.application.clear();
+                                }
+                              }
+                              
+                              if (row.perUnit != null && row.perUnit!.isNotEmpty) {
+                                final opt = _perUnitOptions.firstWhere(
+                                  (u) => u['label'].toString() == row.perUnit,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.perUnit = null;
+                                }
+                              }
+                              
+                              if (row.doseUnit != null && row.doseUnit!.isNotEmpty) {
+                                final opt = _doseUnitOptions.firstWhere(
+                                  (u) => u['label'].toString() == row.doseUnit,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.doseUnit = null;
+                                }
+                              }
+                              
+                              if (row.filler.text.isNotEmpty) {
+                                final opt = _fillerMaterialOptions.firstWhere(
+                                  (m) => m['label'].toString() == row.filler.text,
+                                  orElse: () => {},
+                                );
+                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
+                                  row.filler.clear();
+                                }
+                              }
+                            }
+                          }
+                        });
+                        _syncCostEstimations();
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.primary.withOpacity(0.05) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? AppColors.primary : Colors.grey[200]!,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                                child: hasImg
+                                    ? Image.network(imgUrl, fit: BoxFit.cover)
+                                    : Container(
+                                        color: AppColors.secondary.withOpacity(0.3),
+                                        child: const Center(
+                                          child: Icon(Icons.inventory_2_rounded, size: 32, color: AppColors.primary),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? AppColors.primary : Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showApplicationGridSelection(RecommendationRow row, List<Map<String, dynamic>> filteredApplications) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Select Application',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: filteredApplications.length,
+                  itemBuilder: (context, index) {
+                    final a = filteredApplications[index];
+                    final imgUrl = a['image_url']?.toString();
+                    final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                    final label = a['label'].toString();
+                    final isSelected = row.application.text == label;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          row.application.text = label;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.primary.withOpacity(0.05) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? AppColors.primary : Colors.grey[200]!,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                                child: hasImg
+                                    ? Image.network(imgUrl, fit: BoxFit.cover)
+                                    : Container(
+                                        color: AppColors.secondary.withOpacity(0.3),
+                                        child: const Center(
+                                          child: Icon(Icons.water_drop_outlined, size: 32, color: AppColors.primary),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? AppColors.primary : Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _miniField(
     TextEditingController controller,
     String label, {
@@ -2316,118 +2595,33 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 4.0),
-                  child: DropdownButtonFormField<String>(
-                    value:
-                        _productOptions.any(
-                              (p) => p['label'].toString() == row.product.text,
-                            )
-                            ? row.product.text
-                            : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Name',
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                  child: GestureDetector(
+                    onTap: () => _showProductGridSelection(row),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Product Name',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              row.product.text.isNotEmpty ? row.product.text : 'Select Product',
+                              style: TextStyle(
+                                color: row.product.text.isNotEmpty ? Colors.black87 : Colors.black54,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down, color: Colors.black54),
+                        ],
                       ),
                     ),
-                    items:
-                        _productOptions.map((p) {
-                          final imgUrl = p['image_url']?.toString();
-                          final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
-                          return DropdownMenuItem<String>(
-                            value: p['label'].toString(),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: AppColors.secondary.withOpacity(0.5),
-                                  backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
-                                  child: hasImg
-                                      ? null
-                                      : const Icon(
-                                          Icons.inventory_2_rounded,
-                                          color: AppColors.primary,
-                                          size: 12,
-                                        ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  p['label'].toString(),
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        row.product.text = val ?? '';
-                        
-                        // Clear invalid fields for this product to prevent crashes
-                        if (val != null && val.isNotEmpty) {
-                          final prodOpt = _productOptions.firstWhere(
-                            (p) => p['label']?.toString() == val,
-                            orElse: () => {},
-                          );
-                          final int? prodId = prodOpt['id'];
-                          if (prodId != null) {
-                            final List<int> mappedIds = _productDropdownMappings
-                                .where((m) => m['product_id'] == prodId)
-                                .map((m) => m['option_id'] as int)
-                                .toList();
-                            
-                            if (mappedIds.isNotEmpty) {
-                              // Verify application method
-                              if (row.application.text.isNotEmpty) {
-                                final opt = _applicationOptions.firstWhere(
-                                  (a) => a['label'].toString() == row.application.text,
-                                  orElse: () => {},
-                                );
-                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
-                                  row.application.clear();
-                                }
-                              }
-                              
-                              // Verify perUnit
-                              if (row.perUnit != null && row.perUnit!.isNotEmpty) {
-                                final opt = _perUnitOptions.firstWhere(
-                                  (u) => u['label'].toString() == row.perUnit,
-                                  orElse: () => {},
-                                );
-                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
-                                  row.perUnit = null;
-                                }
-                              }
-                              
-                              // Verify doseUnit
-                              if (row.doseUnit != null && row.doseUnit!.isNotEmpty) {
-                                final opt = _doseUnitOptions.firstWhere(
-                                  (u) => u['label'].toString() == row.doseUnit,
-                                  orElse: () => {},
-                                );
-                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
-                                  row.doseUnit = null;
-                                }
-                              }
-                              
-                              // Verify filler material
-                              if (row.filler.text.isNotEmpty) {
-                                final opt = _fillerMaterialOptions.firstWhere(
-                                  (m) => m['label'].toString() == row.filler.text,
-                                  orElse: () => {},
-                                );
-                                if (opt.isNotEmpty && !mappedIds.contains(opt['id'])) {
-                                  row.filler.clear();
-                                }
-                              }
-                            }
-                          }
-                        }
-                      });
-                      _syncCostEstimations();
-                    },
                   ),
                 ),
               ),
@@ -2447,36 +2641,33 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value:
-                      filteredApplications.any(
-                            (a) => a['label'].toString() == row.application.text,
-                          )
-                          ? row.application.text
-                          : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Application',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                child: GestureDetector(
+                  onTap: () => _showApplicationGridSelection(row, filteredApplications),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Application',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            row.application.text.isNotEmpty ? row.application.text : 'Select Application',
+                            style: TextStyle(
+                              color: row.application.text.isNotEmpty ? Colors.black87 : Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down, color: Colors.black54),
+                      ],
                     ),
                   ),
-                  items:
-                      filteredApplications.map((a) {
-                        return DropdownMenuItem<String>(
-                          value: a['label'].toString(),
-                          child: Text(
-                            a['label'].toString(),
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      row.application.text = val ?? '';
-                    });
-                  },
                 ),
               ),
             ],
