@@ -1827,10 +1827,33 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   Widget _buildNewProblemItemList() {
     final filtered = _problemItemsList
-        .where((item) => item['label'].toString().toLowerCase().contains(_problemSearchQuery.toLowerCase()))
+        .where((item) {
+          final label = item['label'].toString();
+          // Filter by search query
+          final matchesSearch = label.toLowerCase().contains(_problemSearchQuery.toLowerCase());
+          if (!matchesSearch) return false;
+          
+          // Filter by crop mapping if a crop is selected
+          if (_selectedCropId != null) {
+            return _suggestedProblems.contains(label);
+          }
+          return true;
+        })
         .toList();
 
     if (filtered.isEmpty) {
+      if (_selectedCropId != null && _suggestedProblems.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Text(
+              'No problem items mapped for this crop.\nManage mappings in Dropdown Creator.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+            ),
+          ),
+        );
+      }
       return const Center(child: Padding(padding: EdgeInsets.all(24.0), child: Text('No items found')));
     }
 

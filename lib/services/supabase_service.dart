@@ -1901,6 +1901,23 @@ class SupabaseService {
     }
   }
 
+  static Future<void> updateProblemsForCrop(int cropId, List<int> problemIds) async {
+    // 1. Delete existing mappings for this crop
+    await client.from('crop_problem_mapping').delete().eq('crop_id', cropId);
+    
+    // 2. Insert new mappings
+    if (problemIds.isNotEmpty) {
+      final List<Map<String, dynamic>> inserts = problemIds.map((problemId) => {
+        'problem_id': problemId,
+        'crop_id': cropId,
+      }).toList();
+      await client.from('crop_problem_mapping').insert(inserts);
+    }
+
+    // 3. Sync local offline cache
+    await syncAllDropdownOptions();
+  }
+
   // --- Product-Dropdown Mapping Methods ---
 
   static Future<List<Map<String, dynamic>>> getProductDropdownMappings(int productId) async {

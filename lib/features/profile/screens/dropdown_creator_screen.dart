@@ -613,6 +613,160 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     );
   }
 
+  Future<void> _showProblemMappingDialog(Map<String, dynamic> crop) async {
+    setState(() => _isLoading = true);
+    List<Map<String, dynamic>> allProblems = [];
+    List<Map<String, dynamic>> existingMappings = [];
+    try {
+      if (_problemCategories.isEmpty) {
+        _problemCategories = await SupabaseService.getDropdownOptions('problem_category');
+      }
+      allProblems = await SupabaseService.getDropdownOptions('problem_item');
+      existingMappings = await SupabaseService.getProblemsByCrop(crop['id']);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading mapping data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() => _isLoading = false);
+      return;
+    }
+    setState(() => _isLoading = false);
+
+    final List<int> selectedProblemIds = existingMappings
+        .map((m) => m['problem_id'] as int)
+        .toList();
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          String query = '';
+          return AlertDialog(
+            title: Text('Link Problems to "${crop['name']}"'),
+            content: StatefulBuilder(
+              builder: (context, setInnerState) {
+                final filteredProblems = allProblems.where((p) {
+                  return p['label'].toString().toLowerCase().contains(query.toLowerCase());
+                }).toList();
+
+                return SizedBox(
+                  width: double.maxFinite,
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search problem items...',
+                          prefixIcon: Icon(Icons.search),
+                          isDense: true,
+                        ),
+                        onChanged: (val) {
+                          setInnerState(() {
+                            query = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: filteredProblems.isEmpty
+                            ? const Center(child: Text('No problems found'))
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredProblems.length,
+                                itemBuilder: (context, index) {
+                                  final problem = filteredProblems[index];
+                                  final isSelected = selectedProblemIds.contains(problem['id']);
+                                  
+                                  final parentCat = _problemCategories.firstWhere(
+                                    (c) => c['id'] == problem['parent_id'],
+                                    orElse: () => {},
+                                  );
+                                  final catLabel = parentCat.isNotEmpty ? ' (${parentCat['label']})' : '';
+
+                                  return CheckboxListTile(
+                                    title: Text(problem['label']),
+                                    subtitle: catLabel.isNotEmpty
+                                        ? Text(
+                                            parentCat['label'],
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          )
+                                        : null,
+                                    value: isSelected,
+                                    activeColor: AppColors.primary,
+                                    onChanged: (bool? value) {
+                                      setDialogState(() {
+                                        if (value == true) {
+                                          selectedProblemIds.add(problem['id']);
+                                        } else {
+                                          selectedProblemIds.remove(problem['id']);
+                                        }
+                                      });
+                                      setInnerState(() {});
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  setState(() => _isLoading = true);
+                  try {
+                    await SupabaseService.updateProblemsForCrop(
+                      crop['id'],
+                      selectedProblemIds,
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Crop mappings updated successfully!'),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error saving mappings: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isLoading = false);
+                  }
+                },
+                child: const Text('Save Links'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1408,10 +1562,24 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: TextButton.icon(
-                    onPressed: () => _addOrEditVariety(crop['id']),
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                    label: const Text('Add Variety for this Crop'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _addOrEditVariety(crop['id']),
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text('Add Variety'),
+                      ),
+                      const SizedBox(width: 24),
+                      TextButton.icon(
+                        onPressed: () => _showProblemMappingDialog(crop),
+                        icon: const Icon(Icons.bug_report_outlined),
+                        label: const Text('Map Problems'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
