@@ -257,6 +257,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
     setState(() => _isLoading = true);
     try {
       final timestamp = DateTime.now().toIso8601String();
+      final List<Map<String, dynamic>> savedData = [];
 
       for (var row in _itemRows) {
         final data = {
@@ -279,6 +280,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
             operation: 'INSERT',
           );
         }
+        savedData.add(data);
       }
 
       if (!kIsWeb) {
@@ -286,7 +288,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
       }
 
       if (mounted) {
-        _showSuccessDialog();
+        _showSuccessDialog(savedData);
       }
     } catch (e) {
       if (mounted) {
@@ -592,7 +594,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
     );
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(List<Map<String, dynamic>> savedData) {
     final now = DateTime.now();
     final itemsForChallan =
         _itemRows
@@ -671,7 +673,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                     Navigator.pop(context); // Close dialog
                     Navigator.pop(
                       context,
-                      true,
+                      savedData,
                     ); // Go back to management screen
                   },
                   child: const Text(

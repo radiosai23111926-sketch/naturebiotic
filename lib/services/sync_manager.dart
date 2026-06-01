@@ -296,6 +296,35 @@ class SyncManager {
         cleanPayload.remove('_local_images');
       }
     }
+
+    // Handle Farm Collections Payment Proof
+    if (tableName == 'farm_collections') {
+      if (cleanPayload.containsKey('_local_proof') &&
+          cleanPayload['_local_proof'] != null) {
+        final List<int> bytes = List<int>.from(cleanPayload['_local_proof']);
+        final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final url = await SupabaseService.uploadImage(
+          Uint8List.fromList(bytes),
+          fileName,
+          'collections',
+        );
+        cleanPayload['proof_url'] = url;
+        cleanPayload.remove('_local_proof');
+        
+        // Also update local SQLite database if it's an UPDATE operation
+        if (operation == 'UPDATE') {
+          final db = await LocalDatabaseService.database;
+          await db?.update(
+            'farm_collections',
+            {'proof_url': url, '_local_proof': null},
+            where: 'id = ?',
+            whereArgs: [cleanPayload['id'].toString()],
+          );
+        }
+      } else {
+        cleanPayload.remove('_local_proof');
+      }
+    }
     if (tableName == 'farms' &&
         cleanPayload.containsKey('contacts') &&
         cleanPayload['contacts'] is String) {

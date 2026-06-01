@@ -250,6 +250,10 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
         'proof_url': proofUrl,
       };
 
+      if (!kIsWeb && proofUrl == null && _paymentProofBytes != null && _paymentMethod != 'Cash') {
+        data['_local_proof'] = _paymentProofBytes;
+      }
+
       if (kIsWeb) {
         await SupabaseService.addFarmCollection(data);
       } else {
@@ -284,7 +288,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
             ),
           ),
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context, data);
       }
     } catch (e) {
       if (mounted) {

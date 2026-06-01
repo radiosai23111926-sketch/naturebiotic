@@ -9,6 +9,7 @@ import 'package:nature_biotic/features/farms/screens/add_stock_entry_screen.dart
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/services/pdf_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FarmSalesListScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialTransactions;
@@ -44,6 +45,9 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   TextEditingController get _searchController =>
       _cachedSearchController ??= TextEditingController();
   
+  late List<Map<String, dynamic>> _currentTransactions;
+  late List<Map<String, dynamic>> _currentCollections;
+
   @override
   void dispose() {
     _cachedSearchController?.dispose();
@@ -53,6 +57,8 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   @override
   void initState() {
     super.initState();
+    _currentTransactions = List.from(widget.initialTransactions);
+    _currentCollections = List.from(widget.initialCollections);
     _processData();
   }
 
@@ -63,7 +69,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
     final Map<String, Map<String, dynamic>> grouped = {};
 
-    for (var tx in widget.initialTransactions) {
+    for (var tx in _currentTransactions) {
       if ((role == 'executive' || role == 'telecaller') && userId != null) {
         final txExecId = tx['executive_id']?.toString().toLowerCase();
         final currentId = userId.toLowerCase();
@@ -186,7 +192,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     }
 
     // 2. Process Dedicated Collections
-    for (var col in widget.initialCollections) {
+    for (var col in _currentCollections) {
       if ((role == 'executive' || role == 'telecaller') && userId != null) {
         final creatorId = col['created_by']?.toString().toLowerCase();
         final currentId = userId.toLowerCase();
@@ -547,7 +553,12 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                           balanceDue: balanceDue,
                         ),
                   ),
-                ).then((_) => _processData());
+                ).then((result) {
+                  if (result != null && result is Map<String, dynamic>) {
+                    _currentCollections.add(result);
+                    _processData();
+                  }
+                });
               } else {
                 Navigator.push(
                   context,
@@ -560,7 +571,16 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                           cropName: crop?['name'],
                         ),
                   ),
-                ).then((_) => _processData());
+                ).then((result) {
+                  if (result != null && result is List) {
+                    for (var item in result) {
+                      if (item is Map<String, dynamic>) {
+                        _currentTransactions.add(item);
+                      }
+                    }
+                    _processData();
+                  }
+                });
               }
             },
           ),
@@ -1532,24 +1552,62 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        padding: const EdgeInsets.all(10),
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.print_outlined,
-                          color: Colors.white,
-                          size: 20,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            padding: const EdgeInsets.all(10),
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.image_search_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            tooltip: 'View Payment Proof',
+                            onPressed: () async {
+                              final proofUrl = log['proof_url'];
+                              if (proofUrl != null && proofUrl.toString().isNotEmpty) {
+                                final uri = Uri.parse(proofUrl.toString());
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri);
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No payment proof uploaded for this collection.'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
                         ),
-                        tooltip: 'Print Receipt',
-                        onPressed: () {
-                          _downloadPaymentReceipt(log, farmData);
-                        },
-                      ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            padding: const EdgeInsets.all(10),
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.print_outlined,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            tooltip: 'Print Receipt',
+                            onPressed: () {
+                              _downloadPaymentReceipt(log, farmData);
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1759,6 +1817,10 @@ class _SelectionFlowState extends State<_SelectionFlow> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
       padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
       child: Column(
         children: [
           Padding(
