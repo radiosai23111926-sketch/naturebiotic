@@ -615,7 +615,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                                     crossAxisCount: 3,
                                     crossAxisSpacing: 12,
                                     mainAxisSpacing: 12,
-                                    childAspectRatio: 0.95,
+                                    childAspectRatio: 0.82,
                                   ),
                                   itemCount: _masterCrops.length,
                                   itemBuilder: (context, index) {
@@ -1173,11 +1173,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    width: 44,
-                    height: 44,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: isSelected ? baseColor : baseColor.withOpacity(0.5),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         if (isSelected)
                           BoxShadow(
@@ -1188,14 +1188,15 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       ],
                     ),
                     child: imageUrl != null && imageUrl.isNotEmpty && imageUrl != 'null'
-                        ? ClipOval(
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
                             child: Image.network(
                               imageUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) => Center(
                                 child: Text(
                                   emoji,
-                                  style: const TextStyle(fontSize: 22),
+                                  style: const TextStyle(fontSize: 28),
                                 ),
                               ),
                             ),
@@ -1203,7 +1204,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                         : Center(
                             child: Text(
                               emoji,
-                              style: const TextStyle(fontSize: 22),
+                              style: const TextStyle(fontSize: 28),
                             ),
                           ),
                   ),

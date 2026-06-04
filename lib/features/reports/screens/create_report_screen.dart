@@ -44,6 +44,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   List<Map<String, dynamic>> _perUnitOptions = [];
   List<Map<String, dynamic>> _productDropdownMappings = [];
   List<String> _suggestedProblems = [];
+  List<Map<String, dynamic>> _masterCrops = [];
 
   // Selection
   String? _selectedFarmId;
@@ -119,6 +120,11 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   Future<void> _initializeAll() async {
     await _loadUserRole();
+    try {
+      _masterCrops = await SupabaseService.getMasterCrops();
+    } catch (e) {
+      debugPrint('Error loading master crops: $e');
+    }
     await _loadFarms();
     await _fetchProblemData();
     
@@ -304,10 +310,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           (c) => c['id'].toString() == _selectedCropId,
           orElse: () => {},
         );
-        if (crop.isNotEmpty && crop['dropdown_options'] != null) {
-          final cropIntId = int.tryParse(
-            crop['dropdown_options']['id'].toString(),
-          );
+        if (crop.isNotEmpty) {
+          final cropIntId = _getMasterCropId(crop);
           if (cropIntId != null) _loadSuggestedProblems(cropIntId);
         }
         if (widget.preSelectedFarmId != null && widget.preSelectedCropId != null) {
@@ -328,8 +332,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             (c) => c['id'].toString() == _selectedCropId,
             orElse: () => {},
           );
-          if (crop.isNotEmpty && crop['dropdown_options'] != null) {
-            final cropIntId = int.tryParse(crop['dropdown_options']['id'].toString());
+          if (crop.isNotEmpty) {
+            final cropIntId = _getMasterCropId(crop);
             if (cropIntId != null) _loadSuggestedProblems(cropIntId);
           }
         }
@@ -348,6 +352,53 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 .toList();
       });
     } catch (_) {}
+  }
+
+  bool _isCropNameMatch(String name1, String name2) {
+    final n1 = name1.trim().toLowerCase();
+    final n2 = name2.trim().toLowerCase();
+    if (n1 == n2) return true;
+    
+    // Handle Tomato / Tomoto
+    if ((n1.contains('tomato') || n1.contains('tomoto')) &&
+        (n2.contains('tomato') || n2.contains('tomoto'))) {
+      return true;
+    }
+    
+    // Handle Chilli / Chili
+    if ((n1.contains('chilli') || n1.contains('chili')) &&
+        (n2.contains('chilli') || n2.contains('chili'))) {
+      return true;
+    }
+    
+    // Handle Guava / Gauva
+    if ((n1.contains('guava') || n1.contains('gauva')) &&
+        (n2.contains('guava') || n2.contains('gauva'))) {
+      return true;
+    }
+
+    if (n1.contains(n2) || n2.contains(n1)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  int? _getMasterCropId(Map<String, dynamic> crop) {
+    final cropName = crop['name']?.toString();
+    if (cropName == null || cropName.isEmpty) return null;
+    final masterCrop = _masterCrops.firstWhere(
+      (mc) {
+        final mName = mc['name']?.toString();
+        if (mName == null) return false;
+        return _isCropNameMatch(mName, cropName);
+      },
+      orElse: () => {},
+    );
+    if (masterCrop.isNotEmpty) {
+      return int.tryParse(masterCrop['id'].toString());
+    }
+    return null;
   }
 
   Future<void> _fetchProblemData() async {
@@ -1144,11 +1195,15 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                   _suggestedProblems = [];
                                 });
                                 if (value != null) {
-                                  final cropIntId = int.tryParse(value);
+                                  final crop = _crops.firstWhere(
+                                    (c) => c['id'].toString() == value,
+                                    orElse: () => {},
+                                  );
+                                  final cropIntId = crop.isNotEmpty ? _getMasterCropId(crop) : null;
                                   if (cropIntId != null) {
                                     _loadSuggestedProblems(cropIntId);
-                                    _loadCropDetails(value);
                                   }
+                                  _loadCropDetails(value);
                                   if (_selectedFarmId != null) {
                                     _loadLastReportData(
                                       _selectedFarmId!,
@@ -1252,7 +1307,6 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                         ))
                       else
                         Container(
-                          constraints: const BoxConstraints(maxHeight: 350),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
@@ -1865,7 +1919,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         crossAxisCount: 3,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.68,
       ),
       itemCount: filtered.length,
       itemBuilder: (context, index) {
@@ -1927,7 +1981,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                           color: isChecked ? AppColors.primary : Colors.black87,
                         ),
                         textAlign: TextAlign.center,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
