@@ -168,7 +168,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
 
   void _openTransactionForm(String type) {
     if (type == 'RETURN') {
-      if (_userRole == 'executive' || _userRole == 'telecaller') {
+      if (_userRole == 'executive' || _userRole == 'telecaller' || _userRole == 'data_entry') {
         Navigator.push(
           context,
           MaterialPageRoute(

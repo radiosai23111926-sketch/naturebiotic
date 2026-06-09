@@ -136,11 +136,16 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       // For Store/Admin users, show the dropdown. For Executives/Telecallers, we already set the ID.
       if (_userRole != 'executive' && _userRole != 'telecaller') {
         final staff = await SupabaseService.getAllStaff();
-        final storeStock = await SupabaseService.getDetailedStoreStock();
+        Map<String, Map<String, double>> detailedStock = {};
+        if (_userRole == 'data_entry' && widget.transactionType == 'RETURN' && _selectedExecutiveId != null) {
+          detailedStock = await SupabaseService.getDetailedExecutiveStock(userId: _selectedExecutiveId);
+        } else {
+          detailedStock = await SupabaseService.getDetailedStoreStock();
+        }
         if (mounted) {
           setState(() {
             _staffMembers = staff;
-            _detailedStock = storeStock;
+            _detailedStock = detailedStock;
             _isLoadingData = false;
           });
         }
@@ -156,6 +161,22 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       }
     } else {
       setState(() => _isLoadingData = false);
+    }
+  }
+
+  Future<void> _loadStaffStock(String staffId) async {
+    setState(() => _isLoadingData = true);
+    try {
+      final stock = await SupabaseService.getDetailedExecutiveStock(userId: staffId);
+      if (mounted) {
+        setState(() {
+          _detailedStock = stock;
+          _isLoadingData = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading staff stock: $e');
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
@@ -202,8 +223,8 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         return;
       }
 
-      // Stock validation for Executives/Telecallers on RETURN
-      if ((_userRole == 'executive' || _userRole == 'telecaller') &&
+      // Stock validation for Executives/Telecallers/Data Entry on RETURN
+      if ((_userRole == 'executive' || _userRole == 'telecaller' || _userRole == 'data_entry') &&
           widget.transactionType == 'RETURN') {
         final productName = item.product?['label'] ?? '';
         final variantName = item.variant?['label'] ?? '';
@@ -222,8 +243,8 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         }
       }
 
-      // Stock validation for Store/Admin on DELIVERY
-      if ((_userRole == 'store' || _userRole == 'admin') &&
+      // Stock validation for Store/Admin/Data Entry on DELIVERY
+      if ((_userRole == 'store' || _userRole == 'admin' || _userRole == 'data_entry') &&
           widget.transactionType == 'DELIVERY') {
         final productName = item.product?['label'] ?? '';
         final variantName = item.variant?['label'] ?? '';
@@ -278,7 +299,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                       ? _buyerNameController.text.trim()
                       : item.vendorController.text.trim()),
           'status':
-              (widget.transactionType == 'PURCHASE' || isDirectPurchase)
+              (widget.transactionType == 'PURCHASE' || isDirectPurchase || _userRole == 'data_entry')
                   ? 'ACCEPTED'
                   : 'PENDING',
           'created_by': user?.id,
@@ -290,7 +311,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           'updated_at': (_userRole == 'data_entry')
               ? _overrideDate.toIso8601String()
               : DateTime.now().toIso8601String(),
-          if (isDirectPurchase)
+          if (isDirectPurchase || _userRole == 'data_entry')
             'accepted_at': (_userRole == 'data_entry')
                 ? _overrideDate.toIso8601String()
                 : DateTime.now().toIso8601String(),
@@ -560,6 +581,9 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         setState(() => _selectedExecutiveId = val);
         if (val != null) {
           _buyerNameController.clear();
+          if (widget.transactionType == 'RETURN' && _userRole == 'data_entry') {
+            _loadStaffStock(val);
+          }
         }
       },
       validator: (val) {
