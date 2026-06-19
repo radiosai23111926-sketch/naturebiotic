@@ -333,6 +333,14 @@ class SyncManager {
       } catch (_) {}
     }
 
+    if (tableName == 'bills' &&
+        cleanPayload.containsKey('items') &&
+        cleanPayload['items'] is String) {
+      try {
+        cleanPayload['items'] = jsonDecode(cleanPayload['items']);
+      } catch (_) {}
+    }
+
     // 2. Map to SupabaseService methods
     if (operation == 'DELETE') {
       await SupabaseService.deleteRecord(tableName, cleanPayload['id']);
@@ -403,6 +411,13 @@ class SyncManager {
               .from('farm_collections')
               .update(cleanPayload)
               .eq('id', cleanPayload['id'].toString());
+        }
+        break;
+      case 'bills':
+        if (operation == 'INSERT') {
+          await SupabaseService.addBill(cleanPayload);
+        } else if (operation == 'UPDATE') {
+          await SupabaseService.updateBill(cleanPayload['id'].toString(), cleanPayload);
         }
         break;
     }

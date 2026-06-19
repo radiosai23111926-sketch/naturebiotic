@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
@@ -36,6 +37,11 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
   List<String> _itemOptions = [];
   List<Map<String, dynamic>> _allProducts = [];
   List<String> _globalDoseUnits = [];
+  List<String> _placeOfSupplyOptions = [];
+  String? _selectedPlaceOfSupply;
+  bool _isGstApplicable = false;
+  final _gstinController = TextEditingController();
+  final _customerNameController = TextEditingController();
 
   bool _isLoading = false;
   bool _isDataLoading = true;
@@ -71,6 +77,13 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
     _loadOptions();
   }
 
+  @override
+  void dispose() {
+    _gstinController.dispose();
+    _customerNameController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadOptions() async {
     try {
       final profile = await SupabaseService.getProfile();
@@ -79,6 +92,8 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
       );
       final units = await SupabaseService.getDropdownOptions('dose_unit');
       final farmInfo = await SupabaseService.getFarmAndFarmerInfo(widget.farmId);
+      final supplyOptions = await SupabaseService.getDropdownOptions('place_of_supply');
+      final gstMappings = await SupabaseService.getDropdownOptions('farmer_gst');
 
       if (mounted) {
         setState(() {
@@ -86,7 +101,54 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           _allProducts = items;
           _itemOptions = items.map((e) => e['label'].toString()).toList();
           _globalDoseUnits = units.map((e) => e['label'].toString()).toList();
+          _placeOfSupplyOptions = supplyOptions.map((e) => e['label'].toString()).toList();
           _fullFarmData = farmInfo;
+
+          final farmerData = farmInfo?['farmers'];
+          final farmerName = widget.farmerName ?? farmerData?['name'] ?? '';
+          if (farmerName.isNotEmpty) {
+            _customerNameController.text = farmerName;
+          }
+
+          final farmLocation = farmInfo?['location']?.toString() ?? farmInfo?['place']?.toString();
+          if (farmLocation != null && farmLocation.isNotEmpty) {
+            if (!_placeOfSupplyOptions.contains(farmLocation)) {
+              _placeOfSupplyOptions.add(farmLocation);
+            }
+            _selectedPlaceOfSupply = farmLocation;
+          }
+
+          final farmerId = farmerData?['id']?.toString() ?? '';
+          if (farmerId.isNotEmpty) {
+            final matchedMapping = gstMappings.firstWhere(
+              (m) => m['label']?.toString() == farmerId,
+              orElse: () => <String, dynamic>{},
+            );
+            if (matchedMapping.isNotEmpty) {
+              try {
+                final desc = jsonDecode(matchedMapping['description'] ?? '{}') as Map<String, dynamic>;
+                final mappedGstin = desc['gstin']?.toString() ?? '';
+                final mappedPos = desc['place_of_supply']?.toString() ?? '';
+                final mappedName = desc['farmer_name']?.toString() ?? '';
+
+                if (mappedGstin.isNotEmpty) {
+                  _isGstApplicable = true;
+                  _gstinController.text = mappedGstin;
+                  if (mappedName.isNotEmpty) {
+                    _customerNameController.text = mappedName;
+                  }
+                  if (mappedPos.isNotEmpty) {
+                    if (!_placeOfSupplyOptions.contains(mappedPos)) {
+                      _placeOfSupplyOptions.add(mappedPos);
+                    }
+                    _selectedPlaceOfSupply = mappedPos;
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error parsing farmer GST mapping: $e');
+              }
+            }
+          }
         });
 
         final myStock = await SupabaseService.getDetailedExecutiveStock();
@@ -226,6 +288,16 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
       }
     }
 
+    setState(() => _isLoading = true);
+    String generatedDcNo;
+    try {
+      generatedDcNo = await PdfService.generateNextDcNumber();
+    } catch (e) {
+      generatedDcNo = 'SAI${DateTime.now().millisecondsSinceEpoch}';
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
     final itemsForChallan = _itemRows.map((row) => {
       'name': row.selectedItem,
       'unit': row.selectedUnit,
@@ -241,13 +313,15 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
         builder: (context) => ChallanPreviewScreen(
           items: itemsForChallan,
           farmName: widget.farmName,
-          farmerName: widget.farmerName ?? farmerData?['name'] ?? 'N/A',
+          farmerName: _isGstApplicable ? _customerNameController.text.trim() : (widget.farmerName ?? farmerData?['name'] ?? 'N/A'),
           cropName: widget.cropName ?? 'N/A',
           transactionType: _transactionType,
           date: _overrideStaffId != null ? _overrideDate : DateTime.now(),
           farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
           farmerContact: farmerData?['mobile'] ?? 'N/A',
-          placeOfSupply: _fullFarmData?['location']?.toString(),
+          dcNumber: generatedDcNo,
+          placeOfSupply: _isGstApplicable ? _selectedPlaceOfSupply : null,
+          customerGstin: _isGstApplicable ? _gstinController.text.trim() : null,
         ),
       ),
     );
@@ -283,12 +357,113 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
         savedData.add(data);
       }
 
+      // Automatically create a draft bill if transaction type is RECEIVED
+      if (_transactionType == 'RECEIVED') {
+        final List<Map<String, dynamic>> billItems = [];
+        double totalTaxable = 0.0;
+        double totalTax = 0.0;
+        double grandTotal = 0.0;
+
+        for (var row in _itemRows) {
+          final qty = double.tryParse(row.qtyController.text) ?? 0.0;
+          final price = row.selectedPrice;
+          final totalItemPrice = qty * price;
+
+          // Find the product and variant to resolve tax_percentage
+          final product = _allProducts.firstWhere(
+            (p) => p['label'] == row.selectedItem,
+            orElse: () => {},
+          );
+          final List variants = product['variants'] ?? [];
+          Map<String, dynamic> variant = {};
+          double taxPercentage = 0.0;
+          if (variants.isNotEmpty) {
+            final found = variants.firstWhere(
+              (v) => v['label'] == row.selectedUnit,
+              orElse: () => {},
+            );
+            if (found is Map) {
+              variant = Map<String, dynamic>.from(found);
+            }
+            if (variant.isNotEmpty) {
+              taxPercentage = double.tryParse(variant['tax_percentage']?.toString() ?? '0') ?? 0.0;
+            }
+          }
+          if (taxPercentage == 0.0 && product.isNotEmpty) {
+            taxPercentage = double.tryParse(product['tax_percentage']?.toString() ?? '0') ?? 0.0;
+          }
+
+          double basePrice = totalItemPrice;
+          double taxAmt = 0.0;
+          if (taxPercentage > 0) {
+            basePrice = (totalItemPrice * 100) / (100 + taxPercentage);
+            basePrice = double.parse(basePrice.toStringAsFixed(2));
+            taxAmt = totalItemPrice - basePrice;
+            taxAmt = double.parse(taxAmt.toStringAsFixed(2));
+          }
+
+          totalTaxable += basePrice;
+          totalTax += taxAmt;
+          grandTotal += totalItemPrice;
+
+          String hsnCode = variant['hsn_code']?.toString() ?? '';
+          if (hsnCode.isEmpty && product.isNotEmpty) {
+            hsnCode = product['hsn_code']?.toString() ?? '';
+          }
+          String description = variant['description']?.toString() ?? '';
+          if (description.isEmpty && product.isNotEmpty) {
+            description = product['description']?.toString() ?? '';
+          }
+
+          billItems.add({
+            'name': row.selectedItem,
+            'unit': row.selectedUnit,
+            'quantity': qty,
+            'offer_price': price,
+            'tax_percentage': taxPercentage,
+            'hsn_code': hsnCode,
+            'description': description,
+          });
+        }
+
+        final billData = {
+          'id': const Uuid().v4(),
+          'farm_id': widget.farmId,
+          'executive_id': _overrideStaffId ?? SupabaseService.client.auth.currentUser?.id,
+          'challan_no': generatedDcNo,
+          'challan_date': _overrideStaffId != null ? _overrideDate.toIso8601String() : timestamp,
+          'items': billItems,
+          'discount_type': 'none',
+          'discount_value': 0.0,
+          'total_discount': 0.0,
+          'total_taxable_amount': totalTaxable,
+          'total_tax_amount': totalTax,
+          'grand_total': grandTotal,
+          'status': 'PENDING_BILLING',
+          'place_of_supply': _isGstApplicable ? _selectedPlaceOfSupply : null,
+          'customer_gstin': _isGstApplicable && _gstinController.text.trim().isNotEmpty ? _gstinController.text.trim() : null,
+          'customer_name': _isGstApplicable && _customerNameController.text.trim().isNotEmpty ? _customerNameController.text.trim() : null,
+          'created_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : timestamp,
+          'updated_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : timestamp,
+        };
+
+        if (kIsWeb) {
+          await SupabaseService.addBill(billData);
+        } else {
+          await LocalDatabaseService.saveAndQueue(
+            tableName: 'bills',
+            data: billData,
+            operation: 'INSERT',
+          );
+        }
+      }
+
       if (!kIsWeb) {
         SyncManager().sync();
       }
 
       if (mounted) {
-        _showSuccessDialog(savedData);
+        _showSuccessDialog(savedData, generatedDcNo);
       }
     } catch (e) {
       if (mounted) {
@@ -343,6 +518,85 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                         },
                         onDateChanged: (dt) => _overrideDate = dt,
                       ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        value: _isGstApplicable,
+                        onChanged: (bool val) {
+                          setState(() {
+                            _isGstApplicable = val;
+                          });
+                        },
+                        title: const Text(
+                          'GST Applicable',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Enable to add GSTIN, place of supply, and map customer name',
+                          style: TextStyle(fontSize: 11, color: AppColors.textGray),
+                        ),
+                        activeColor: AppColors.primary,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isGstApplicable) ...[
+                        DropdownButtonFormField<String>(
+                          value: _selectedPlaceOfSupply,
+                          decoration: const InputDecoration(
+                            labelText: 'Place of Supply',
+                            prefixIcon: Icon(Icons.location_on_outlined),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          items: _placeOfSupplyOptions
+                              .map(
+                                (e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(e, style: const TextStyle(fontSize: 13)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            setState(() {
+                              _selectedPlaceOfSupply = v;
+                            });
+                          },
+                          validator: (v) => (v == null || v.isEmpty) ? 'Place of Supply is required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _customerNameController,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: const InputDecoration(
+                            labelText: 'Customer Name (for GST)',
+                            prefixIcon: Icon(Icons.person_outline),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Customer Name is required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _gstinController,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: const InputDecoration(
+                            labelText: 'Customer GSTIN',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty) ? 'GSTIN is required' : null,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
                       if (widget.cropName != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -594,7 +848,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
     );
   }
 
-  void _showSuccessDialog(List<Map<String, dynamic>> savedData) {
+  void _showSuccessDialog(List<Map<String, dynamic>> savedData, String dcNumber) {
     final now = DateTime.now();
     final itemsForChallan =
         _itemRows
@@ -645,19 +899,32 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    final farmerData = _fullFarmData?['farmers'];
-                    PdfService.generateStockChallan(
-                      items: itemsForChallan,
-                      farmName: widget.farmName,
-                      farmerName: widget.farmerName ?? farmerData?['name'] ?? 'N/A',
-                      cropName: widget.cropName ?? 'N/A',
-                      transactionType: _transactionType,
-                      date: now,
-                      farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
-                      farmerContact: farmerData?['mobile'] ?? 'N/A',
-                      placeOfSupply: _fullFarmData?['location']?.toString(),
-                    );
+                  onPressed: () async {
+                    try {
+                      final farmerData = _fullFarmData?['farmers'];
+                      await PdfService.generateStockChallan(
+                        items: itemsForChallan,
+                        farmName: widget.farmName,
+                        farmerName: _isGstApplicable ? _customerNameController.text.trim() : (widget.farmerName ?? farmerData?['name'] ?? 'N/A'),
+                        cropName: widget.cropName ?? 'N/A',
+                        transactionType: _transactionType,
+                        date: now,
+                        farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
+                        farmerContact: farmerData?['mobile'] ?? 'N/A',
+                        dcNumber: dcNumber,
+                        placeOfSupply: _isGstApplicable ? _selectedPlaceOfSupply : null,
+                        customerGstin: _isGstApplicable ? _gstinController.text.trim() : null,
+                      );
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error sharing challan: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.share_rounded, size: 18),
                   label: const Text('Share Challan'),

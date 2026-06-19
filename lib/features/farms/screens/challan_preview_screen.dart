@@ -15,6 +15,7 @@ class ChallanPreviewScreen extends StatefulWidget {
   final String? farmerContact;
   final String? dcNumber;
   final String? placeOfSupply;
+  final String? customerGstin;
 
   const ChallanPreviewScreen({
     super.key,
@@ -28,6 +29,7 @@ class ChallanPreviewScreen extends StatefulWidget {
     this.farmerContact,
     this.dcNumber,
     this.placeOfSupply,
+    this.customerGstin,
   });
 
   @override
@@ -57,6 +59,7 @@ class _ChallanPreviewScreenState extends State<ChallanPreviewScreen> {
         farmerContact: widget.farmerContact,
         dcNumber: widget.dcNumber,
         placeOfSupply: widget.placeOfSupply,
+        customerGstin: widget.customerGstin,
       );
       if (mounted) {
         setState(() {

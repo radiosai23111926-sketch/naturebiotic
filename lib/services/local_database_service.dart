@@ -11,7 +11,7 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 17;
+  static const int _databaseVersion = 21;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -316,6 +316,58 @@ class LocalDatabaseService {
         debugPrint('DB Upgrade Error (v17): $e');
       }
     }
+
+    if (oldVersion < 18) {
+      // Version 18: Add bills table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS bills (
+            id TEXT PRIMARY KEY,
+            farm_id TEXT,
+            executive_id TEXT,
+            challan_no TEXT,
+            challan_date TEXT,
+            items TEXT,
+            discount_type TEXT,
+            discount_value REAL,
+            total_discount REAL,
+            total_taxable_amount REAL,
+            total_tax_amount REAL,
+            grand_total REAL,
+            status TEXT,
+            admin_notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v18): $e');
+      }
+    }
+
+    if (oldVersion < 19) {
+      try {
+        await db.execute('ALTER TABLE bills ADD COLUMN place_of_supply TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v19): $e');
+      }
+    }
+
+    if (oldVersion < 20) {
+      try {
+        await db.execute('ALTER TABLE bills ADD COLUMN customer_gstin TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v20): $e');
+      }
+    }
+
+    if (oldVersion < 21) {
+      try {
+        await db.execute('ALTER TABLE bills ADD COLUMN customer_name TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v21): $e');
+      }
+    }
   }
 
   static Future<void> _onCreate(Database db, int version) async {
@@ -512,6 +564,31 @@ class LocalDatabaseService {
         cached_at TEXT
       )
     ''');
+
+    // Bills table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bills (
+        id TEXT PRIMARY KEY,
+        farm_id TEXT,
+        executive_id TEXT,
+        challan_no TEXT,
+        challan_date TEXT,
+        items TEXT,
+        discount_type TEXT,
+        discount_value REAL,
+        total_discount REAL,
+        total_taxable_amount REAL,
+        total_tax_amount REAL,
+        grand_total REAL,
+        status TEXT,
+        admin_notes TEXT,
+        place_of_supply TEXT,
+        customer_gstin TEXT,
+        customer_name TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
   }
 
   // Generic Save and Queue method
@@ -542,6 +619,13 @@ class LocalDatabaseService {
     if (tableName == 'farms' && localData['contacts'] != null) {
       if (localData['contacts'] is List || localData['contacts'] is Map) {
         localData['contacts'] = jsonEncode(localData['contacts']);
+      }
+    }
+
+    // Encode items list for bills
+    if (tableName == 'bills' && localData['items'] != null) {
+      if (localData['items'] is List || localData['items'] is Map) {
+        localData['items'] = jsonEncode(localData['items']);
       }
     }
 

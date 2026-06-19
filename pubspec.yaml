@@ -97,6 +97,8 @@ flutter:
   assets:
     - assets/logo.png
     - assets/challan_logo.png
+    - assets/images/payment_qr.png
+    - assets/images/authorised_signature.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

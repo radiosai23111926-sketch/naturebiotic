@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
@@ -27,6 +29,19 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   int? _uploadingProductId;
   int? _uploadingOptionId;
 
+  // Billing Config variables
+  final _billingFormKey = GlobalKey<FormState>();
+  final _accountNameController = TextEditingController();
+  final _accountNoController = TextEditingController();
+  final _ifscCodeController = TextEditingController();
+  final _bankNameController = TextEditingController();
+  final _branchController = TextEditingController();
+  final _companyGstinController = TextEditingController();
+  String? _qrUrl;
+  String? _signatureUrl;
+  bool _isUploadingQr = false;
+  bool _isUploadingSignature = false;
+
   final Map<String, String> _typeLabels = {
     'farmer_category': 'Farmer Categories',
     'soil_type': 'Soil Types',
@@ -51,11 +66,364 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     'per_unit': 'Per Units (e.g. L, Acre, Plant)',
     'vendor_name': 'Vendors List',
     'stock_vendor': 'Stock (Default Vendors)',
+    'billing_config': 'Billing Details',
+    'place_of_supply': 'Place of Supply',
+    'farmer_gst': 'Farmer GST Mappings',
   };
 
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _accountNameController.dispose();
+    _accountNoController.dispose();
+    _ifscCodeController.dispose();
+    _bankNameController.dispose();
+    _branchController.dispose();
+    _companyGstinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadBillingConfig() async {
+    setState(() => _isLoading = true);
+    try {
+      final config = await SupabaseService.getBillingConfig();
+      _accountNameController.text = config['account_name'] ?? '';
+      _accountNoController.text = config['account_no'] ?? '';
+      _ifscCodeController.text = config['ifsc_code'] ?? '';
+      _bankNameController.text = config['bank_name'] ?? '';
+      _branchController.text = config['branch'] ?? '';
+      _companyGstinController.text = config['company_gstin'] ?? config['gstin'] ?? '';
+      setState(() {
+        _qrUrl = config['qr_url'] ?? '';
+        _signatureUrl = config['signature_url'] ?? '';
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading billing config: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _uploadImageForBilling({required bool isQr}) async {
+    try {
+      setState(() {
+        if (isQr) {
+          _isUploadingQr = true;
+        } else {
+          _isUploadingSignature = true;
+        }
+      });
+
+      final url = await _pickAndUploadImage();
+      if (url != null) {
+        setState(() {
+          if (isQr) {
+            _qrUrl = url;
+          } else {
+            _signatureUrl = url;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        if (isQr) {
+          _isUploadingQr = false;
+        } else {
+          _isUploadingSignature = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _saveBillingConfig() async {
+    if (!_billingFormKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final config = {
+        'account_name': _accountNameController.text.trim(),
+        'account_no': _accountNoController.text.trim(),
+        'ifsc_code': _ifscCodeController.text.trim(),
+        'bank_name': _bankNameController.text.trim(),
+        'branch': _branchController.text.trim(),
+        'company_gstin': _companyGstinController.text.trim(),
+        'qr_url': _qrUrl ?? '',
+        'signature_url': _signatureUrl ?? '',
+      };
+      await SupabaseService.saveBillingConfig(config);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Billing details saved successfully!'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving billing details: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildBillingConfigEditor() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _billingFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Bank Account Details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _accountNameController,
+              decoration: const InputDecoration(
+                labelText: 'Account Name',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _accountNoController,
+              decoration: const InputDecoration(
+                labelText: 'Account Number',
+                prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _ifscCodeController,
+              decoration: const InputDecoration(
+                labelText: 'IFSC Code',
+                prefixIcon: Icon(Icons.code_outlined),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _bankNameController,
+              decoration: const InputDecoration(
+                labelText: 'Bank Name',
+                prefixIcon: Icon(Icons.account_balance_outlined),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _branchController,
+              decoration: const InputDecoration(
+                labelText: 'Branch',
+                prefixIcon: Icon(Icons.location_on_outlined),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _companyGstinController,
+              decoration: const InputDecoration(
+                labelText: 'Company GSTIN',
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+              validator: (val) =>
+                  val == null || val.trim().isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Payment QR Code & Signature',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // QR Code Upload
+                Expanded(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Payment QR Code',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _isUploadingQr ? null : () => _uploadImageForBilling(isQr: true),
+                        child: Container(
+                          height: 150,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: _isUploadingQr
+                              ? const Center(child: CircularProgressIndicator())
+                              : _qrUrl != null && _qrUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(15),
+                                      child: Image.network(
+                                        _qrUrl!,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    )
+                                  : const Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.qr_code_2_rounded,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'Tap to upload QR',
+                                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                        ),
+                      ),
+                      if (_qrUrl != null && _qrUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _qrUrl = ''),
+                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
+                          label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 12)),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                // Signature Upload
+                Expanded(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Authorized Signature',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _isUploadingSignature ? null : () => _uploadImageForBilling(isQr: false),
+                        child: Container(
+                          height: 150,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: _isUploadingSignature
+                              ? const Center(child: CircularProgressIndicator())
+                              : _signatureUrl != null && _signatureUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(15),
+                                      child: Image.network(
+                                        _signatureUrl!,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    )
+                                  : const Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.draw_rounded,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'Tap to upload Signature',
+                                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                        ),
+                      ),
+                      if (_signatureUrl != null && _signatureUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _signatureUrl = ''),
+                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 16),
+                          label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 12)),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _saveBillingConfig,
+                icon: const Icon(Icons.save),
+                label: const Text(
+                  'Save Billing Details',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchOptions({bool showLoader = true}) async {
@@ -198,6 +566,10 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
       _addMasterCrop();
       return;
     }
+    if (_selectedType == 'farmer_gst') {
+      _addFarmerGst();
+      return;
+    }
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -212,14 +584,16 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     if (result != null && result['label'].isNotEmpty) {
       setState(() => _isLoading = true);
       try {
-        final parentToUse = _selectedParentId;
         final newOption = await SupabaseService.addDropdownOption(
           _selectedType!,
           result['label'],
-          parentId: parentToUse,
+          parentId: _selectedParentId,
           mrp: result['mrp'],
           offerPrice: result['offerPrice'],
           imageUrl: result['imageUrl'],
+          taxPercentage: result['taxPercentage'],
+          hsnCode: result['hsnCode'],
+          description: result['description'],
         );
 
         if (_selectedType == 'problem_item') {
@@ -465,6 +839,9 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
             initialImageUrl: option['image_url'],
             initialMrp: option['mrp'],
             initialOfferPrice: option['offer_price'],
+            initialTaxPercentage: option['tax_percentage'] != null ? (option['tax_percentage'] as num).toDouble() : null,
+            initialHsnCode: option['hsn_code'],
+            initialDescription: option['description'],
             isProductName: _selectedType == 'product_name',
             onPickImage: _pickAndUploadImage,
           ),
@@ -479,6 +856,9 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           mrp: result['mrp'],
           offerPrice: result['offerPrice'],
           imageUrl: result['imageUrl'],
+          taxPercentage: result['taxPercentage'],
+          hsnCode: result['hsnCode'],
+          description: result['description'],
         );
         await _fetchOptions();
       } catch (e) {
@@ -966,6 +1346,28 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                     ),
                                   ),
                                 ),
+
+                                // Billing details
+                                const DropdownMenuItem(
+                                  enabled: false,
+                                  child: Text(
+                                    'BILLING',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                 ...['billing_config', 'place_of_supply', 'farmer_gst'].map(
+                                  (key) => DropdownMenuItem(
+                                    value: key,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 12),
+                                      child: Text(_typeLabels[key]!),
+                                    ),
+                                  ),
+                                ),
                               ],
                               onChanged: (v) {
                                 setState(() {
@@ -973,7 +1375,11 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                   _selectedParentId = null;
                                   _options = [];
                                 });
-                                _fetchOptions();
+                                if (v == 'billing_config') {
+                                  _loadBillingConfig();
+                                } else {
+                                  _fetchOptions();
+                                }
                               },
                             ),
                             if (_selectedType == 'problem_item') ...[
@@ -1042,6 +1448,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                     ],
                                   ),
                                 )
+                                : _selectedType == 'billing_config'
+                                ? _buildBillingConfigEditor()
                                 : _options.isEmpty
                                 ? Center(
                                   child: Column(
@@ -1065,6 +1473,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                                 ? _buildHierarchicalProductView()
                                 : _selectedType == 'stock_vendor'
                                 ? _buildStockVendorView()
+                                : _selectedType == 'farmer_gst'
+                                ? _buildFarmerGstView()
                                 : _buildFlatListView(),
                       ),
                     ],
@@ -1072,18 +1482,18 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                 ),
               ),
       floatingActionButton:
-          _selectedType != null && !_isLoading && !_tableMissing
+          _selectedType != null && !_isLoading && !_tableMissing && _selectedType != 'billing_config'
               ? FloatingActionButton.extended(
-                heroTag: 'dropdown_fab',
-                onPressed: _addOption,
-                label: Text(
-                  _selectedType == 'master_crop'
-                      ? 'Add New Category'
-                      : 'Add Option',
-                ),
-                icon: const Icon(Icons.add),
-                backgroundColor: AppColors.primary,
-              )
+                 heroTag: 'dropdown_fab',
+                 onPressed: _addOption,
+                 label: Text(
+                   _selectedType == 'master_crop'
+                       ? 'Add New Category'
+                       : 'Add Option',
+                 ),
+                 icon: const Icon(Icons.add),
+                 backgroundColor: AppColors.primary,
+               )
               : null,
     );
   }
@@ -1342,7 +1752,15 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                     ),
                     if (option['mrp'] != null)
                       Text(
-                        'MRP: ₹${option['mrp']} | Offer: ₹${option['offer_price']}',
+                        'MRP: ₹${option['mrp']} | Offer: ₹${option['offer_price']}${option['tax_percentage'] != null ? ' | Tax: ${option['tax_percentage']}%' : ''}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGray,
+                        ),
+                      )
+                    else if (option['tax_percentage'] != null)
+                      Text(
+                        'Tax: ${option['tax_percentage']}%',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textGray,
@@ -1369,6 +1787,294 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFarmerGstView() {
+    if (_options.isEmpty) {
+      return const Center(child: Text('No farmer GST mappings found.'));
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: _options.length,
+      itemBuilder: (context, index) {
+        final option = _options[index];
+        String farmerName = 'Unknown Farmer';
+        String gstin = 'N/A';
+        String placeOfSupply = 'N/A';
+        
+        try {
+          final desc = jsonDecode(option['description'] ?? '{}') as Map<String, dynamic>;
+          farmerName = desc['farmer_name']?.toString() ?? 'Unknown Farmer';
+          gstin = desc['gstin']?.toString() ?? 'N/A';
+          placeOfSupply = desc['place_of_supply']?.toString() ?? 'N/A';
+        } catch (_) {}
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const CircleAvatar(
+                backgroundColor: AppColors.secondary,
+                child: Icon(
+                  Icons.person_pin_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      farmerName,
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.textBlack,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'GSTIN: $gstin | Place of Supply: $placeOfSupply',
+                      style: GoogleFonts.outfit(
+                        color: AppColors.textGray,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                onPressed: () => _addFarmerGst(existingOption: option),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Delete Mapping'),
+                      content: const Text('Are you sure you want to delete this GST mapping?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    setState(() => _isLoading = true);
+                    try {
+                      await SupabaseService.deleteDropdownOption(option['id']);
+                      await _fetchOptions();
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    } finally {
+                      setState(() => _isLoading = false);
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _addFarmerGst({Map<String, dynamic>? existingOption}) async {
+    setState(() => _isLoading = true);
+    List<Map<String, dynamic>> farmers = [];
+    List<String> placesOfSupply = [];
+    try {
+      farmers = await SupabaseService.getFarmers();
+      final supplyOptions = await SupabaseService.getDropdownOptions('place_of_supply');
+      placesOfSupply = supplyOptions.map((e) => e['label'].toString()).toList();
+    } catch (e) {
+      debugPrint('Error loading dependencies: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
+    if (farmers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No farmers found. Please create farmers first.')),
+        );
+      }
+      return;
+    }
+
+    String? selectedFarmerId;
+    String gstin = '';
+    String? selectedPlaceOfSupply;
+
+    if (existingOption != null) {
+      selectedFarmerId = existingOption['label'];
+      try {
+        final desc = jsonDecode(existingOption['description'] ?? '{}') as Map<String, dynamic>;
+        gstin = desc['gstin']?.toString() ?? '';
+        selectedPlaceOfSupply = desc['place_of_supply']?.toString() ?? '';
+      } catch (_) {}
+    }
+
+    final gstinCont = TextEditingController(text: gstin);
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(existingOption == null ? 'Add Farmer GST Mapping' : 'Edit GST Mapping'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (existingOption == null) ...[
+                      DropdownButtonFormField<String>(
+                        value: selectedFarmerId,
+                        decoration: const InputDecoration(labelText: 'Select Farmer'),
+                        items: farmers.map((f) {
+                          return DropdownMenuItem(
+                            value: f['id'].toString(),
+                            child: Text(f['name']?.toString() ?? 'N/A'),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setDialogState(() {
+                            selectedFarmerId = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      Builder(builder: (context) {
+                        final farmerObj = farmers.firstWhere(
+                          (f) => f['id'].toString() == selectedFarmerId,
+                          orElse: () => {},
+                        );
+                        final name = farmerObj['name']?.toString() ?? 'Farmer';
+                        return Text('Farmer: $name', style: const TextStyle(fontWeight: FontWeight.bold));
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+                    TextFormField(
+                      controller: gstinCont,
+                      decoration: const InputDecoration(labelText: 'GSTIN'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedPlaceOfSupply,
+                      decoration: const InputDecoration(labelText: 'Place of Supply'),
+                      items: placesOfSupply.map((p) {
+                        return DropdownMenuItem(
+                          value: p,
+                          child: Text(p),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedPlaceOfSupply = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (selectedFarmerId == null ||
+                        gstinCont.text.trim().isEmpty ||
+                        selectedPlaceOfSupply == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please fill all fields')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context);
+                    
+                    setState(() => _isLoading = true);
+                    try {
+                      final farmerObj = farmers.firstWhere(
+                        (f) => f['id'].toString() == selectedFarmerId,
+                        orElse: () => {},
+                      );
+                      final name = farmerObj['name']?.toString() ?? 'Farmer';
+                      final desc = jsonEncode({
+                        'gstin': gstinCont.text.trim(),
+                        'place_of_supply': selectedPlaceOfSupply,
+                        'farmer_name': name,
+                      });
+
+                      if (existingOption == null) {
+                        final alreadyExists = _options.any((o) => o['label'] == selectedFarmerId);
+                        if (alreadyExists) {
+                          throw 'Mapping for this farmer already exists. Edit the existing one instead.';
+                        }
+
+                        await SupabaseService.addDropdownOption(
+                          'farmer_gst',
+                          selectedFarmerId!,
+                          description: desc,
+                        );
+                      } else {
+                        await SupabaseService.updateDropdownOption(
+                          existingOption['id'],
+                          existingOption['label'],
+                          description: desc,
+                        );
+                      }
+                      await _fetchOptions();
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    } finally {
+                      setState(() => _isLoading = false);
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1639,6 +2345,7 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                         product['id'],
                         product['label'],
                         imageUrl: uploadedUrl,
+                        taxPercentage: product['tax_percentage'] != null ? (product['tax_percentage'] as num).toDouble() : null,
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1732,7 +2439,28 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                   fontSize: 18,
                 ),
               ),
-              subtitle: Text('${variants.length} package sizes available'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${variants.length} package sizes available'),
+                  if (product['hsn_code'] != null && product['hsn_code'].toString().trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        'HSN/SAC: ${product['hsn_code']}',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+                      ),
+                    ),
+                  if (product['description'] != null && product['description'].toString().trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        product['description'],
+                        style: const TextStyle(fontSize: 12, color: AppColors.textGray, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                ],
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1759,8 +2487,29 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                       v['label'],
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: Text(
-                      'MRP: ₹${v['mrp'] ?? 0} | Offer: ₹${v['offer_price'] ?? 0}',
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MRP: ₹${v['mrp'] ?? 0} | Offer: ₹${v['offer_price'] ?? 0}${v['tax_percentage'] != null ? ' | Tax: ${v['tax_percentage']}%' : ''}',
+                        ),
+                        if (v['hsn_code'] != null && v['hsn_code'].toString().trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'HSN/SAC: ${v['hsn_code']}',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+                            ),
+                          ),
+                        if (v['description'] != null && v['description'].toString().trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              v['description'],
+                              style: const TextStyle(fontSize: 11, color: AppColors.textGray, fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                      ],
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1822,45 +2571,73 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     final controller = TextEditingController();
     final mrpController = TextEditingController();
     final offerController = TextEditingController();
+    final taxController = TextEditingController();
+    final hsnController = TextEditingController();
+    final descriptionController = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
             title: const Text('Add Package Size'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    labelText: 'Size (e.g. 500ml)',
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: 'Size (e.g. 500ml)',
+                    ),
+                    autofocus: true,
                   ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: mrpController,
-                        decoration: const InputDecoration(labelText: 'MRP'),
-                        keyboardType: TextInputType.number,
-                      ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: hsnController,
+                    decoration: const InputDecoration(
+                      labelText: 'HSN / SAC Code',
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: offerController,
-                        decoration: const InputDecoration(
-                          labelText: 'Offer Price',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Product Description',
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: mrpController,
+                          decoration: const InputDecoration(labelText: 'MRP'),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: offerController,
+                          decoration: const InputDecoration(
+                            labelText: 'Offer Price',
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: taxController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tax Percentage (%)',
                     ),
-                  ],
-                ),
-              ],
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -1868,14 +2645,36 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  if (controller.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Package size name is required')),
+                    );
+                    return;
+                  }
+                  final taxStr = taxController.text.trim();
+                  if (taxStr.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tax percentage is required')),
+                    );
+                    return;
+                  }
+                  final taxVal = double.tryParse(taxStr);
+                  if (taxVal == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a valid tax percentage')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Add'),
               ),
             ],
           ),
     );
 
-    if (result == true && controller.text.isNotEmpty) {
+    if (result == true && controller.text.trim().isNotEmpty) {
       setState(() => _isLoading = true);
       try {
         await SupabaseService.addDropdownOption(
@@ -1884,6 +2683,9 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           parentId: productId,
           mrp: double.tryParse(mrpController.text),
           offerPrice: double.tryParse(offerController.text),
+          taxPercentage: double.tryParse(taxController.text),
+          hsnCode: hsnController.text.trim(),
+          description: descriptionController.text.trim(),
         );
         await _fetchOptions();
       } catch (e) {
@@ -1909,45 +2711,79 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     final offerController = TextEditingController(
       text: variant['offer_price']?.toString(),
     );
+    final taxController = TextEditingController(
+      text: variant['tax_percentage']?.toString(),
+    );
+    final hsnController = TextEditingController(
+      text: variant['hsn_code']?.toString() ?? '',
+    );
+    final descriptionController = TextEditingController(
+      text: variant['description']?.toString() ?? '',
+    );
 
     final result = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
             title: const Text('Edit Package Size'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    labelText: 'Size (e.g. 500ml)',
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: 'Size (e.g. 500ml)',
+                    ),
+                    autofocus: true,
                   ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: mrpController,
-                        decoration: const InputDecoration(labelText: 'MRP'),
-                        keyboardType: TextInputType.number,
-                      ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: hsnController,
+                    decoration: const InputDecoration(
+                      labelText: 'HSN / SAC Code',
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: offerController,
-                        decoration: const InputDecoration(
-                          labelText: 'Offer Price',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Product Description',
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: mrpController,
+                          decoration: const InputDecoration(labelText: 'MRP'),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: offerController,
+                          decoration: const InputDecoration(
+                            labelText: 'Offer Price',
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: taxController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tax Percentage (%)',
                     ),
-                  ],
-                ),
-              ],
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -1955,7 +2791,29 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  if (controller.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Package size name is required')),
+                    );
+                    return;
+                  }
+                  final taxStr = taxController.text.trim();
+                  if (taxStr.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tax percentage is required')),
+                    );
+                    return;
+                  }
+                  final taxVal = double.tryParse(taxStr);
+                  if (taxVal == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a valid tax percentage')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, true);
+                },
                 child: const Text('Save'),
               ),
             ],
@@ -1970,6 +2828,9 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           controller.text.trim(),
           mrp: double.tryParse(mrpController.text),
           offerPrice: double.tryParse(offerController.text),
+          taxPercentage: double.tryParse(taxController.text),
+          hsnCode: hsnController.text.trim(),
+          description: descriptionController.text.trim(),
         );
         await _fetchOptions();
       } catch (e) {

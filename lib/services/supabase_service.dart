@@ -1656,7 +1656,7 @@ class SupabaseService {
     return stock;
   }
 
-  static Future<Map<String, dynamic>> addDropdownOption(String type, String label, {int? parentId, double? mrp, double? offerPrice, String? imageUrl}) async {
+  static Future<Map<String, dynamic>> addDropdownOption(String type, String label, {int? parentId, double? mrp, double? offerPrice, String? imageUrl, double? taxPercentage, String? hsnCode, String? description}) async {
     final data = {
       'type': type,
       'label': label,
@@ -1664,18 +1664,26 @@ class SupabaseService {
       'mrp': mrp,
       'offer_price': offerPrice,
       'image_url': imageUrl,
+      'tax_percentage': taxPercentage,
+      'hsn_code': hsnCode,
+      'description': description,
     };
     final response = await client.from('dropdown_options').insert(_cleanPayload(data)).select().single();
     return response;
   }
 
-  static Future<void> updateDropdownOption(int id, String label, {double? mrp, double? offerPrice, String? imageUrl}) async {
-    await client.from('dropdown_options').update({
+  static Future<void> updateDropdownOption(int id, String label, {double? mrp, double? offerPrice, String? imageUrl, double? taxPercentage, String? hsnCode, String? description}) async {
+    final Map<String, dynamic> updateData = {
       'label': label,
-      'mrp': mrp,
-      'offer_price': offerPrice,
-      'image_url': imageUrl,
-    }).eq('id', id);
+    };
+    if (mrp != null) updateData['mrp'] = mrp;
+    if (offerPrice != null) updateData['offer_price'] = offerPrice;
+    if (imageUrl != null) updateData['image_url'] = imageUrl;
+    if (taxPercentage != null) updateData['tax_percentage'] = taxPercentage;
+    if (hsnCode != null) updateData['hsn_code'] = hsnCode;
+    if (description != null) updateData['description'] = description;
+
+    await client.from('dropdown_options').update(updateData).eq('id', id);
   }
 
   static Future<void> deleteDropdownOption(int id) async {
@@ -2662,5 +2670,166 @@ class SupabaseService {
   /// Updates a record in any table by ID. Restricted to admins via RLS.
   static Future<void> updateRecord(String table, dynamic id, Map<String, dynamic> data) async {
     await client.from(table).update(_cleanPayload(data)).eq('id', id);
+  }
+
+  // --- Billing System Methods ---
+
+  static Future<void> addBill(Map<String, dynamic> data) async {
+    await client.from('bills').insert(_cleanPayload(data)).timeout(const Duration(seconds: 5));
+  }
+
+  static Future<void> updateBill(String id, Map<String, dynamic> data) async {
+    await client.from('bills').update(_cleanPayload(data)).eq('id', id).timeout(const Duration(seconds: 5));
+  }
+
+  static Future<List<Map<String, dynamic>>> getBills() async {
+    try {
+      final profile = await getProfile().catchError((_) => null);
+      final role = profile?['role']?.toString().toLowerCase();
+      final userId = client.auth.currentUser?.id;
+
+      if (await isOffline()) throw 'Offline';
+
+      var query = client.from('bills').select('*, farms(name, landmark, farmers(name, mobile, address))');
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('executive_id', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false).timeout(const Duration(seconds: 5));
+      final list = List<Map<String, dynamic>>.from(response);
+
+      final roleSuffix = role ?? 'all';
+      if (!kIsWeb) await LocalDatabaseService.saveCache('bills_$roleSuffix', list);
+
+      return list;
+    } catch (e) {
+      debugPrint('Error in getBills: $e');
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role']?.toString().toLowerCase();
+        final roleSuffix = role ?? 'all';
+        final cached = await LocalDatabaseService.getCache('bills_$roleSuffix');
+        if (cached != null) return cached;
+        // Fallback to SQLite
+        final localData = await LocalDatabaseService.getData('bills');
+        // Decode nested fields
+        return localData.map((b) {
+          final copy = Map<String, dynamic>.from(b);
+          if (copy['items'] is String) {
+            try {
+              copy['items'] = jsonDecode(copy['items']);
+            } catch (_) {}
+          }
+          return copy;
+        }).toList();
+      }
+      return [];
+    }
+  }
+
+  static Map<String, dynamic>? _cachedBillingConfig;
+
+  static Future<Map<String, dynamic>> getBillingConfig() async {
+    if (_cachedBillingConfig != null) {
+      return _cachedBillingConfig!;
+    }
+    try {
+      if (await isOffline()) {
+        final cached = await LocalDatabaseService.getCache('billing_config');
+        if (cached != null && cached.isNotEmpty) {
+          _cachedBillingConfig = cached.first;
+          return _cachedBillingConfig!;
+        }
+        return _defaultBillingConfig();
+      }
+
+      final response = await client
+          .from('dropdown_options')
+          .select()
+          .eq('type', 'billing_config')
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
+
+      if (response == null) {
+        final defaultConfig = _defaultBillingConfig();
+        final inserted = await client.from('dropdown_options').insert({
+          'type': 'billing_config',
+          'label': 'Billing Config',
+          'description': jsonEncode(defaultConfig),
+        }).select().single().timeout(const Duration(seconds: 3));
+
+        final configData = jsonDecode(inserted['description'] ?? '{}') as Map<String, dynamic>;
+        _cachedBillingConfig = configData;
+        if (!kIsWeb) {
+          await LocalDatabaseService.saveCache('billing_config', [configData]);
+        }
+        return configData;
+      }
+
+      final configData = jsonDecode(response['description'] ?? '{}') as Map<String, dynamic>;
+      _cachedBillingConfig = configData;
+      if (!kIsWeb) {
+        await LocalDatabaseService.saveCache('billing_config', [configData]);
+      }
+      return configData;
+    } catch (e) {
+      debugPrint('Error in getBillingConfig: $e');
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('billing_config');
+        if (cached != null && cached.isNotEmpty) {
+          _cachedBillingConfig = cached.first;
+          return _cachedBillingConfig!;
+        }
+      }
+      return _defaultBillingConfig();
+    }
+  }
+
+  static Future<void> saveBillingConfig(Map<String, dynamic> config) async {
+    _cachedBillingConfig = config;
+    try {
+      final response = await client
+          .from('dropdown_options')
+          .select()
+          .eq('type', 'billing_config')
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
+
+      if (response == null) {
+        await client.from('dropdown_options').insert({
+          'type': 'billing_config',
+          'label': 'Billing Config',
+          'description': jsonEncode(config),
+        }).timeout(const Duration(seconds: 3));
+      } else {
+        await client
+            .from('dropdown_options')
+            .update({
+              'description': jsonEncode(config),
+            })
+            .eq('type', 'billing_config')
+            .timeout(const Duration(seconds: 3));
+      }
+
+      if (!kIsWeb) {
+        await LocalDatabaseService.saveCache('billing_config', [config]);
+      }
+    } catch (e) {
+      debugPrint('Error in saveBillingConfig: $e');
+      rethrow;
+    }
+  }
+
+  static Map<String, dynamic> _defaultBillingConfig() {
+    return {
+      'account_name': 'SAIRAM AGRO MARKETERS',
+      'account_no': '611505016643',
+      'ifsc_code': 'ICIC0006115',
+      'bank_name': 'ICICI Bank',
+      'branch': 'Rajapalayam',
+      'company_gstin': '33EFZPS9942RIZT',
+      'qr_url': '',
+      'signature_url': '',
+    };
   }
 }

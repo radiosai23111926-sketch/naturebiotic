@@ -26,6 +26,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nature_biotic/features/expenses/widgets/trip_widgets.dart';
 import 'package:nature_biotic/features/dashboard/screens/admin_edit_requests_screen.dart';
+import 'package:nature_biotic/features/billing/screens/billing_list_screen.dart';
+import 'package:nature_biotic/features/billing/screens/admin_approval_list_screen.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -79,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<Map<String, dynamic>> _filteredTransactions = [];
   List<Map<String, dynamic>> _filteredCollections = [];
   List<Map<String, dynamic>> _reminders = [];
+  List<Map<String, dynamic>> _allBills = [];
 
   // Scroll & Animation Logic
   late ScrollController _scrollController;
@@ -138,6 +142,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       final remoteTransactions =
           await SupabaseService.getAllStockTransactions();
       final collections = await SupabaseService.getAllCollections();
+      final bills = await SupabaseService.getBills().catchError((e) {
+        debugPrint('Error fetching bills: $e');
+        return <Map<String, dynamic>>[];
+      });
 
       List<Map<String, dynamic>> localTransactions = [];
       if (!kIsWeb) {
@@ -205,6 +213,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           _allTransactions = transactions ?? [];
           _allCollections = collections ?? [];
           _allProducts = products ?? [];
+          _allBills = bills;
           _salesTarget = (profile?['sales_target'] ?? 0.0).toDouble();
 
           _presentCount = personalStats['present'] ?? 0;
@@ -829,6 +838,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   List<Widget> _buildAdminSections({required bool isWide}) {
+    final pendingApprovalsCount = _allBills.where((b) {
+      final s = b['status']?.toString().toUpperCase() ?? '';
+      return s == 'PENDING_APPROVAL';
+    }).length;
+
     return [
       _actionWrapper(
         isWide,
@@ -888,6 +902,26 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _actionWrapper(
+        isWide,
+        delay: 750,
+        child: _workActionCard(
+          context,
+          title: 'Discount Approvals',
+          subtitle: 'Review executive discount request tickets${pendingApprovalsCount > 0 ? " ($pendingApprovalsCount Pending)" : ""}',
+          icon: Icons.approval_rounded,
+          color: pendingApprovalsCount > 0 ? Colors.orange : AppColors.primary,
+          fullWidth: true,
+          onTap:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminApprovalListScreen(),
+                ),
+              ).then((_) => _loadDashboardData()),
         ),
       ),
       const SizedBox(height: 16),
@@ -2118,6 +2152,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildExecutiveSalesContent(NumberFormat currencyFormat) {
+    final pendingBillsCount = _allBills.where((b) {
+      final s = b['status']?.toString().toUpperCase() ?? '';
+      return s == 'PENDING_BILLING' || s == 'REJECTED';
+    }).length;
+
     return Column(
       children: [
         Row(
@@ -2219,6 +2258,27 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            _metricBox(
+              'Billing (${pendingBillsCount} Pending)',
+              pendingBillsCount.toDouble(),
+              Colors.purple.shade300,
+              Icons.receipt_long_rounded,
+              currencyFormat,
+              isCount: true,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BillingListScreen(),
+                  ),
+                ).then((_) => _loadDashboardData());
+              },
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -2230,6 +2290,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     IconData icon,
     NumberFormat currencyFormat, {
     VoidCallback? onTap,
+    bool isCount = false,
   }) {
     return Expanded(
       child: Material(
@@ -2289,7 +2350,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    currencyFormat.format(value.isFinite ? value : 0.0),
+                    isCount 
+                        ? value.toInt().toString()
+                        : currencyFormat.format(value.isFinite ? value : 0.0),
                     style: GoogleFonts.outfit(
                       color: color.withOpacity(
                         0.95,

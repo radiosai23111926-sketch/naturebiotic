@@ -703,18 +703,29 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     
     final customDcNumber = 'SAI$execPart$receiptPart/$fy';
 
-    PdfService.generateStockChallan(
-      items: challanItems,
-      farmName: farmData['farm_name'] ?? 'N/A',
-      farmerName: farmData['farmer_name'] ?? 'N/A',
-      cropName: farmData['crop_name'] ?? 'N/A',
-      transactionType: 'SALES',
-      date: DateTime.now(), // Use current date for the consolidated statement
-      farmerAddress: farmData['farmer_address'],
-      farmerContact: farmData['farmer_mobile'],
-      dcNumber: customDcNumber,
-      placeOfSupply: farmData['location']?.toString(),
-    );
+    try {
+      await PdfService.generateStockChallan(
+        items: challanItems,
+        farmName: farmData['farm_name'] ?? 'N/A',
+        farmerName: farmData['farmer_name'] ?? 'N/A',
+        cropName: farmData['crop_name'] ?? 'N/A',
+        transactionType: 'SALES',
+        date: DateTime.now(), // Use current date for the consolidated statement
+        farmerAddress: farmData['farmer_address'],
+        farmerContact: farmData['farmer_mobile'],
+        dcNumber: customDcNumber,
+        placeOfSupply: farmData['location']?.toString(),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sharing challan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _downloadPaymentReceipt(Map<String, dynamic> log, Map<String, dynamic> farmData) async {

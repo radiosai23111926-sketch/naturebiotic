@@ -495,16 +495,26 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
           };
         }).toList();
 
-    // 3. Generate PDF
-    await PdfService.generateStockChallan(
-      items: itemsForChallan,
-      farmName: widget.farmName,
-      farmerName: widget.farmerName ?? 'N/A',
-      cropName: widget.cropName ?? 'N/A',
-      transactionType: tx['transaction_type'],
-      date: createdAt,
-      placeOfSupply: _farmLocation,
-    );
+    try {
+      await PdfService.generateStockChallan(
+        items: itemsForChallan,
+        farmName: widget.farmName,
+        farmerName: widget.farmerName ?? 'N/A',
+        cropName: widget.cropName ?? 'N/A',
+        transactionType: tx['transaction_type'],
+        date: createdAt,
+        placeOfSupply: _farmLocation,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sharing challan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _formatType(String type) {

@@ -7,6 +7,9 @@ class DropdownOptionDialog extends StatefulWidget {
   final String? initialImageUrl;
   final double? initialMrp;
   final double? initialOfferPrice;
+  final double? initialTaxPercentage;
+  final String? initialHsnCode;
+  final String? initialDescription;
   final bool isProductName;
   final Future<String?> Function() onPickImage;
 
@@ -17,6 +20,9 @@ class DropdownOptionDialog extends StatefulWidget {
     this.initialImageUrl,
     this.initialMrp,
     this.initialOfferPrice,
+    this.initialTaxPercentage,
+    this.initialHsnCode,
+    this.initialDescription,
     required this.isProductName,
     required this.onPickImage,
   });
@@ -29,6 +35,9 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
   late TextEditingController labelController;
   late TextEditingController mrpController;
   late TextEditingController offerController;
+  late TextEditingController taxController;
+  late TextEditingController hsnController;
+  late TextEditingController descriptionController;
   String? imageUrl;
   bool isUploading = false;
 
@@ -38,6 +47,9 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
     labelController = TextEditingController(text: widget.initialLabel);
     mrpController = TextEditingController(text: widget.initialMrp?.toString());
     offerController = TextEditingController(text: widget.initialOfferPrice?.toString());
+    taxController = TextEditingController(text: widget.initialTaxPercentage?.toString());
+    hsnController = TextEditingController(text: widget.initialHsnCode);
+    descriptionController = TextEditingController(text: widget.initialDescription);
     imageUrl = widget.initialImageUrl;
   }
 
@@ -46,6 +58,9 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
     labelController.dispose();
     mrpController.dispose();
     offerController.dispose();
+    taxController.dispose();
+    hsnController.dispose();
+    descriptionController.dispose();
     super.dispose();
   }
 
@@ -160,6 +175,23 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
                       ),
                     if (widget.isProductName) ...[
                       const SizedBox(height: 16),
+                      TextField(
+                        controller: hsnController,
+                        decoration: const InputDecoration(
+                          labelText: 'HSN / SAC Code',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Product Description',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
@@ -179,6 +211,15 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: taxController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tax Percentage (%)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
                     ],
                   ],
                 ),
@@ -195,14 +236,38 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: () {
-                    if (labelController.text.isNotEmpty) {
-                      Navigator.pop(context, {
-                        'label': labelController.text.trim(),
-                        'imageUrl': imageUrl,
-                        'mrp': double.tryParse(mrpController.text),
-                        'offerPrice': double.tryParse(offerController.text),
-                      });
+                    final labelVal = labelController.text.trim();
+                    if (labelVal.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Label name is required')),
+                      );
+                      return;
                     }
+                    if (widget.isProductName) {
+                      final taxStr = taxController.text.trim();
+                      if (taxStr.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Tax percentage is required')),
+                        );
+                        return;
+                      }
+                      final taxVal = double.tryParse(taxStr);
+                      if (taxVal == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter a valid tax percentage')),
+                        );
+                        return;
+                      }
+                    }
+                    Navigator.pop(context, {
+                      'label': labelVal,
+                      'imageUrl': imageUrl,
+                      'mrp': double.tryParse(mrpController.text),
+                      'offerPrice': double.tryParse(offerController.text),
+                      'taxPercentage': double.tryParse(taxController.text),
+                      'hsnCode': hsnController.text.trim(),
+                      'description': descriptionController.text.trim(),
+                    });
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
