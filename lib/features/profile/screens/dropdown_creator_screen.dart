@@ -9,6 +9,8 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'dropdown_option_dialog.dart';
+import 'package:nature_biotic/services/local_database_service.dart';
+import 'package:nature_biotic/services/sync_manager.dart';
 
 class DropdownCreatorScreen extends StatefulWidget {
   const DropdownCreatorScreen({super.key});
@@ -830,6 +832,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
   // --- End Hierarchical Crop Methods ---
 
   Future<void> _editOption(Map<String, dynamic> option) async {
+    final isProduct = _selectedType == 'product_name';
+    final isParent = option['parent_id'] == null;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder:
@@ -842,7 +846,8 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
             initialTaxPercentage: option['tax_percentage'] != null ? (option['tax_percentage'] as num).toDouble() : null,
             initialHsnCode: option['hsn_code'],
             initialDescription: option['description'],
-            isProductName: _selectedType == 'product_name',
+            isProductName: isProduct,
+            showCascadeOption: isProduct && isParent,
             onPickImage: _pickAndUploadImage,
           ),
     );
@@ -860,6 +865,14 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           hsnCode: result['hsnCode'],
           description: result['description'],
         );
+        if (isProduct && isParent && result['applyToVariants'] == true) {
+          await SupabaseService.updateVariantsTaxHsnAndDesc(
+            option['id'],
+            taxPercentage: result['taxPercentage'],
+            hsnCode: result['hsnCode'] ?? '',
+            description: result['description'] ?? '',
+          );
+        }
         await _fetchOptions();
       } catch (e) {
         if (mounted) {
@@ -1769,6 +1782,16 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
                   ],
                 ),
               ),
+              if (_selectedType == 'place_of_supply')
+                IconButton(
+                  icon: const Icon(
+                    Icons.people_outline_rounded,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+                  tooltip: 'Map Farmers',
+                  onPressed: () => _mapFarmersToPlaceOfSupply(option),
+                ),
               IconButton(
                 icon: const Icon(
                   Icons.edit_outlined,
@@ -1787,6 +1810,201 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _mapFarmersToPlaceOfSupply(Map<String, dynamic> option) async {
+    setState(() => _isLoading = true);
+    List<Map<String, dynamic>> farmers = [];
+    try {
+      farmers = await SupabaseService.getFarmers();
+    } catch (e) {
+      debugPrint('Error fetching farmers: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
+    if (farmers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No farmers found.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    final placeName = option['label'].toString();
+    final List<String> initialMappedIds = farmers
+        .where((f) => f['place_of_supply']?.toString() == placeName)
+        .map((f) => f['id'].toString())
+        .toList();
+        
+    List<String> selectedIds = List.from(initialMappedIds);
+    String searchQuery = '';
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filteredFarmers = farmers.where((f) {
+              final name = (f['name'] ?? '').toString().toLowerCase();
+              final mobile = (f['mobile'] ?? '').toString().toLowerCase();
+              final village = (f['village'] ?? '').toString().toLowerCase();
+              final q = searchQuery.toLowerCase();
+              return name.contains(q) || mobile.contains(q) || village.contains(q);
+            }).toList();
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Map Farmers to $placeName',
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Select farmers belonging to this place of supply.',
+                    style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 400,
+                height: 450,
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search by name, phone or village...',
+                        prefixIcon: const Icon(Icons.search),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          searchQuery = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: filteredFarmers.isEmpty
+                          ? const Center(child: Text('No matching farmers found.'))
+                          : ListView.builder(
+                              itemCount: filteredFarmers.length,
+                              itemBuilder: (context, idx) {
+                                final farmer = filteredFarmers[idx];
+                                final fId = farmer['id'].toString();
+                                final isChecked = selectedIds.contains(fId);
+                                
+                                return CheckboxListTile(
+                                  value: isChecked,
+                                  title: Text(
+                                    farmer['name'] ?? 'N/A',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  subtitle: Text(
+                                    '${farmer['village'] ?? ''} • ${farmer['mobile'] ?? ''}',
+                                    style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey),
+                                  ),
+                                  onChanged: (val) {
+                                    setDialogState(() {
+                                      if (val == true) {
+                                        selectedIds.add(fId);
+                                      } else {
+                                        selectedIds.remove(fId);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    try {
+                      final toAdd = selectedIds.where((id) => !initialMappedIds.contains(id)).toList();
+                      final toRemove = initialMappedIds.where((id) => !selectedIds.contains(id)).toList();
+
+                      int updateCount = 0;
+
+                      for (final id in toAdd) {
+                        final farmerObj = farmers.firstWhere((f) => f['id'].toString() == id);
+                        if (kIsWeb) {
+                          await SupabaseService.updateFarmer(id, {'place_of_supply': placeName});
+                        } else {
+                          final localData = await LocalDatabaseService.getDataById('farmers', id) ?? farmerObj;
+                          await LocalDatabaseService.saveAndQueue(
+                            tableName: 'farmers',
+                            data: {...localData, 'place_of_supply': placeName},
+                            operation: 'UPDATE',
+                          );
+                        }
+                        updateCount++;
+                      }
+
+                      for (final id in toRemove) {
+                        final farmerObj = farmers.firstWhere((f) => f['id'].toString() == id);
+                        if (kIsWeb) {
+                          await SupabaseService.updateFarmer(id, {'place_of_supply': null});
+                        } else {
+                          final localData = await LocalDatabaseService.getDataById('farmers', id) ?? farmerObj;
+                          await LocalDatabaseService.saveAndQueue(
+                            tableName: 'farmers',
+                            data: {...localData, 'place_of_supply': null},
+                            operation: 'UPDATE',
+                          );
+                        }
+                        updateCount++;
+                      }
+
+                      if (!kIsWeb && updateCount > 0) {
+                        SyncManager().sync();
+                      }
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Successfully updated $updateCount farmer mappings.'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error mapping farmers: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    } finally {
+                      setState(() => _isLoading = false);
+                    }
+                  },
+                  child: const Text('Save Mappings'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -2575,106 +2793,157 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     final hsnController = TextEditingController();
     final descriptionController = TextEditingController();
 
-    final result = await showDialog<bool>(
+    bool applyToSiblings = false;
+    bool applyGlobally = false;
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Add Package Size'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(
-                      labelText: 'Size (e.g. 500ml)',
-                    ),
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: hsnController,
-                    decoration: const InputDecoration(
-                      labelText: 'HSN / SAC Code',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Description',
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: mrpController,
-                          decoration: const InputDecoration(labelText: 'MRP'),
-                          keyboardType: TextInputType.number,
-                        ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Add Package Size'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        labelText: 'Size (e.g. 500ml)',
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: offerController,
-                          decoration: const InputDecoration(
-                            labelText: 'Offer Price',
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: hsnController,
+                      decoration: const InputDecoration(
+                        labelText: 'HSN / SAC Code',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Product Description',
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: mrpController,
+                            decoration: const InputDecoration(labelText: 'MRP'),
+                            keyboardType: TextInputType.number,
                           ),
-                          keyboardType: TextInputType.number,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: taxController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tax Percentage (%)',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: offerController,
+                            decoration: const InputDecoration(
+                              labelText: 'Offer Price',
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: taxController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tax Percentage (%)',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      title: const Text(
+                        'Apply to all packet sizes of this product',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                      value: applyToSiblings,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          applyToSiblings = val ?? false;
+                          if (applyToSiblings && applyGlobally) {
+                            applyGlobally = false;
+                          }
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                    ),
+                    CheckboxListTile(
+                      title: const Text(
+                        'Apply to all products (global)',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                      value: applyGlobally,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          applyGlobally = val ?? false;
+                          if (applyGlobally && applyToSiblings) {
+                            applyToSiblings = false;
+                          }
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (controller.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Package size name is required')),
-                    );
-                    return;
-                  }
-                  final taxStr = taxController.text.trim();
-                  if (taxStr.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Tax percentage is required')),
-                    );
-                    return;
-                  }
-                  final taxVal = double.tryParse(taxStr);
-                  if (taxVal == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter a valid tax percentage')),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context, true);
-                },
-                child: const Text('Add'),
-              ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (controller.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Package size name is required')),
+                      );
+                      return;
+                    }
+                    final taxStr = taxController.text.trim();
+                    if (taxStr.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tax percentage is required')),
+                      );
+                      return;
+                    }
+                    final taxVal = double.tryParse(taxStr);
+                    if (taxVal == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid tax percentage')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context, {
+                      'success': true,
+                      'applyToSiblings': applyToSiblings,
+                      'applyGlobally': applyGlobally,
+                    });
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (result == true && controller.text.trim().isNotEmpty) {
+    if (result != null && result['success'] == true && controller.text.trim().isNotEmpty) {
       setState(() => _isLoading = true);
       try {
         await SupabaseService.addDropdownOption(
@@ -2687,6 +2956,25 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           hsnCode: hsnController.text.trim(),
           description: descriptionController.text.trim(),
         );
+
+        final taxVal = double.tryParse(taxController.text);
+        final hsnVal = hsnController.text.trim();
+        final descVal = descriptionController.text.trim();
+        if (result['applyGlobally'] == true) {
+          await SupabaseService.updateAllVariantsTaxHsnAndDesc(
+            taxPercentage: taxVal,
+            hsnCode: hsnVal,
+            description: descVal,
+          );
+        } else if (result['applyToSiblings'] == true) {
+          await SupabaseService.updateVariantsTaxHsnAndDesc(
+            productId,
+            taxPercentage: taxVal,
+            hsnCode: hsnVal,
+            description: descVal,
+          );
+        }
+
         await _fetchOptions();
       } catch (e) {
         if (mounted) {
@@ -2721,106 +3009,157 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
       text: variant['description']?.toString() ?? '',
     );
 
-    final result = await showDialog<bool>(
+    bool applyToSiblings = false;
+    bool applyGlobally = false;
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Edit Package Size'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(
-                      labelText: 'Size (e.g. 500ml)',
-                    ),
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: hsnController,
-                    decoration: const InputDecoration(
-                      labelText: 'HSN / SAC Code',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Description',
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: mrpController,
-                          decoration: const InputDecoration(labelText: 'MRP'),
-                          keyboardType: TextInputType.number,
-                        ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Edit Package Size'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        labelText: 'Size (e.g. 500ml)',
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: offerController,
-                          decoration: const InputDecoration(
-                            labelText: 'Offer Price',
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: hsnController,
+                      decoration: const InputDecoration(
+                        labelText: 'HSN / SAC Code',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Product Description',
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: mrpController,
+                            decoration: const InputDecoration(labelText: 'MRP'),
+                            keyboardType: TextInputType.number,
                           ),
-                          keyboardType: TextInputType.number,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: taxController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tax Percentage (%)',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: offerController,
+                            decoration: const InputDecoration(
+                              labelText: 'Offer Price',
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: taxController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tax Percentage (%)',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      title: const Text(
+                        'Apply to all packet sizes of this product',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                      value: applyToSiblings,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          applyToSiblings = val ?? false;
+                          if (applyToSiblings && applyGlobally) {
+                            applyGlobally = false;
+                          }
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                    ),
+                    CheckboxListTile(
+                      title: const Text(
+                        'Apply to all products (global)',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                      value: applyGlobally,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          applyGlobally = val ?? false;
+                          if (applyGlobally && applyToSiblings) {
+                            applyToSiblings = false;
+                          }
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (controller.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Package size name is required')),
-                    );
-                    return;
-                  }
-                  final taxStr = taxController.text.trim();
-                  if (taxStr.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Tax percentage is required')),
-                    );
-                    return;
-                  }
-                  final taxVal = double.tryParse(taxStr);
-                  if (taxVal == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter a valid tax percentage')),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context, true);
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (controller.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Package size name is required')),
+                      );
+                      return;
+                    }
+                    final taxStr = taxController.text.trim();
+                    if (taxStr.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tax percentage is required')),
+                      );
+                      return;
+                    }
+                    final taxVal = double.tryParse(taxStr);
+                    if (taxVal == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid tax percentage')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context, {
+                      'success': true,
+                      'applyToSiblings': applyToSiblings,
+                      'applyGlobally': applyGlobally,
+                    });
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (result == true && controller.text.isNotEmpty) {
+    if (result != null && result['success'] == true && controller.text.isNotEmpty) {
       setState(() => _isLoading = true);
       try {
         await SupabaseService.updateDropdownOption(
@@ -2832,6 +3171,25 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           hsnCode: hsnController.text.trim(),
           description: descriptionController.text.trim(),
         );
+
+        final taxVal = double.tryParse(taxController.text);
+        final hsnVal = hsnController.text.trim();
+        final descVal = descriptionController.text.trim();
+        if (result['applyGlobally'] == true) {
+          await SupabaseService.updateAllVariantsTaxHsnAndDesc(
+            taxPercentage: taxVal,
+            hsnCode: hsnVal,
+            description: descVal,
+          );
+        } else if (result['applyToSiblings'] == true) {
+          await SupabaseService.updateVariantsTaxHsnAndDesc(
+            productId,
+            taxPercentage: taxVal,
+            hsnCode: hsnVal,
+            description: descVal,
+          );
+        }
+
         await _fetchOptions();
       } catch (e) {
         if (mounted) {

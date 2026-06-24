@@ -11,7 +11,7 @@ class LocalDatabaseService {
   static Database? _database;
   static Future<Database?>? _initFuture;
   static const String _databaseName = "nature_biotic_local.db";
-  static const int _databaseVersion = 21;
+  static const int _databaseVersion = 22;
 
   static Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -368,6 +368,14 @@ class LocalDatabaseService {
         debugPrint('DB Upgrade Error (v21): $e');
       }
     }
+
+    if (oldVersion < 22) {
+      try {
+        await db.execute('ALTER TABLE farmers ADD COLUMN place_of_supply TEXT');
+      } catch (e) {
+        debugPrint('DB Upgrade Error (v22): $e');
+      }
+    }
   }
 
   static Future<void> _onCreate(Database db, int version) async {
@@ -380,6 +388,7 @@ class LocalDatabaseService {
         village TEXT,
         address TEXT,
         category TEXT,
+        place_of_supply TEXT,
         photo_url TEXT,
         _local_photo BLOB,
         created_by TEXT,

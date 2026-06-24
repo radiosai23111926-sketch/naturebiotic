@@ -110,12 +110,21 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
             _customerNameController.text = farmerName;
           }
 
-          final farmLocation = farmInfo?['location']?.toString() ?? farmInfo?['place']?.toString();
-          if (farmLocation != null && farmLocation.isNotEmpty) {
-            if (!_placeOfSupplyOptions.contains(farmLocation)) {
-              _placeOfSupplyOptions.add(farmLocation);
+          final farmerPlaceOfSupply = farmerData?['place_of_supply']?.toString() ?? '';
+          final farmLocation = farmInfo?['location']?.toString() ?? farmInfo?['place']?.toString() ?? '';
+          
+          String? defaultPos;
+          if (farmerPlaceOfSupply.isNotEmpty) {
+            defaultPos = farmerPlaceOfSupply;
+          } else if (farmLocation.isNotEmpty) {
+            defaultPos = farmLocation;
+          }
+
+          if (defaultPos != null && defaultPos.isNotEmpty) {
+            if (!_placeOfSupplyOptions.contains(defaultPos)) {
+              _placeOfSupplyOptions.add(defaultPos);
             }
-            _selectedPlaceOfSupply = farmLocation;
+            _selectedPlaceOfSupply = defaultPos;
           }
 
           final farmerId = farmerData?['id']?.toString() ?? '';
@@ -320,7 +329,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
           farmerContact: farmerData?['mobile'] ?? 'N/A',
           dcNumber: generatedDcNo,
-          placeOfSupply: _isGstApplicable ? _selectedPlaceOfSupply : null,
+          placeOfSupply: _selectedPlaceOfSupply,
           customerGstin: _isGstApplicable ? _gstinController.text.trim() : null,
         ),
       ),
@@ -440,7 +449,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           'total_tax_amount': totalTax,
           'grand_total': grandTotal,
           'status': 'PENDING_BILLING',
-          'place_of_supply': _isGstApplicable ? _selectedPlaceOfSupply : null,
+          'place_of_supply': _selectedPlaceOfSupply,
           'customer_gstin': _isGstApplicable && _gstinController.text.trim().isNotEmpty ? _gstinController.text.trim() : null,
           'customer_name': _isGstApplicable && _customerNameController.text.trim().isNotEmpty ? _customerNameController.text.trim() : null,
           'created_at': _overrideStaffId != null ? _overrideDate.toIso8601String() : timestamp,
@@ -519,83 +528,70 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                         onDateChanged: (dt) => _overrideDate = dt,
                       ),
                       const SizedBox(height: 16),
-                      SwitchListTile(
-                        value: _isGstApplicable,
-                        onChanged: (bool val) {
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedPlaceOfSupply,
+                        decoration: const InputDecoration(
+                          labelText: 'Place of Supply',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        items: _placeOfSupplyOptions
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(e, style: const TextStyle(fontSize: 13)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
                           setState(() {
-                            _isGstApplicable = val;
+                            _selectedPlaceOfSupply = v;
                           });
                         },
-                        title: const Text(
-                          'GST Applicable',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        subtitle: const Text(
-                          'Enable to add GSTIN, place of supply, and map customer name',
-                          style: TextStyle(fontSize: 11, color: AppColors.textGray),
-                        ),
-                        activeColor: AppColors.primary,
-                        contentPadding: EdgeInsets.zero,
+                        validator: (v) {
+                          if (_isGstApplicable && (v == null || v.isEmpty)) {
+                            return 'Place of Supply is required';
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      if (_isGstApplicable) ...[
-                        DropdownButtonFormField<String>(
-                          value: _selectedPlaceOfSupply,
-                          decoration: const InputDecoration(
-                            labelText: 'Place of Supply',
-                            prefixIcon: Icon(Icons.location_on_outlined),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _customerNameController,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Customer Name (for GST)',
+                          prefixIcon: Icon(Icons.person_outline),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                          items: _placeOfSupplyOptions
-                              .map(
-                                (e) => DropdownMenuItem(
-                                  value: e,
-                                  child: Text(e, style: const TextStyle(fontSize: 13)),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              _selectedPlaceOfSupply = v;
-                            });
-                          },
-                          validator: (v) => (v == null || v.isEmpty) ? 'Place of Supply is required' : null,
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _customerNameController,
-                          style: const TextStyle(fontSize: 13),
-                          decoration: const InputDecoration(
-                            labelText: 'Customer Name (for GST)',
-                            prefixIcon: Icon(Icons.person_outline),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
+                        validator: (v) {
+                          if (_isGstApplicable && (v == null || v.trim().isEmpty)) {
+                            return 'Customer Name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _gstinController,
+                        style: const TextStyle(fontSize: 13),
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Customer GSTIN',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Customer Name is required' : null,
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _gstinController,
-                          style: const TextStyle(fontSize: 13),
-                          decoration: const InputDecoration(
-                            labelText: 'Customer GSTIN',
-                            prefixIcon: Icon(Icons.badge_outlined),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'GSTIN is required' : null,
-                        ),
-                      ],
+                      ),
                       const SizedBox(height: 16),
                       if (widget.cropName != null)
                         Container(
@@ -866,7 +862,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
+          (dialogContext) => AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(28),
             ),
@@ -912,12 +908,12 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                         farmerAddress: farmerData?['address'] ?? _fullFarmData?['landmark'] ?? 'N/A',
                         farmerContact: farmerData?['mobile'] ?? 'N/A',
                         dcNumber: dcNumber,
-                        placeOfSupply: _isGstApplicable ? _selectedPlaceOfSupply : null,
+                        placeOfSupply: _selectedPlaceOfSupply,
                         customerGstin: _isGstApplicable ? _gstinController.text.trim() : null,
                       );
                     } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      if (dialogContext.mounted) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(
                             content: Text('Error sharing challan: $e'),
                             backgroundColor: Colors.red,
@@ -937,7 +933,7 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(dialogContext); // Close dialog
                     Navigator.pop(
                       context,
                       savedData,

@@ -1690,6 +1690,24 @@ class SupabaseService {
     await client.from('dropdown_options').delete().eq('id', id);
   }
 
+  static Future<void> updateVariantsTaxHsnAndDesc(int productId, {double? taxPercentage, required String hsnCode, required String description}) async {
+    final Map<String, dynamic> updateData = {
+      'hsn_code': hsnCode,
+      'description': description,
+    };
+    if (taxPercentage != null) updateData['tax_percentage'] = taxPercentage;
+    await client.from('dropdown_options').update(updateData).eq('parent_id', productId);
+  }
+
+  static Future<void> updateAllVariantsTaxHsnAndDesc({double? taxPercentage, required String hsnCode, required String description}) async {
+    final Map<String, dynamic> updateData = {
+      'hsn_code': hsnCode,
+      'description': description,
+    };
+    if (taxPercentage != null) updateData['tax_percentage'] = taxPercentage;
+    await client.from('dropdown_options').update(updateData).eq('type', 'product_name').not('parent_id', 'is', null);
+  }
+
   static Future<List<Map<String, dynamic>>> getHierarchicalDropdownOptions(String type) async {
     try {
       if (await isOffline()) throw 'Offline';

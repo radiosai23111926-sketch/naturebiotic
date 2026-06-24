@@ -586,6 +586,12 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           'Village',
           _farmer['village'] ?? 'N/A',
         ),
+        const Divider(height: 32, thickness: 0.5),
+        _infoSection(
+          Icons.pin_drop_rounded,
+          'Place of Supply',
+          _farmer['place_of_supply'] ?? 'N/A',
+        ),
         ..._buildDetailedAddressSections(),
       ],
     );
@@ -618,6 +624,21 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                 iconColor: Colors.orange,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoTile(
+                icon: Icons.pin_drop_rounded,
+                label: 'Place of Supply',
+                value: _farmer['place_of_supply'] ?? 'N/A',
+                iconColor: Colors.purple,
+              ),
+            ),
+            const SizedBox(width: 24),
+            const Expanded(child: SizedBox.shrink()),
           ],
         ),
         const SizedBox(height: 24),
@@ -824,6 +845,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
             'district': 'District',
             'landmark': 'Landmark',
             'category': 'Category',
+            'place_of_supply': 'Place of Supply',
           },
         );
       },

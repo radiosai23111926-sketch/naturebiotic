@@ -31,6 +31,8 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
   final _landmarkController = TextEditingController();
   String? _selectedCategory;
   List<String> _categories = ['Hot', 'Warm', 'Cold'];
+  List<String> _placesOfSupply = [];
+  String? _selectedPlaceOfSupply;
   bool _isLoading = false;
   String? _overrideStaffId;
   DateTime _overrideDate = DateTime.now();
@@ -140,6 +142,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
     super.initState();
     _loadUserRole();
     _fetchCategories();
+    _fetchPlacesOfSupply();
     if (widget.farmer != null) {
       _nameController.text = widget.farmer!['name'] ?? '';
       _villageController.text = widget.farmer!['village'] ?? '';
@@ -154,6 +157,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         _talukController.text = addr;
       }
       _selectedCategory = widget.farmer!['category'];
+      _selectedPlaceOfSupply = widget.farmer!['place_of_supply']?.toString();
       _initialPhotoUrl = widget.farmer!['photo_url'];
       if (widget.farmer!['_local_photo'] != null) {
         if (widget.farmer!['_local_photo'] is Uint8List) {
@@ -185,6 +189,23 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
     }
   }
 
+  Future<void> _fetchPlacesOfSupply() async {
+    try {
+      final options = await SupabaseService.getDropdownOptions('place_of_supply');
+      if (options.isNotEmpty) {
+        setState(() {
+          _placesOfSupply = options.map((e) => e['label'].toString()).toList();
+          if (_selectedPlaceOfSupply != null &&
+              !_placesOfSupply.contains(_selectedPlaceOfSupply)) {
+            _selectedPlaceOfSupply = null;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching places of supply: $e');
+    }
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -209,6 +230,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'address':
             '${_talukController.text.trim()}\n${_districtController.text.trim()}\n${_landmarkController.text.trim()}',
         'category': _selectedCategory,
+        'place_of_supply': _selectedPlaceOfSupply,
         'photo_url': photoUrl,
         'created_at': widget.farmer != null
             ? (widget.farmer!['created_at'] ?? DateTime.now().toIso8601String())
@@ -336,6 +358,8 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                 dbKey = 'address';
               else if (key.contains('category'))
                 dbKey = 'category';
+              else if (key.contains('place_of_supply') || key.contains('supply') || key.contains('state'))
+                dbKey = 'place_of_supply';
 
               if (dbKey != null) {
                 String val = row[i].toString().trim();
@@ -380,7 +404,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
             }
 
             // Ensure all recognized keys exist in every map to maintain consistent schema
-            for (var k in ['mobile', 'village', 'address', 'category']) {
+            for (var k in ['mobile', 'village', 'address', 'category', 'place_of_supply']) {
               farmer[k] ??= (k == 'category' ? 'Warm' : null);
             }
             farmers.add(farmer);
@@ -426,6 +450,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'district',
         'landmark',
         'category',
+        'place_of_supply',
       ];
       const exampleRow = [
         'John Doe',
@@ -435,6 +460,7 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
         'Mandya',
         'Near Post Office',
         'Warm',
+        'Tamilnadu',
       ];
 
       String csvContent = const ListToCsvConverter().convert([
@@ -710,6 +736,35 @@ class _AddFarmerScreenState extends State<AddFarmerScreen> {
                               (v) =>
                                   (v == null || v.isEmpty)
                                       ? 'Selection required'
+                                      : null,
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value:
+                              (_selectedPlaceOfSupply != null &&
+                                      _placesOfSupply.contains(_selectedPlaceOfSupply))
+                                  ? _selectedPlaceOfSupply
+                                  : null,
+                          decoration: const InputDecoration(
+                            labelText: 'Place of Supply',
+                            fillColor: Colors.white,
+                          ),
+                          items:
+                              _placesOfSupply.map((String supply) {
+                                return DropdownMenuItem(
+                                  value: supply,
+                                  child: Text(supply),
+                                );
+                              }).toList(),
+                          onChanged: (String? value) {
+                            setState(() {
+                              _selectedPlaceOfSupply = value;
+                            });
+                          },
+                          validator:
+                              (v) =>
+                                  (v == null || v.isEmpty)
+                                      ? 'Place of Supply is required'
                                       : null,
                         ),
                       ],

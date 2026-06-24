@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:nature_biotic/core/theme.dart';
 
 class DropdownOptionDialog extends StatefulWidget {
   final String title;
@@ -11,6 +12,7 @@ class DropdownOptionDialog extends StatefulWidget {
   final String? initialHsnCode;
   final String? initialDescription;
   final bool isProductName;
+  final bool showCascadeOption;
   final Future<String?> Function() onPickImage;
 
   const DropdownOptionDialog({
@@ -24,6 +26,7 @@ class DropdownOptionDialog extends StatefulWidget {
     this.initialHsnCode,
     this.initialDescription,
     required this.isProductName,
+    this.showCascadeOption = false,
     required this.onPickImage,
   });
 
@@ -40,6 +43,7 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
   late TextEditingController descriptionController;
   String? imageUrl;
   bool isUploading = false;
+  bool applyToVariants = true;
 
   @override
   void initState() {
@@ -220,6 +224,25 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
                         ),
                         keyboardType: TextInputType.number,
                       ),
+                      if (widget.isProductName && widget.showCascadeOption) ...[
+                        const SizedBox(height: 8),
+                        CheckboxListTile(
+                          title: const Text(
+                            'Apply to all packet sizes of this product',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                          value: applyToVariants,
+                          onChanged: (val) {
+                            setState(() {
+                              applyToVariants = val ?? false;
+                            });
+                          },
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          dense: true,
+                        ),
+                      ],
                     ],
                   ],
                 ),
@@ -267,6 +290,7 @@ class _DropdownOptionDialogState extends State<DropdownOptionDialog> {
                       'taxPercentage': double.tryParse(taxController.text),
                       'hsnCode': hsnController.text.trim(),
                       'description': descriptionController.text.trim(),
+                      'applyToVariants': applyToVariants,
                     });
                   },
                   style: ElevatedButton.styleFrom(
