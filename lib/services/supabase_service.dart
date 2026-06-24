@@ -546,6 +546,7 @@ class SupabaseService {
 
   static Future<Map<String, dynamic>?> getFarmAndFarmerInfo(String farmId) async {
     try {
+      if (await isOffline()) throw 'Offline';
       final response = await client
           .from('farms')
           .select('*, farmers(*)')
@@ -554,6 +555,34 @@ class SupabaseService {
       return response;
     } catch (e) {
       debugPrint('Error in getFarmAndFarmerInfo: $e');
+      if (!kIsWeb) {
+        try {
+          final dbFarms = await LocalDatabaseService.getData('farms');
+          final farm = dbFarms.firstWhere(
+            (f) => f['id'].toString() == farmId.toString(),
+            orElse: () => {},
+          );
+          if (farm.isNotEmpty) {
+            final farmerId = farm['farmer_id']?.toString();
+            if (farmerId != null) {
+              final dbFarmers = await LocalDatabaseService.getData('farmers');
+              final farmer = dbFarmers.firstWhere(
+                (f) => f['id'].toString() == farmerId,
+                orElse: () => {},
+              );
+              if (farmer.isNotEmpty) {
+                return {
+                  ...farm,
+                  'farmers': farmer,
+                };
+              }
+            }
+            return farm;
+          }
+        } catch (localError) {
+          debugPrint('Local fallback error in getFarmAndFarmerInfo: $localError');
+        }
+      }
       return null;
     }
   }
@@ -575,7 +604,8 @@ class SupabaseService {
       final data = List<Map<String, dynamic>>.from(await query.order('created_at').timeout(const Duration(seconds: 4)));
       // Cache on success
       if (!kIsWeb) await LocalDatabaseService.saveCache('farms_${role ?? 'all'}', data);
-      return LocalDatabaseService.mergeWithPending('farms', data);
+      final merged = await LocalDatabaseService.mergeWithPending('farms', data);
+      return await _resolveFarmerRelations(merged);
     } catch (e) {
       debugPrint('Error in getFarms: $e');
       // Fallback to cache
@@ -583,7 +613,13 @@ class SupabaseService {
         final profile = await getProfile().catchError((_) => null);
         final role = profile?['role'];
         final cached = await LocalDatabaseService.getCache('farms_${role ?? 'all'}');
-        if (cached != null) return LocalDatabaseService.mergeWithPending('farms', cached);
+        if (cached != null) {
+          final merged = await LocalDatabaseService.mergeWithPending('farms', cached);
+          return await _resolveFarmerRelations(merged);
+        }
+        // Even if cached is null, try to load from local db directly
+        final localFarms = await LocalDatabaseService.getData('farms');
+        return await _resolveFarmerRelations(localFarms);
       }
       return [];
     }
@@ -629,7 +665,8 @@ class SupabaseService {
       if (!kIsWeb) await LocalDatabaseService.saveCache('farms_by_farmer_$farmerId', data);
       
       final merged = await LocalDatabaseService.mergeWithPending('farms', data);
-      return merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+      final filtered = merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+      return await _resolveFarmerRelations(filtered);
     } catch (e) {
       debugPrint('Error in getFarmsByFarmer: $e');
       if (!kIsWeb) {
@@ -646,7 +683,8 @@ class SupabaseService {
         }
         final baseData = cached ?? [];
         final merged = await LocalDatabaseService.mergeWithPending('farms', baseData);
-        return merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+        final filtered = merged.where((f) => f['farmer_id'].toString() == farmerId.toString()).toList();
+        return await _resolveFarmerRelations(filtered);
       }
       return [];
     }
@@ -739,7 +777,8 @@ class SupabaseService {
       }
       // Cache on success
       if (!kIsWeb) await LocalDatabaseService.saveCache('crops_${role ?? 'all'}', data);
-      return LocalDatabaseService.mergeWithPending('crops', data);
+      final merged = await LocalDatabaseService.mergeWithPending('crops', data);
+      return await _resolveCropRelations(merged);
     } catch (e) {
       debugPrint('Error in getAllCrops: $e');
       // Fallback to cache
@@ -747,9 +786,13 @@ class SupabaseService {
         final profile = await getProfile().catchError((_) => null);
         final role = profile?['role'];
         final cached = await LocalDatabaseService.getCache('crops_${role ?? 'all'}');
-        if (cached != null) return LocalDatabaseService.mergeWithPending('crops', cached);
+        if (cached != null) {
+          final merged = await LocalDatabaseService.mergeWithPending('crops', cached);
+          return await _resolveCropRelations(merged);
+        }
         // Last resort: SQLite local table
-        return await LocalDatabaseService.getData('crops');
+        final localCrops = await LocalDatabaseService.getData('crops');
+        return await _resolveCropRelations(localCrops);
       }
       return [];
     }
@@ -2849,5 +2892,77 @@ class SupabaseService {
       'qr_url': '',
       'signature_url': '',
     };
+  }
+
+  static Future<List<Map<String, dynamic>>> _resolveFarmerRelations(List<Map<String, dynamic>> farms) async {
+    if (kIsWeb || farms.isEmpty) return farms;
+    try {
+      final dbFarmers = await LocalDatabaseService.getData('farmers');
+      if (dbFarmers.isEmpty) return farms;
+      final farmerMap = {for (var f in dbFarmers) f['id'].toString(): f};
+
+      return farms.map((farm) {
+        if (farm['farmers'] != null && farm['farmers']['name'] != null) {
+          return farm;
+        }
+        final farmerId = farm['farmer_id']?.toString();
+        if (farmerId != null && farmerMap.containsKey(farmerId)) {
+          return {
+            ...farm,
+            'farmers': {
+              'name': farmerMap[farmerId]!['name'],
+            },
+          };
+        }
+        return farm;
+      }).toList();
+    } catch (e) {
+      debugPrint('Error resolving farmer relations: $e');
+      return farms;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _resolveCropRelations(List<Map<String, dynamic>> crops) async {
+    if (kIsWeb || crops.isEmpty) return crops;
+    try {
+      final dbFarms = await LocalDatabaseService.getData('farms');
+      final dbFarmers = await LocalDatabaseService.getData('farmers');
+      if (dbFarms.isEmpty) return crops;
+
+      final farmMap = {for (var f in dbFarms) f['id'].toString(): f};
+      final farmerMap = {for (var f in dbFarmers) f['id'].toString(): f};
+
+      return crops.map((crop) {
+        if (crop['farms'] != null && 
+            crop['farms']['name'] != null && 
+            crop['farms']['farmers'] != null && 
+            crop['farms']['farmers']['name'] != null) {
+          return crop;
+        }
+        final farmId = crop['farm_id']?.toString();
+        if (farmId != null && farmMap.containsKey(farmId)) {
+          final farm = farmMap[farmId]!;
+          final farmerId = farm['farmer_id']?.toString();
+          Map<String, dynamic>? farmerObj;
+          if (farmerId != null && farmerMap.containsKey(farmerId)) {
+            farmerObj = {
+              'name': farmerMap[farmerId]!['name'],
+            };
+          }
+          return {
+            ...crop,
+            'farms': {
+              'name': farm['name'],
+              'assigned_to': farm['assigned_to'],
+              if (farmerObj != null) 'farmers': farmerObj,
+            },
+          };
+        }
+        return crop;
+      }).toList();
+    } catch (e) {
+      debugPrint('Error resolving crop relations: $e');
+      return crops;
+    }
   }
 }
