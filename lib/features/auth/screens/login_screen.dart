@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _isHovered = false;
 
   Future<void> _handleLogin() async {
     setState(() {
@@ -100,9 +101,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final errStr = e.toString().toLowerCase();
+        final isInvalid = errStr.contains('invalid_credentials') || 
+                          errStr.contains('invalid login credentials');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login Error: ${e.toString()}'),
+            content: Text(isInvalid ? 'Wrong username or password' : 'Login Error: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -341,35 +345,41 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Login Button
                         SizedBox(
                           width: double.infinity,
-                          child: ScaleButton(
-                            onTap: _isLoading ? null : _handleLogin,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                          child: MouseRegion(
+                            onEnter: (_) => setState(() => _isHovered = true),
+                            onExit: (_) => setState(() => _isHovered = false),
+                            child: ScaleButton(
+                              onTap: _isLoading ? null : _handleLogin,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 0,
+                                  disabledBackgroundColor: _isHovered ? AppColors.accent : AppColors.primary,
+                                  disabledForegroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
                                 ),
+                                onPressed: null, // Tap handled by ScaleButton
+                                child:
+                                    _isLoading
+                                        ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Text(
+                                          'Secure Login',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
                               ),
-                              onPressed: null, // Tap handled by ScaleButton
-                              child:
-                                  _isLoading
-                                      ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                      : const Text(
-                                        'Secure Login',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
                             ),
                           ),
                         ),
