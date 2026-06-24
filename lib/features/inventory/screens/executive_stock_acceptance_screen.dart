@@ -12,6 +12,7 @@ class ExecutiveStockAcceptanceScreen extends StatefulWidget {
 
 class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanceScreen> {
   bool _isLoading = true;
+  bool _isProcessing = false;
   List<Map<String, dynamic>> _pendingTransactions = [];
   List<Map<String, dynamic>> _productOptions = [];
   String? _currentUserId;
@@ -46,17 +47,12 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
   Future<void> _handleAcceptance(String id, bool accept) async {
     final status = accept ? 'ACCEPTED' : 'REJECTED';
     
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
-    );
+    setState(() => _isProcessing = true);
  
     try {
       await SupabaseService.updateStoreTransactionStatus(id, status);
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Stock ${status.toLowerCase()} successfully')),
         );
@@ -64,7 +60,7 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
@@ -90,16 +86,12 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
  
     if (confirm != true) return;
  
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
-    );
+    setState(() => _isProcessing = true);
  
     try {
       await SupabaseService.deleteStoreTransaction(id);
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Delivery deleted successfully')),
         );
@@ -107,7 +99,7 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
@@ -125,11 +117,22 @@ class _ExecutiveStockAcceptanceScreenState extends State<ExecutiveStockAcceptanc
           IconButton(onPressed: _loadPending, icon: const Icon(Icons.refresh_rounded)),
         ],
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : _pendingTransactions.isEmpty 
-              ? _buildEmptyState()
-              : _buildPendingList(),
+      body: Stack(
+        children: [
+          _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : _pendingTransactions.isEmpty 
+                  ? _buildEmptyState()
+                  : _buildPendingList(),
+          if (_isProcessing)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

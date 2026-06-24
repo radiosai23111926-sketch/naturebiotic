@@ -14,6 +14,7 @@ class StoreStockReturnAcceptanceScreen extends StatefulWidget {
 
 class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAcceptanceScreen> {
   bool _isLoading = true;
+  bool _isProcessing = false;
   List<Map<String, dynamic>> _pendingReturns = [];
   List<Map<String, dynamic>> _returnHistory = [];
   List<Map<String, dynamic>> _productOptions = [];
@@ -49,17 +50,12 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
   }
 
   Future<void> _handleAction(String id, String status) async {
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
-    );
+    setState(() => _isProcessing = true);
 
     try {
       await SupabaseService.updateStoreTransactionStatus(id, status);
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Task ${status.toLowerCase()} successfully')),
         );
@@ -67,7 +63,7 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
@@ -97,25 +93,36 @@ class _StoreStockReturnAcceptanceScreenState extends State<StoreStockReturnAccep
           IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh_rounded)),
         ],
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                _buildSectionHeader('Pending Tasks', _pendingReturns.length),
-                if (_pendingReturns.isEmpty)
-                  _buildEmptyState('No pending requests or returns')
-                else
-                  _buildPendingList(),
-                
-                _buildSectionHeader('Task History', _returnHistory.length),
-                if (_returnHistory.isEmpty)
-                  _buildEmptyState('No history found')
-                else
-                  _buildHistoryList(),
-                
-                const SliverToBoxAdapter(child: SizedBox(height: 40)),
-              ],
+      body: Stack(
+        children: [
+          _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : CustomScrollView(
+                  slivers: [
+                    _buildSectionHeader('Pending Tasks', _pendingReturns.length),
+                    if (_pendingReturns.isEmpty)
+                      _buildEmptyState('No pending requests or returns')
+                    else
+                      _buildPendingList(),
+                    
+                    _buildSectionHeader('Task History', _returnHistory.length),
+                    if (_returnHistory.isEmpty)
+                      _buildEmptyState('No history found')
+                    else
+                      _buildHistoryList(),
+                    
+                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  ],
+                ),
+          if (_isProcessing)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
+        ],
+      ),
     );
   }
 

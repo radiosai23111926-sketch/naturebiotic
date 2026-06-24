@@ -368,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     builder: (context) => _supportSheet(),
                   );
                 }),
-                if (_profile?['role'] == 'admin')
+                if (_profile?['role'] == 'admin' || _profile?['role'] == 'data_entry')
                   _profileOption(
                     Icons.settings_suggest_rounded, 
                     'Drop down Creator', 

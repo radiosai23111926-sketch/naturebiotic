@@ -73,9 +73,30 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
     'farmer_gst': 'Farmer GST Mappings',
   };
 
+  String? _userRole;
+
   @override
   void initState() {
     super.initState();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    try {
+      final profile = await SupabaseService.getProfile();
+      if (mounted) {
+        setState(() {
+          _userRole = profile?['role'] ?? 'executive';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user role: $e');
+      if (mounted) {
+        setState(() {
+          _userRole = 'executive';
+        });
+      }
+    }
   }
 
   @override
@@ -1162,6 +1183,15 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_userRole == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(title: const Text('Drop down Creator')),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Drop down Creator')),
@@ -1169,220 +1199,248 @@ class _DropdownCreatorScreenState extends State<DropdownCreatorScreen> {
           _tableMissing
               ? _buildSetupGuide()
               : Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 900),
-                  child: Column(
-                    children: [
-                      // Header / Type Selector
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(32),
-                            bottomRight: Radius.circular(32),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Select Dropdown Type',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Column(
+                      children: [
+                        // Header / Type Selector
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(32),
+                              bottomRight: Radius.circular(32),
                             ),
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<String>(
-                              value: _selectedType,
-                              decoration: const InputDecoration(
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Select Dropdown Type',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
-                              hint: const Text('Choose a category to manage'),
-                              items: [
-                                // Farmer Profile
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'FARMER PROFILE',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                value: _selectedType,
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
                                   ),
                                 ),
-                                ...['farmer_category'].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                hint: const Text('Choose a category to manage'),
+                                items: _userRole == 'data_entry'
+                                    ? [
+                                        // Billing details
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'BILLING',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...['place_of_supply', 'farmer_gst'].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
+                                      ]
+                                    : [
+                                        // Farmer Profile
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'FARMER PROFILE',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...['farmer_category'].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Farm Registration
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'FARM REGISTRATION',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                ...[
-                                  'soil_type',
-                                  'irrigation_type',
-                                  'water_source',
-                                  'water_quantity',
-                                  'power_source',
-                                  'acre_unit',
-                                ].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                        // Farm Registration
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'FARM REGISTRATION',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...[
+                                          'soil_type',
+                                          'irrigation_type',
+                                          'water_source',
+                                          'water_quantity',
+                                          'power_source',
+                                          'acre_unit',
+                                        ].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Report & Analysis
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'REPORT & ANALYSIS',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                ...[
-                                  'problem_category',
-                                  'problem_item',
-                                ].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                        // Report & Analysis
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'REPORT & ANALYSIS',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...[
+                                          'problem_category',
+                                          'problem_item',
+                                        ].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Crop & Yield
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'CROP & YIELD',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                ...[
-                                  'master_crop',
-                                  'age_unit',
-                                  'life_unit',
-                                  'count_unit',
-                                  'yield_unit',
-                                  'yield_period',
-                                ].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                        // Crop & Yield
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'CROP & YIELD',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...[
+                                          'master_crop',
+                                          'age_unit',
+                                          'life_unit',
+                                          'count_unit',
+                                          'yield_unit',
+                                          'yield_period',
+                                        ].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Product & Treatment
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'PRODUCT & TREATMENT',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                ...[
-                                  'product_name',
-                                  'filler_material',
-                                  'application_method',
-                                  'dose_unit',
-                                  'filler_unit',
-                                  'per_unit',
-                                ].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                        // Product & Treatment
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'PRODUCT & TREATMENT',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...[
+                                          'product_name',
+                                          'filler_material',
+                                          'application_method',
+                                          'dose_unit',
+                                          'filler_unit',
+                                          'per_unit',
+                                        ].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Stock Management
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'STOCK',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                ...['vendor_name', 'stock_vendor'].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
+                                        // Stock Management
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'STOCK',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...['vendor_name', 'stock_vendor'].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
 
-                                // Billing details
-                                const DropdownMenuItem(
-                                  enabled: false,
-                                  child: Text(
-                                    'BILLING',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                 ...['billing_config', 'place_of_supply', 'farmer_gst'].map(
-                                  (key) => DropdownMenuItem(
-                                    value: key,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Text(_typeLabels[key]!),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              onChanged: (v) {
+                                        // Billing details
+                                        const DropdownMenuItem(
+                                          enabled: false,
+                                          child: Text(
+                                            'BILLING',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        ...[
+                                          'billing_config',
+                                          'place_of_supply',
+                                          'farmer_gst',
+                                        ].map(
+                                          (key) => DropdownMenuItem(
+                                            value: key,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 12),
+                                              child: Text(_typeLabels[key]!),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                onChanged: (v) {
                                 setState(() {
                                   _selectedType = v;
                                   _selectedParentId = null;
