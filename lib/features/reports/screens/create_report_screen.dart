@@ -561,7 +561,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   Future<Map<String, dynamic>> _collectCurrentCropData() async {
     final crop = _crops.firstWhere(
-      (c) => c['id'] == _selectedCropId,
+      (c) => c['id'].toString() == _selectedCropId,
       orElse: () => {'name': 'Unknown Crop'},
     );
 
@@ -993,7 +993,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       await _clearDraft();
 
       if (mounted) {
-        final farm = _farms.firstWhere((f) => f['id'] == _selectedFarmId, orElse: () => {});
+        final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId, orElse: () => {});
         final farmerNameForPdf = farm['farmers']?['name'] ?? 'Valued Farmer';
 
         Navigator.pushReplacement(
@@ -1647,8 +1647,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   Widget _buildPreviewStep() {
-    final farm = _farms.firstWhere((f) => f['id'] == _selectedFarmId, orElse: () => {'name': 'N/A'});
-    final crop = _crops.firstWhere((c) => c['id'] == _selectedCropId, orElse: () => {'name': 'N/A'});
+    final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId, orElse: () => {'name': 'N/A'});
+    final crop = _crops.firstWhere((c) => c['id'].toString() == _selectedCropId, orElse: () => {'name': 'N/A'});
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
