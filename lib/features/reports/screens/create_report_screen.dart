@@ -1073,6 +1073,429 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       });
     }
   }
+  Widget _buildStepWidget(int step) {
+    if (step == 0) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            DataEntrySelector(
+              onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
+              onDateChanged: (dt) => _overrideDate = dt,
+            ),
+            DropdownButtonFormField<String>(
+              value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId.toString()))
+                  ? _selectedFarmId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Choose Farm',
+              ),
+              items: _farms
+                  .map(
+                    (f) => DropdownMenuItem(
+                      value: f['id'].toString(),
+                      child: Text(f['name'] ?? 'Unknown'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (widget.preSelectedFarmId != null || _multiCropsData.isNotEmpty)
+                  ? null
+                  : (v) {
+                      setState(() => _selectedFarmId = v);
+                      _loadCrops(v!);
+                    },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              key: ValueKey('crop_dropdown_${_multiCropsData.length}_$_selectedCropId'),
+              value: (_selectedCropId != null && _crops.any((c) => c['id'].toString() == _selectedCropId.toString()))
+                  ? _selectedCropId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Choose Crop',
+              ),
+              items: _crops
+                  .where((c) => !_multiCropsData.any((m) => m['crop_id'].toString() == c['id'].toString()))
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c['id'].toString(),
+                      child: Text(c['name'] ?? 'Unknown'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (widget.preSelectedCropId != null && _multiCropsData.isEmpty)
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _selectedCropId = value;
+                        _suggestedProblems = [];
+                      });
+                      if (value != null) {
+                        final crop = _crops.firstWhere(
+                          (c) => c['id'].toString() == value.toString(),
+                          orElse: () => {},
+                        );
+                        final cropIntId = crop.isNotEmpty ? _getMasterCropId(crop) : null;
+                        if (cropIntId != null) {
+                          _loadSuggestedProblems(cropIntId);
+                        }
+                        _loadCropDetails(value);
+                        if (_selectedFarmId != null) {
+                          _loadLastReportData(
+                            _selectedFarmId!,
+                            value,
+                          );
+                        }
+                      }
+                    },
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (step == 1) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_activeCategory == null) ...[
+              const Text(
+                'Select Problem Category',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Column(
+                children: _problemCategoriesList.map((cat) {
+                  final label = cat['label'].toString();
+                  IconData icon = Icons.category_rounded;
+                  Color color = AppColors.primary;
+                  
+                  if (label.contains('Pest')) {
+                    icon = Icons.pest_control_rounded;
+                    color = Colors.orange;
+                  } else if (label.contains('Disease')) {
+                    icon = Icons.coronavirus_rounded;
+                    color = Colors.red;
+                  } else if (label.contains('Deficiency')) {
+                    icon = Icons.science_rounded;
+                    color = Colors.blue;
+                  } else if (label.contains('Other')) {
+                    icon = Icons.more_horiz_rounded;
+                    color = Colors.grey;
+                  }
+                  
+                  final imageUrl = cat['image_url']?.toString();
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildHierarchyCard(label, icon, color, imageUrl: imageUrl),
+                  );
+                }).toList(),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_activeCategory!['label']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Cat: ${_categoryIndex + 1}/${_problemCategoriesList.length}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textGray.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                onChanged: (v) => setState(() => _problemSearchQuery = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search items...',
+                  prefixIcon: Icon(Icons.search_rounded),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_isLoading)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(40.0),
+                  child: CircularProgressIndicator(),
+                ))
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
+                  ),
+                  child: _buildNewProblemItemList(),
+                ),
+              
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _goToPreviousCategory,
+                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                      label: const Text('Back / Skip'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 45),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _goToNextCategory,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      label: Text(_categoryIndex == _problemCategoriesList.length - 1 ? 'Finish Identification' : 'Next Section'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 45),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (_selectedProblems.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Selected Problems:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => _selectedProblems.clear()),
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(color: Colors.red, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Column(
+                children: _selectedProblems
+                    .map((p) => _buildProblemNotepadCard(p))
+                    .toList(),
+              ),
+            ],
+
+            const SizedBox(height: 32),
+            const Text(
+              'Additional Notes',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _additionalNotesController,
+              maxLines: 2,
+              style: const TextStyle(fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Any other specific observations...',
+                contentPadding: EdgeInsets.all(16),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (step >= 2 && step <= 6) {
+      final category = _previousInputsMap.keys.toList()[step - 2];
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            if (_lastReport != null && category == 'Pesticides')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: ElevatedButton.icon(
+                  onPressed: _importLastReportData,
+                  icon: const Icon(Icons.history_rounded),
+                  label: const Text('Import from Last Visit (All Categories)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    minimumSize: const Size(double.infinity, 45),
+                  ),
+                ),
+              ),
+            _buildPreviousInputCategory(category),
+          ],
+        ),
+      );
+    }
+    
+    if (step == 7) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            ..._recommendationsList.asMap().entries.map(
+              (entry) => _recommendationRowWidget(entry.key, entry.value),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _addRecommendationRow,
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              label: const Text('Add Product Recommendation'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (step == 8) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            ..._costEstimations.map(
+              (row) => _costEstimationRowWidget(row),
+            ),
+            if (_costEstimations.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Add products in Step 4 to see them here.',
+                  style: TextStyle(
+                    color: AppColors.textGray,
+                    fontSize: 13,
+                  ),
+                ),
+              )
+            else ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Grand Total: ₹${_calculateGrandTotal()}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now().add(
+                      const Duration(days: 7),
+                    ),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(
+                      const Duration(days: 365),
+                    ),
+                  );
+                  if (date != null) {
+                    setState(() => _nextVisitDate = date);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.secondary),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Next Visit Date',
+                            style: TextStyle(
+                              color: AppColors.textGray,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _nextVisitDate == null
+                                ? 'Set Follow-up Date'
+                                : _formatDate(_nextVisitDate),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _nextVisitDate == null
+                                  ? AppColors.textGray
+                                  : AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Icon(
+                        Icons.event_repeat_rounded,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    
+    if (step == 9) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: _buildPreviewStep(),
+      );
+    }
+    
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1126,420 +1549,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                       ],
                     ),
                   ),
-                  IndexedStack(
-                    index: _currentStep,
-                    children: [
-                      // Step 0: Select Farm & Crop
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          children: [
-                            DataEntrySelector(
-                              onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
-                              onDateChanged: (dt) => _overrideDate = dt,
-                            ),
-                            DropdownButtonFormField<String>(
-                              value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId.toString()))
-                                  ? _selectedFarmId
-                                  : null,
-                              decoration: const InputDecoration(
-                                labelText: 'Choose Farm',
-                              ),
-                              items: _farms
-                                  .map(
-                                    (f) => DropdownMenuItem(
-                                      value: f['id'].toString(),
-                                      child: Text(f['name'] ?? 'Unknown'),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (widget.preSelectedFarmId != null || _multiCropsData.isNotEmpty)
-                                  ? null
-                                  : (v) {
-                                      setState(() => _selectedFarmId = v);
-                                      _loadCrops(v!);
-                                    },
-                            ),
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<String>(
-                              key: ValueKey('crop_dropdown_${_multiCropsData.length}_$_selectedCropId'),
-                              value: (_selectedCropId != null && _crops.any((c) => c['id'].toString() == _selectedCropId.toString()))
-                                  ? _selectedCropId
-                                  : null,
-                              decoration: const InputDecoration(
-                                labelText: 'Choose Crop',
-                              ),
-                              items: _crops
-                                  .where((c) => !_multiCropsData.any((m) => m['crop_id'].toString() == c['id'].toString()))
-                                  .map(
-                                    (c) => DropdownMenuItem(
-                                      value: c['id'].toString(),
-                                      child: Text(c['name'] ?? 'Unknown'),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (widget.preSelectedCropId != null && _multiCropsData.isEmpty)
-                                  ? null
-                                  : (value) {
-                                      setState(() {
-                                        _selectedCropId = value;
-                                        _suggestedProblems = [];
-                                      });
-                                      if (value != null) {
-                                        final crop = _crops.firstWhere(
-                                          (c) => c['id'].toString() == value.toString(),
-                                          orElse: () => {},
-                                        );
-                                        final cropIntId = crop.isNotEmpty ? _getMasterCropId(crop) : null;
-                                        if (cropIntId != null) {
-                                          _loadSuggestedProblems(cropIntId);
-                                        }
-                                        _loadCropDetails(value);
-                                        if (_selectedFarmId != null) {
-                                          _loadLastReportData(
-                                            _selectedFarmId!,
-                                            value,
-                                          );
-                                        }
-                                      }
-                                    },
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Step 1: Identify Problem
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (_activeCategory == null) ...[
-                              const Text(
-                                'Select Problem Category',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              const SizedBox(height: 16),
-                              Column(
-                                children: _problemCategoriesList.map((cat) {
-                                  final label = cat['label'].toString();
-                                  IconData icon = Icons.category_rounded;
-                                  Color color = AppColors.primary;
-                                  
-                                  if (label.contains('Pest')) {
-                                    icon = Icons.pest_control_rounded;
-                                    color = Colors.orange;
-                                  } else if (label.contains('Disease')) {
-                                    icon = Icons.coronavirus_rounded;
-                                    color = Colors.red;
-                                  } else if (label.contains('Deficiency')) {
-                                    icon = Icons.science_rounded;
-                                    color = Colors.blue;
-                                  } else if (label.contains('Other')) {
-                                    icon = Icons.more_horiz_rounded;
-                                    color = Colors.grey;
-                                  }
-                                  
-                                  final imageUrl = cat['image_url']?.toString();
-                                  
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _buildHierarchyCard(label, icon, color, imageUrl: imageUrl),
-                                  );
-                                }).toList(),
-                              ),
-                            ] else ...[
-                              // SEQUENTIAL WIZARD VIEW for category items
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.primary.withOpacity(0.1)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 16),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        '${_activeCategory!['label']}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      'Cat: ${_categoryIndex + 1}/${_problemCategoriesList.length}',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.textGray.withOpacity(0.8),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                onChanged: (v) => setState(() => _problemSearchQuery = v),
-                                decoration: const InputDecoration(
-                                  hintText: 'Search items...',
-                                  prefixIcon: Icon(Icons.search_rounded),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              if (_isLoading)
-                                const Center(child: Padding(
-                                  padding: EdgeInsets.all(40.0),
-                                  child: CircularProgressIndicator(),
-                                ))
-                              else
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
-                                  ),
-                                  child: _buildNewProblemItemList(),
-                                ),
-                              
-                              const SizedBox(height: 20),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: _goToPreviousCategory,
-                                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                                      label: const Text('Back / Skip'),
-                                      style: OutlinedButton.styleFrom(
-                                        minimumSize: const Size(0, 45),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: _goToNextCategory,
-                                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                                      label: Text(_categoryIndex == _problemCategoriesList.length - 1 ? 'Finish Identification' : 'Next Section'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primary,
-                                        foregroundColor: Colors.white,
-                                        minimumSize: const Size(0, 45),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-
-                            if (_selectedProblems.isNotEmpty) ...[
-                              const SizedBox(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Selected Problems:',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => setState(() => _selectedProblems.clear()),
-                                    child: const Text(
-                                      'Clear All',
-                                      style: TextStyle(color: Colors.red, fontSize: 11),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Column(
-                                children: _selectedProblems
-                                    .map((p) => _buildProblemNotepadCard(p))
-                                    .toList(),
-                              ),
-                            ],
-
-                            const SizedBox(height: 32),
-                            const Text(
-                              'Additional Notes',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _additionalNotesController,
-                              maxLines: 2,
-                              style: const TextStyle(fontSize: 14),
-                              decoration: const InputDecoration(
-                                hintText: 'Any other specific observations...',
-                                contentPadding: EdgeInsets.all(16),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Steps 2-6: Previous Inputs
-                      ..._previousInputsMap.keys.map((category) => 
-                        Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            children: [
-                              if (_lastReport != null && category == 'Pesticides')
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16.0),
-                                  child: ElevatedButton.icon(
-                                    onPressed: _importLastReportData,
-                                    icon: const Icon(Icons.history_rounded),
-                                    label: const Text('Import from Last Visit (All Categories)'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary.withOpacity(0.1),
-                                      foregroundColor: AppColors.primary,
-                                      elevation: 0,
-                                      minimumSize: const Size(double.infinity, 45),
-                                    ),
-                                  ),
-                                ),
-                              _buildPreviousInputCategory(category),
-                            ],
-                          ),
-                        )
-                      ),
-                      // Step 7: Recommendations
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          children: [
-                            ..._recommendationsList.asMap().entries.map(
-                              (entry) => _recommendationRowWidget(entry.key, entry.value),
-                            ),
-                            const SizedBox(height: 12),
-                            TextButton.icon(
-                              onPressed: _addRecommendationRow,
-                              icon: const Icon(Icons.add_circle_outline_rounded),
-                              label: const Text('Add Product Recommendation'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Step 8: Estimated Cost
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          children: [
-                            ..._costEstimations.map(
-                              (row) => _costEstimationRowWidget(row),
-                            ),
-                            if (_costEstimations.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Text(
-                                  'Add products in Step 4 to see them here.',
-                                  style: TextStyle(
-                                    color: AppColors.textGray,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              )
-                            else ...[
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    'Grand Total: ₹${_calculateGrandTotal()}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const Divider(),
-                              const SizedBox(height: 16),
-                              InkWell(
-                                onTap: () async {
-                                  final date = await showDatePicker(
-                                    context: context,
-                                    initialDate: DateTime.now().add(
-                                      const Duration(days: 7),
-                                    ),
-                                    firstDate: DateTime.now(),
-                                    lastDate: DateTime.now().add(
-                                      const Duration(days: 365),
-                                    ),
-                                  );
-                                  if (date != null) {
-                                    setState(() => _nextVisitDate = date);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    border: Border.all(color: AppColors.secondary),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Next Visit Date',
-                                            style: TextStyle(
-                                              color: AppColors.textGray,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _nextVisitDate == null
-                                                ? 'Set Follow-up Date'
-                                                : _formatDate(_nextVisitDate),
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: _nextVisitDate == null
-                                                  ? AppColors.textGray
-                                                  : AppColors.primary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const Icon(
-                                        Icons.event_repeat_rounded,
-                                        color: AppColors.primary,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      // Step 9: Preview Report
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: _buildPreviewStep(),
-                      ),
-                    ],
-                  ),
+                  _buildStepWidget(_currentStep),
                 ],
               ),
             ),
