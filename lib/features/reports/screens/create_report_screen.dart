@@ -287,7 +287,16 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   Future<void> _loadFarms() async {
-    final farms = await SupabaseService.getFarms();
+    // If the logged-in user is data_entry, and they haven't selected a staff member yet,
+    // do not load any farms initially.
+    if (_userRole == 'data_entry' && _overrideStaffId == null) {
+      setState(() {
+        _farms = [];
+      });
+      return;
+    }
+
+    final farms = await SupabaseService.getFarms(userId: _overrideStaffId);
     setState(() {
       _farms = farms;
       if (widget.preSelectedFarmId != null) {
@@ -605,6 +614,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         'step': _currentStep,
         'farmId': _selectedFarmId,
         'cropId': _selectedCropId,
+        'overrideStaffId': _overrideStaffId,
+        'overrideDate': _overrideDate.toIso8601String(),
         'problems': _selectedProblems.toList(),
         'notes': _additionalNotesController.text,
         'nextVisit': _nextVisitDate?.toIso8601String(),
@@ -662,6 +673,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           _currentStep = data['step'] ?? 0;
           _selectedFarmId = data['farmId']?.toString();
           _selectedCropId = data['cropId']?.toString();
+          _overrideStaffId = data['overrideStaffId']?.toString();
+          if (data['overrideDate'] != null) {
+            _overrideDate = DateTime.tryParse(data['overrideDate']) ?? DateTime.now();
+          }
           _additionalNotesController.text = data['notes'] ?? '';
           
           if (data['nextVisit'] != null) {
@@ -739,6 +754,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         });
 
         // Re-trigger async dependencies
+        if (_overrideStaffId != null) {
+          await _loadFarms();
+        }
         if (_selectedFarmId != null) {
           await _loadCrops(_selectedFarmId!);
           if (_selectedCropId != null) {
@@ -1035,6 +1053,16 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   void _onStepContinue() {
+    if (_currentStep == 0 && _userRole == 'data_entry' && _overrideStaffId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a staff member to act on behalf of.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (_currentStep == 1 && !_isProblemIdentificationFinished) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1080,7 +1108,20 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         child: Column(
           children: [
             DataEntrySelector(
-              onStaffChanged: (profile) => _overrideStaffId = profile?['id']?.toString(),
+              initialStaffId: _overrideStaffId,
+              initialDate: _overrideDate,
+              onStaffChanged: (profile) {
+                final staffId = profile?['id']?.toString();
+                if (_overrideStaffId != staffId) {
+                  setState(() {
+                    _overrideStaffId = staffId;
+                    _selectedFarmId = null;
+                    _selectedCropId = null;
+                    _crops = [];
+                  });
+                  _loadFarms();
+                }
+              },
               onDateChanged: (dt) => _overrideDate = dt,
             ),
             DropdownButtonFormField<String>(
@@ -1568,6 +1609,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           ),
           child: SafeArea(
             child: Center(
+              heightFactor: 1.0,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 900),
                 child: Padding(
@@ -1636,7 +1678,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                           Expanded(
                             flex: 2,
                             child: ElevatedButton(
-                              onPressed: (_currentStep == 1 && !_isProblemIdentificationFinished) ? null : _onStepContinue,
+                              onPressed: ((_currentStep == 1 && !_isProblemIdentificationFinished) ||
+                                      (_currentStep == 0 && _userRole == 'data_entry' && _overrideStaffId == null))
+                                  ? null
+                                  : _onStepContinue,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,

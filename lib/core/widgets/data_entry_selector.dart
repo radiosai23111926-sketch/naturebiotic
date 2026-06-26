@@ -104,6 +104,21 @@ class _DataEntrySelectorState extends State<DataEntrySelector> {
   }
 
   @override
+  void didUpdateWidget(covariant DataEntrySelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialStaffId != oldWidget.initialStaffId) {
+      setState(() {
+        _selectedStaffId = widget.initialStaffId;
+      });
+    }
+    if (widget.initialDate != oldWidget.initialDate) {
+      setState(() {
+        _selectedDate = widget.initialDate ?? DateTime.now();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_isDataEntry) return const SizedBox.shrink();
     if (_isLoading) {

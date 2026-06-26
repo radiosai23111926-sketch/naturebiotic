@@ -588,7 +588,7 @@ class SupabaseService {
   }
 
   // Farm CRUD
-  static Future<List<Map<String, dynamic>>> getFarms() async {
+  static Future<List<Map<String, dynamic>>> getFarms({String? userId}) async {
     try {
       if (await isOffline()) throw 'Offline';
       final user = client.auth.currentUser;
@@ -596,14 +596,19 @@ class SupabaseService {
       var query = client.from('farms').select('*, farmers(name)');
 
       final role = profile?['role'];
-      if (role == 'executive' || role == 'telecaller') {
-        final userId = user!.id;
+      if (userId != null) {
         query = query.eq('assigned_to', userId);
+      } else if (role == 'executive' || role == 'telecaller') {
+        final currentUserId = user!.id;
+        query = query.eq('assigned_to', currentUserId);
       }
 
       final data = List<Map<String, dynamic>>.from(await query.order('created_at').timeout(const Duration(seconds: 4)));
       // Cache on success
-      if (!kIsWeb) await LocalDatabaseService.saveCache('farms_${role ?? 'all'}', data);
+      if (!kIsWeb) {
+        final cacheKey = userId != null ? 'farms_$userId' : 'farms_${role ?? 'all'}';
+        await LocalDatabaseService.saveCache(cacheKey, data);
+      }
       final merged = await LocalDatabaseService.mergeWithPending('farms', data);
       return await _resolveFarmerRelations(merged);
     } catch (e) {
@@ -612,7 +617,8 @@ class SupabaseService {
       if (!kIsWeb) {
         final profile = await getProfile().catchError((_) => null);
         final role = profile?['role'];
-        final cached = await LocalDatabaseService.getCache('farms_${role ?? 'all'}');
+        final cacheKey = userId != null ? 'farms_$userId' : 'farms_${role ?? 'all'}';
+        final cached = await LocalDatabaseService.getCache(cacheKey);
         if (cached != null) {
           final merged = await LocalDatabaseService.mergeWithPending('farms', cached);
           return await _resolveFarmerRelations(merged);
