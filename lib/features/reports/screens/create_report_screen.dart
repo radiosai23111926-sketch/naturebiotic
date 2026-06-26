@@ -270,7 +270,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   Future<void> _loadCropDetails(String cropId) async {
     try {
       final crops = await SupabaseService.getCrops(_selectedFarmId ?? widget.preSelectedFarmId ?? '');
-      final crop = crops.firstWhere((c) => c['id'].toString() == cropId);
+      final crop = crops.firstWhere((c) => c['id'].toString() == cropId.toString());
       
       setState(() {
         // Parse acre (e.g. "2.5 Acres")
@@ -307,7 +307,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
         // Find crop to load suggested problems
         final crop = _crops.firstWhere(
-          (c) => c['id'].toString() == _selectedCropId,
+          (c) => c['id'].toString() == _selectedCropId.toString(),
           orElse: () => {},
         );
         if (crop.isNotEmpty) {
@@ -322,14 +322,14 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         }
       } else {
         // If draft loading restored a cropId, don't clear it unless invalid for this farm
-        final bool isCurrentStillValid = crops.any((c) => c['id'].toString() == _selectedCropId);
+        final bool isCurrentStillValid = crops.any((c) => c['id'].toString() == _selectedCropId.toString());
         if (!isCurrentStillValid) {
           _selectedCropId = null;
           _suggestedProblems = [];
         } else {
           // If valid, re-trigger suggested problems for this preserved selection
           final crop = _crops.firstWhere(
-            (c) => c['id'].toString() == _selectedCropId,
+            (c) => c['id'].toString() == _selectedCropId.toString(),
             orElse: () => {},
           );
           if (crop.isNotEmpty) {
@@ -561,7 +561,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   Future<Map<String, dynamic>> _collectCurrentCropData() async {
     final crop = _crops.firstWhere(
-      (c) => c['id'].toString() == _selectedCropId,
+      (c) => c['id'].toString() == _selectedCropId.toString(),
       orElse: () => {'name': 'Unknown Crop'},
     );
 
@@ -666,8 +666,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_pageController.hasClients) _pageController.jumpToPage(_currentStep);
           });
-          _selectedFarmId = data['farmId'];
-          _selectedCropId = data['cropId'];
+          _selectedFarmId = data['farmId']?.toString();
+          _selectedCropId = data['cropId']?.toString();
           _additionalNotesController.text = data['notes'] ?? '';
           
           if (data['nextVisit'] != null) {
@@ -993,7 +993,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       await _clearDraft();
 
       if (mounted) {
-        final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId, orElse: () => {});
+        final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId.toString(), orElse: () => {});
         final farmerNameForPdf = farm['farmers']?['name'] ?? 'Valued Farmer';
 
         Navigator.pushReplacement(
@@ -1144,7 +1144,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 child: Column(
                   children: [
                     DropdownButtonFormField<String>(
-                      value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId))
+                      value: (_selectedFarmId != null && _farms.any((f) => f['id'].toString() == _selectedFarmId.toString()))
                           ? _selectedFarmId
                           : null,
                       decoration: const InputDecoration(
@@ -1170,7 +1170,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       key: ValueKey('crop_dropdown_${_multiCropsData.length}_$_selectedCropId'),
-                      value: (_selectedCropId != null && _crops.any((c) => c['id'].toString() == _selectedCropId))
+                      value: (_selectedCropId != null && _crops.any((c) => c['id'].toString() == _selectedCropId.toString()))
                           ? _selectedCropId
                           : null,
                       decoration: const InputDecoration(
@@ -1178,7 +1178,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                       ),
                       items:
                           _crops
-                              .where((c) => !_multiCropsData.any((m) => m['crop_id'] == c['id'].toString()))
+                              .where((c) => !_multiCropsData.any((m) => m['crop_id'].toString() == c['id'].toString()))
                               .map(
                                 (c) => DropdownMenuItem(
                                   value: c['id'].toString(),
@@ -1196,7 +1196,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                 });
                                 if (value != null) {
                                   final crop = _crops.firstWhere(
-                                    (c) => c['id'].toString() == value,
+                                    (c) => c['id'].toString() == value.toString(),
                                     orElse: () => {},
                                   );
                                   final cropIntId = crop.isNotEmpty ? _getMasterCropId(crop) : null;
@@ -1647,8 +1647,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   Widget _buildPreviewStep() {
-    final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId, orElse: () => {'name': 'N/A'});
-    final crop = _crops.firstWhere((c) => c['id'].toString() == _selectedCropId, orElse: () => {'name': 'N/A'});
+    final farm = _farms.firstWhere((f) => f['id'].toString() == _selectedFarmId.toString(), orElse: () => {'name': 'N/A'});
+    final crop = _crops.firstWhere((c) => c['id'].toString() == _selectedCropId.toString(), orElse: () => {'name': 'N/A'});
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
