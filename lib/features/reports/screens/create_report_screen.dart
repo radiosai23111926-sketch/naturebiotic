@@ -185,24 +185,24 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   }
 
   void _syncCostEstimations() {
-    final validProductNames =
-        _recommendationsList
-            .where((r) => r.product.text.trim().isNotEmpty)
-            .map((r) => r.product.text.trim())
-            .toList();
+    final validRecs = _recommendationsList
+        .where((r) => r.product.text.trim().isNotEmpty)
+        .toList();
 
     setState(() {
-      // Keep existing data if the product name matches
+      // Map existing cost estimation rows by their linked RecommendationRow
       final existingMap = {
-        for (var row in _costEstimations) row.productName: row,
+        for (var row in _costEstimations)
+          if (row.recommendationRow != null) row.recommendationRow!: row
       };
       _costEstimations.clear();
 
-      for (var name in validProductNames) {
-        if (existingMap.containsKey(name)) {
-          _costEstimations.add(existingMap[name]!);
+      for (var rec in validRecs) {
+        final name = rec.product.text.trim();
+        if (existingMap.containsKey(rec) && existingMap[rec]!.productName == name) {
+          _costEstimations.add(existingMap[rec]!);
         } else {
-          final newRow = CostEstimationRow(productName: name);
+          final newRow = CostEstimationRow(productName: name, recommendationRow: rec);
           // Auto-fill prices from product catalog
           final product = _productOptions.firstWhere(
             (p) => p['label'] == name,
@@ -723,9 +723,17 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           final dynamic costRaw = data['cost'];
           if (costRaw != null && costRaw is List) {
             _costEstimations.clear();
-            for (var item in costRaw) {
+            final validRecs = _recommendationsList
+                .where((r) => r.product.text.trim().isNotEmpty)
+                .toList();
+            for (int i = 0; i < costRaw.length; i++) {
+              final item = costRaw[i];
               if (item is Map) {
-                final c = CostEstimationRow(productName: item['name'] ?? '');
+                final rec = i < validRecs.length ? validRecs[i] : null;
+                final c = CostEstimationRow(
+                  productName: item['name'] ?? '',
+                  recommendationRow: rec,
+                );
                 c.pkgSize.text = item['pkg'] ?? '';
                 c.qty.text = item['qty'] ?? '';
                 c.mrp.text = item['mrp'] ?? '';
@@ -3116,6 +3124,7 @@ class CostEstimationRow {
   final qty = TextEditingController();
   final mrp = TextEditingController();
   final offerPrice = TextEditingController();
+  RecommendationRow? recommendationRow;
 
-  CostEstimationRow({required this.productName});
+  CostEstimationRow({required this.productName, this.recommendationRow});
 }
