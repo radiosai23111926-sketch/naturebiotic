@@ -81,6 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<Map<String, dynamic>> _recentActivities = [];
   List<Map<String, dynamic>> _filteredTransactions = [];
   List<Map<String, dynamic>> _filteredCollections = [];
+  List<Map<String, dynamic>> _filteredBills = [];
   List<Map<String, dynamic>> _reminders = [];
   List<Map<String, dynamic>> _allBills = [];
 
@@ -262,7 +263,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     _reportCount =
         _allReports.where((i) => _isInPeriod(i, startDate, endDate)).length;
 
+    final validBills = _allBills.where((b) {
+      final periodOk = _isInPeriod(b, startDate, endDate);
+      if (_isExecutive || _isTelecaller) {
+        final execId = b['executive_id']?.toString().toLowerCase();
+        final currentId = currentUserId?.toString().toLowerCase();
+        return periodOk && execId == currentId;
+      }
+      return periodOk;
+    }).toList();
+
+    _filteredBills = validBills;
+
     double revenue = 0;
+    for (var b in validBills) {
+      final grandTotal = double.tryParse(b['grand_total']?.toString() ?? '0') ?? 0.0;
+      revenue += grandTotal;
+    }
+
     double returnValue = 0;
     double itemsSold = 0;
     double itemsReturned = 0;
@@ -313,7 +331,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           final amount = price * qty;
 
           if (type == 'RECEIVED') {
-            revenue += amount;
             itemsSold += qty;
           } else if (type == 'RETURN') {
             revenue -= amount;
@@ -1970,6 +1987,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               builder:
                   (context) => FarmSalesListScreen(
                     initialTransactions: _filteredTransactions,
+                    initialCollections: _filteredCollections,
+                    initialBills: _filteredBills,
                     allProducts: _allProducts,
                     allFarms: _allFarms,
                   ),
@@ -2198,6 +2217,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         (context) => FarmSalesListScreen(
                           initialTransactions: _filteredTransactions,
                           initialCollections: _filteredCollections,
+                          initialBills: _filteredBills,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'SALES',
@@ -2225,6 +2245,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         (context) => FarmSalesListScreen(
                           initialTransactions: _filteredTransactions,
                           initialCollections: _filteredCollections,
+                          initialBills: _filteredBills,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'OUTSTANDING',
@@ -2248,6 +2269,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         (context) => FarmSalesListScreen(
                           initialTransactions: _filteredTransactions,
                           initialCollections: _filteredCollections,
+                          initialBills: _filteredBills,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'COLLECTION',

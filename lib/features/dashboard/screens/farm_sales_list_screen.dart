@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 class FarmSalesListScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialTransactions;
   final List<Map<String, dynamic>> initialCollections;
+  final List<Map<String, dynamic>>? initialBills;
   final List<Map<String, dynamic>> allProducts;
   final List<Map<String, dynamic>> allFarms;
   final String mode; // 'SALES', 'COLLECTION', 'OUTSTANDING'
@@ -22,6 +23,7 @@ class FarmSalesListScreen extends StatefulWidget {
     super.key,
     required this.initialTransactions,
     this.initialCollections = const [],
+    this.initialBills,
     required this.allProducts,
     this.allFarms = const [],
     this.mode = 'SALES',
@@ -47,6 +49,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   
   late List<Map<String, dynamic>> _currentTransactions;
   late List<Map<String, dynamic>> _currentCollections;
+  late List<Map<String, dynamic>> _currentBills;
 
   @override
   void dispose() {
@@ -59,6 +62,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     super.initState();
     _currentTransactions = List.from(widget.initialTransactions);
     _currentCollections = List.from(widget.initialCollections);
+    _currentBills = List.from(widget.initialBills ?? []);
     _processData();
   }
 
@@ -67,7 +71,47 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
     final role = profile?['role']?.toString().toLowerCase();
     final userId = SupabaseService.client.auth.currentUser?.id;
 
+    // Fetch fresh bills from Supabase/SQLite so that new stock entries and their bills/discounts are dynamically loaded
+    try {
+      final freshBills = await SupabaseService.getBills();
+      _currentBills = List<Map<String, dynamic>>.from(freshBills);
+    } catch (e) {
+      debugPrint('Error fetching fresh bills in FarmSalesListScreen: $e');
+    }
+
     final Map<String, Map<String, dynamic>> grouped = {};
+
+    // 0. Process Bills for Revenue
+    for (var bill in _currentBills) {
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        final billExecId = bill['executive_id']?.toString().toLowerCase();
+        final currentId = userId.toLowerCase();
+        if (billExecId != currentId) {
+          continue;
+        }
+      }
+
+      final farmId = bill['farm_id']?.toString();
+      if (farmId == null) continue;
+
+      if (!grouped.containsKey(farmId)) {
+        grouped[farmId] = {
+          'farm_id': farmId,
+          'farm_name': 'Farm #$farmId',
+          'farmer_name': 'Searching...',
+          'location': '...',
+          'total_revenue': 0.0,
+          'total_collection': 0.0,
+          'total_items': 0.0,
+          'total_returned': 0.0,
+          'logs': <Map<String, dynamic>>[],
+          'balances': <String, Map<String, dynamic>>{},
+        };
+      }
+
+      final grandTotal = double.tryParse(bill['grand_total']?.toString() ?? '0') ?? 0.0;
+      grouped[farmId]!['total_revenue'] += grandTotal;
+    }
 
     for (var tx in _currentTransactions) {
       if ((role == 'executive' || role == 'telecaller') && userId != null) {
@@ -123,7 +167,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         });
       }
 
-      // Calculate Revenue (for SALES and OUTSTANDING)
+      // Calculate physical items and return values (not received sales revenue since it's now computed from bills)
       if (type == 'RECEIVED' || type == 'RETURN') {
         final itemName = tx['item_name']?.toString().trim().toLowerCase();
         final rawUnit = tx['unit']?.toString().trim().toLowerCase() ?? '';
@@ -145,7 +189,6 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
         final amount = price * qty;
 
         if (type == 'RECEIVED') {
-          grouped[farmId]!['total_revenue'] += amount;
           grouped[farmId]!['total_items'] += qty;
         } else if (type == 'RETURN') {
           grouped[farmId]!['total_revenue'] -= amount;
