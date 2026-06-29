@@ -264,6 +264,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         _allReports.where((i) => _isInPeriod(i, startDate, endDate)).length;
 
     final validBills = _allBills.where((b) {
+      if (b['status']?.toString().toUpperCase() == 'REJECTED') {
+        return false;
+      }
       final periodOk = _isInPeriod(b, startDate, endDate);
       if (_isExecutive || _isTelecaller) {
         final execId = b['executive_id']?.toString().toLowerCase();
@@ -365,7 +368,76 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     _totalCollection = totalCollection;
-    _totalOutstanding = _totalSalesRevenue - totalCollection;
+    // All-time (cumulative) Outstanding calculation
+    final allTimeBills = _allBills.where((b) {
+      if (b['status']?.toString().toUpperCase() == 'REJECTED') {
+        return false;
+      }
+      if (_isExecutive || _isTelecaller) {
+        final execId = b['executive_id']?.toString().toLowerCase();
+        final currentId = currentUserId?.toString().toLowerCase();
+        return execId == currentId;
+      }
+      return true;
+    }).toList();
+
+    final allTimeCollections = _allCollections.where((c) {
+      if (_isExecutive || _isTelecaller) {
+        final creatorId = c['created_by']?.toString().toLowerCase();
+        final currentId = currentUserId?.toString().toLowerCase();
+        return creatorId == currentId;
+      }
+      return true;
+    }).toList();
+
+    final totalAllTimeRevenue = allTimeBills.fold(
+      0.0,
+      (sum, b) => sum + (double.tryParse(b['grand_total']?.toString() ?? '0') ?? 0.0),
+    );
+
+    final totalAllTimeCollection = allTimeCollections.fold(
+      0.0,
+      (sum, c) => sum + (double.tryParse(c['amount']?.toString() ?? '0') ?? 0.0),
+    );
+
+    final allTimeReturnTxs = _allTransactions.where((tx) {
+      final type = tx['transaction_type']?.toString().toUpperCase();
+      final isReturn = type == 'RETURN';
+      if (_isExecutive || _isTelecaller) {
+        final txExecId = tx['executive_id']?.toString().toLowerCase();
+        final currentId = currentUserId?.toString().toLowerCase();
+        return isReturn && txExecId == currentId;
+      }
+      return isReturn;
+    }).toList();
+
+    double allTimeReturns = 0.0;
+    for (var tx in allTimeReturnTxs) {
+      final itemName = tx['item_name']?.toString().trim().toLowerCase();
+      final rawUnit = tx['unit']?.toString().trim().toLowerCase() ?? '';
+      final unit = rawUnit.split(' {₹')[0].trim();
+      final qty = double.tryParse(tx['quantity']?.toString() ?? '0') ?? 0.0;
+
+      final parent = _allProducts.firstWhere(
+        (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+        orElse: () => {},
+      );
+
+      if (parent.isNotEmpty) {
+        final variants = List<Map<String, dynamic>>.from(parent['variants'] ?? []);
+        final variant = variants.firstWhere(
+          (v) => v['label']?.toString().trim().toLowerCase() == unit,
+          orElse: () => {},
+        );
+
+        if (variant.isNotEmpty) {
+          final price = double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
+          allTimeReturns += price * qty;
+        }
+      }
+    }
+
+    _totalOutstanding = totalAllTimeRevenue - allTimeReturns - totalAllTimeCollection;
 
     // Target Logic for field staff (Executive, Telecaller, Manager)
     if (!_isAdmin && (_isExecutive || _isTelecaller || _isManager)) {
@@ -2243,9 +2315,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder:
                         (context) => FarmSalesListScreen(
-                          initialTransactions: _filteredTransactions,
-                          initialCollections: _filteredCollections,
-                          initialBills: _filteredBills,
+                          initialTransactions: _allTransactions,
+                          initialCollections: _allCollections,
+                          initialBills: _allBills,
                           allProducts: _allProducts,
                           allFarms: _allFarms,
                           mode: 'OUTSTANDING',

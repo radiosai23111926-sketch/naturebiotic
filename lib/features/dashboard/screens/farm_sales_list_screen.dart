@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:nature_biotic/core/theme.dart';
 import 'package:nature_biotic/services/supabase_service.dart';
@@ -79,10 +80,30 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       debugPrint('Error fetching fresh bills in FarmSalesListScreen: $e');
     }
 
+    if (widget.mode == 'OUTSTANDING') {
+      try {
+        final freshCols = await SupabaseService.getAllCollections();
+        _currentCollections = List<Map<String, dynamic>>.from(freshCols);
+      } catch (e) {
+        debugPrint('Error fetching fresh collections in FarmSalesListScreen: $e');
+      }
+
+      try {
+        final freshTxs = await SupabaseService.getAllStockTransactions();
+        _currentTransactions = List<Map<String, dynamic>>.from(freshTxs);
+      } catch (e) {
+        debugPrint('Error fetching fresh transactions in FarmSalesListScreen: $e');
+      }
+    }
+
     final Map<String, Map<String, dynamic>> grouped = {};
 
     // 0. Process Bills for Revenue
     for (var bill in _currentBills) {
+      if (bill['status']?.toString().toUpperCase() == 'REJECTED') {
+        continue;
+      }
+
       if ((role == 'executive' || role == 'telecaller') && userId != null) {
         final billExecId = bill['executive_id']?.toString().toLowerCase();
         final currentId = userId.toLowerCase();
@@ -111,6 +132,13 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
 
       final grandTotal = double.tryParse(bill['grand_total']?.toString() ?? '0') ?? 0.0;
       grouped[farmId]!['total_revenue'] += grandTotal;
+
+      if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING') {
+        grouped[farmId]!['logs'].add({
+          ...bill,
+          '_source': 'bill',
+        });
+      }
     }
 
     for (var tx in _currentTransactions) {
@@ -143,28 +171,31 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
       }
 
       if (widget.mode == 'SALES' || widget.mode == 'OUTSTANDING') {
-        final itemName = tx['item_name']?.toString().trim().toLowerCase();
-        final rawUnit = tx['unit']?.toString().trim().toLowerCase() ?? '';
-        final unit = rawUnit.split(' {₹')[0].trim();
+        final txType = tx['transaction_type']?.toString().toUpperCase();
+        if (txType == 'RETURN') {
+          final itemName = tx['item_name']?.toString().trim().toLowerCase();
+          final rawUnit = tx['unit']?.toString().trim().toLowerCase() ?? '';
+          final unit = rawUnit.split(' {₹')[0].trim();
 
-        final product = widget.allProducts.firstWhere(
-          (p) => p['label']?.toString().trim().toLowerCase() == itemName,
-          orElse: () => {},
-        );
-        final List variants = product['variants'] ?? [];
-        final variant = variants.firstWhere(
-          (v) => v['label']?.toString().trim().toLowerCase() == unit,
-          orElse: () => {},
-        );
+          final product = widget.allProducts.firstWhere(
+            (p) => p['label']?.toString().trim().toLowerCase() == itemName,
+            orElse: () => {},
+          );
+          final List variants = product['variants'] ?? [];
+          final variant = variants.firstWhere(
+            (v) => v['label']?.toString().trim().toLowerCase() == unit,
+            orElse: () => {},
+          );
 
-        final price =
-            double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
+          final price =
+              double.tryParse(variant['offer_price']?.toString() ?? '0') ?? 0.0;
 
-        grouped[farmId]!['logs'].add({
-          ...tx,
-          '_source': 'transaction',
-          '_price': price,
-        });
+          grouped[farmId]!['logs'].add({
+            ...tx,
+            '_source': 'transaction',
+            '_price': price,
+          });
+        }
       }
 
       // Calculate physical items and return values (not received sales revenue since it's now computed from bills)
@@ -1234,6 +1265,102 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   ) {
     final date = _formatDate(log['created_at']);
     final bool isTx = log['_source'] == 'transaction';
+    final bool isBill = log['_source'] == 'bill';
+
+    if (isBill) {
+      final color = Colors.purple;
+      final icon = Icons.receipt_long_rounded;
+      final amt = double.tryParse(log['grand_total']?.toString() ?? '0') ?? 0.0;
+      final challanNo = log['challan_no'] ?? 'N/A';
+      final status = log['status']?.toString().toUpperCase() ?? 'PENDING';
+      
+      String itemsSummary = '';
+      if (log['items'] != null) {
+        try {
+          final List itemsList = log['items'] is String 
+              ? (jsonDecode(log['items'] as String) as List) 
+              : log['items'] as List;
+          itemsSummary = itemsList.map((it) => "${double.tryParse(it['quantity']?.toString() ?? '0')?.toInt() ?? 0}x ${it['name'] ?? it['item_name'] ?? 'N/A'}").join(', ');
+        } catch (_) {}
+      }
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bill: $challanNo',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.textBlack,
+                    ),
+                  ),
+                  if (itemsSummary.isNotEmpty)
+                    Text(
+                      itemsSummary,
+                      style: const TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '+₹${amt.toInt()}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  date,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     if (isTx) {
       final type = log['transaction_type']?.toString().toUpperCase() ?? 'N/A';
