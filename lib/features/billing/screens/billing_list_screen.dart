@@ -17,6 +17,10 @@ class _BillingListScreenState extends State<BillingListScreen> with SingleTicker
   List<Map<String, dynamic>> _allBills = [];
   bool _isLoading = true;
   String _userRole = 'executive';
+  
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -28,6 +32,7 @@ class _BillingListScreenState extends State<BillingListScreen> with SingleTicker
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -53,10 +58,72 @@ class _BillingListScreenState extends State<BillingListScreen> with SingleTicker
     }
   }
 
+  Future<void> _confirmDeleteBill(Map<String, dynamic> bill) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Bill?'),
+        content: Text('Are you sure you want to delete bill "${bill['challan_no']}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteBill(bill['id'].toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bill deleted successfully!'), backgroundColor: AppColors.primary),
+          );
+        }
+        _loadData();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting bill: $e'), backgroundColor: Colors.red),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   List<Map<String, dynamic>> _filterBills(List<String> statuses) {
     return _allBills.where((bill) {
       final s = bill['status']?.toString().toUpperCase() ?? '';
-      return statuses.contains(s);
+      if (!statuses.contains(s)) return false;
+      
+      if (_searchQuery.isEmpty) return true;
+      
+      final challanNo = (bill['challan_no']?.toString() ?? '').toLowerCase();
+      final customerName = (bill['customer_name']?.toString() ?? '').toLowerCase();
+      final customerGstin = (bill['customer_gstin']?.toString() ?? '').toLowerCase();
+      
+      String farmName = '';
+      String farmerName = '';
+      if (bill['farms'] != null) {
+        farmName = (bill['farms']['name']?.toString() ?? '').toLowerCase();
+        if (bill['farms']['farmers'] != null) {
+          farmerName = (bill['farms']['farmers']['name']?.toString() ?? '').toLowerCase();
+        }
+      }
+      
+      return challanNo.contains(_searchQuery) ||
+             customerName.contains(_searchQuery) ||
+             customerGstin.contains(_searchQuery) ||
+             farmName.contains(_searchQuery) ||
+             farmerName.contains(_searchQuery);
     }).toList();
   }
 
@@ -70,12 +137,43 @@ class _BillingListScreenState extends State<BillingListScreen> with SingleTicker
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Billing Management'),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: GoogleFonts.outfit(fontSize: 16, color: AppColors.textBlack),
+                decoration: InputDecoration(
+                  hintText: 'Search by challan, farmer, or farm...',
+                  hintStyle: GoogleFonts.outfit(fontSize: 16, color: AppColors.textGray.withOpacity(0.6)),
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim().toLowerCase();
+                  });
+                },
+              )
+            : const Text('Billing Management'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadData,
+            icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _searchQuery = '';
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
           ),
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _loadData,
+            ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -208,20 +306,35 @@ class _BillingListScreenState extends State<BillingListScreen> with SingleTicker
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: GoogleFonts.outfit(
-                        color: statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: GoogleFonts.outfit(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (_userRole == 'data_entry') ...[
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _confirmDeleteBill(bill),
+                          tooltip: 'Delete Bill',
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

@@ -2749,6 +2749,36 @@ class SupabaseService {
     await client.from('bills').update(_cleanPayload(data)).eq('id', id).timeout(const Duration(seconds: 5));
   }
 
+  static Future<void> deleteBill(String id) async {
+    await client.from('bills').delete().eq('id', id).timeout(const Duration(seconds: 5));
+    if (!kIsWeb) {
+      final db = await LocalDatabaseService.database;
+      if (db != null) {
+        await db.delete('bills', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+  }
+
+  static Future<void> deleteStockTransaction(String id) async {
+    await client.from('stock_transactions').delete().eq('id', id).timeout(const Duration(seconds: 5));
+    if (!kIsWeb) {
+      final db = await LocalDatabaseService.database;
+      if (db != null) {
+        await db.delete('stock_transactions', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+  }
+
+  static Future<void> deleteFarmCollection(String id) async {
+    await client.from('farm_collections').delete().eq('id', id).timeout(const Duration(seconds: 5));
+    if (!kIsWeb) {
+      final db = await LocalDatabaseService.database;
+      if (db != null) {
+        await db.delete('farm_collections', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getBills() async {
     try {
       final profile = await getProfile().catchError((_) => null);

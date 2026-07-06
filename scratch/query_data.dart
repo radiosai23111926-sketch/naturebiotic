@@ -12,11 +12,18 @@ void main() async {
   final supabaseUrl = 'https://utujkxrobmzlvudpvapc.supabase.co/rest/v1';
 
   try {
-    final farmsRes = await http.get(Uri.parse('$supabaseUrl/farms?select=id,name'), headers: headers);
-    final farms = jsonDecode(farmsRes.body) as List;
-    print('--- FARMS ---');
-    for (var f in farms) {
-      print('Farm ID: ${f['id']}, Name: ${f['name']}');
+    final parentIds = [334, 682, 687, 719];
+    print('--- CHECKING VARIANTS ---');
+    for (var pid in parentIds) {
+      final res = await http.get(
+        Uri.parse('$supabaseUrl/dropdown_options?parent_id=eq.$pid&select=id,type,label,tax_percentage,parent_id'),
+        headers: headers,
+      );
+      final list = jsonDecode(res.body) as List;
+      print('Parent ID: $pid, Variants found: ${list.length}');
+      for (var item in list) {
+        print('  ID: ${item['id']}, Type: ${item['type']}, Label: "${item['label']}", Tax%: ${item['tax_percentage']}, ParentID: ${item['parent_id']}');
+      }
     }
   } catch (e) {
     print('Error: $e');

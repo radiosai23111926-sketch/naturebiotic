@@ -25,6 +25,7 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
   List<Map<String, dynamic>> _collections = [];
   bool _isLoading = true;
   double _totalCollected = 0.0;
+  String? _userRole;
 
   @override
   void initState() {
@@ -35,7 +36,12 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
   Future<void> _loadCollections() async {
     setState(() => _isLoading = true);
     try {
-      final all = await SupabaseService.getFarmCollections(widget.farmId);
+      final results = await Future.wait([
+        SupabaseService.getFarmCollections(widget.farmId),
+        SupabaseService.getProfile().catchError((_) => null),
+      ]);
+      final all = List<Map<String, dynamic>>.from(results[0] as Iterable);
+      final profile = results[1] as Map<String, dynamic>?;
 
       final total = all.fold(
         0.0,
@@ -46,12 +52,54 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
         setState(() {
           _collections = all;
           _totalCollected = total;
+          _userRole = profile?['role']?.toString().toLowerCase();
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error in _loadCollections: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmDeleteCollection(Map<String, dynamic> collection) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Collection?'),
+        content: Text('Are you sure you want to delete this collection entry of ${_formatAmount(collection['amount'])}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteFarmCollection(collection['id'].toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Collection deleted successfully!'), backgroundColor: AppColors.primary),
+          );
+        }
+        _loadCollections();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting collection: $e'), backgroundColor: Colors.red),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -291,13 +339,29 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            _formatAmount(amount),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _formatAmount(amount),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              if (_userRole == 'data_entry') ...[
+                const SizedBox(height: 4),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  onPressed: () => _confirmDeleteCollection(collection),
+                  tooltip: 'Delete Collection',
+                ),
+              ],
+            ],
           ),
         ],
       ),

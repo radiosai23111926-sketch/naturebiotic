@@ -30,6 +30,7 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
   List<Map<String, dynamic>> _allProducts = [];
   bool _isLoading = true;
   String? _farmLocation;
+  String? _userRole;
 
   @override
   void initState() {
@@ -111,11 +112,53 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
           _transactions = sortedTransactions;
           _allProducts = products;
           _farmLocation = fetchedLocation;
+          _userRole = role;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmDeleteTransaction(Map<String, dynamic> tx) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Entry?'),
+        content: Text('Are you sure you want to delete the sales entry for "${tx['item_name']}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteStockTransaction(tx['id'].toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sales entry deleted successfully!'), backgroundColor: AppColors.primary),
+          );
+        }
+        _loadData();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting entry: $e'), backgroundColor: Colors.red),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -444,6 +487,21 @@ class _StockManagementScreenState extends State<StockManagementScreen> {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'View Challan',
                   ),
+                  if (_userRole == 'data_entry') ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => _confirmDeleteTransaction(tx),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: Colors.red,
+                      ),
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Delete Entry',
+                    ),
+                  ],
                 ],
               ),
               Text(
