@@ -1719,7 +1719,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 tooltip: 'Edit Rejected Delivery',
               ),
             ],
-            if (_userRole == 'admin') ...[
+            if (_userRole == 'admin' || _userRole == 'data_entry') ...[
               const SizedBox(width: 8),
               PopupMenuButton<String>(
                 onSelected: (val) {
