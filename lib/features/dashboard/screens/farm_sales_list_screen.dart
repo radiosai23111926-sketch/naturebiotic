@@ -51,6 +51,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   late List<Map<String, dynamic>> _currentTransactions;
   late List<Map<String, dynamic>> _currentCollections;
   late List<Map<String, dynamic>> _currentBills;
+  String? _userRole;
 
   @override
   void dispose() {
@@ -70,6 +71,7 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
   Future<void> _processData() async {
     final profile = await SupabaseService.getProfile();
     final role = profile?['role']?.toString().toLowerCase();
+    _userRole = role;
     final userId = SupabaseService.client.auth.currentUser?.id;
 
     // Fetch fresh bills from Supabase/SQLite so that new stock entries and their bills/discounts are dynamically loaded
@@ -659,6 +661,90 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
             },
           ),
     );
+  }
+
+  Future<void> _confirmDeleteBill(Map<String, dynamic> bill) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Bill?'),
+        content: Text('Are you sure you want to delete bill "${bill['challan_no']}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteBill(bill['id'].toString());
+        _currentBills.removeWhere((b) => b['id'].toString() == bill['id'].toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bill deleted successfully!'), backgroundColor: AppColors.primary),
+          );
+        }
+        await _processData();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting bill: $e'), backgroundColor: Colors.red),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteCollection(Map<String, dynamic> collection) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Collection?'),
+        content: Text('Are you sure you want to delete this collection entry of ₹${collection['amount']}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.deleteFarmCollection(collection['id'].toString());
+        _currentCollections.removeWhere((c) => c['id'].toString() == collection['id'].toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Collection deleted successfully!'), backgroundColor: AppColors.primary),
+          );
+        }
+        await _processData();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting collection: $e'), backgroundColor: Colors.red),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildEmptyState() {
@@ -1357,6 +1443,16 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                 ),
               ],
             ),
+            if (_userRole == 'data_entry') ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                onPressed: () => _confirmDeleteBill(log),
+                tooltip: 'Delete Bill',
+              ),
+            ],
           ],
         ),
       );
@@ -1522,6 +1618,16 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                 ),
               ],
             ),
+            if (_userRole == 'data_entry') ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                onPressed: () => _confirmDeleteCollection(log),
+                tooltip: 'Delete Collection',
+              ),
+            ],
           ],
         ),
       );
@@ -1788,6 +1894,28 @@ class _FarmSalesListScreenState extends State<FarmSalesListScreen> {
                             },
                           ),
                         ),
+                        if (_userRole == 'data_entry') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.8),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              padding: const EdgeInsets.all(10),
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              tooltip: 'Delete Collection',
+                              onPressed: () {
+                                _confirmDeleteCollection(log);
+                              },
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],

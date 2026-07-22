@@ -30,10 +30,23 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   Map<String, double> _staffStockTotals = {};
   List<Map<String, dynamic>> _productOptions = [];
 
+  // Search & Filter state
+  final TextEditingController _searchController = TextEditingController();
+  bool _isFilterExpanded = false;
+  String? _selectedProduct;
+  String? _selectedStaffId;
+  DateTimeRange? _selectedDateRange;
+
   @override
   void initState() {
     super.initState();
     _refreshData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshData() async {
@@ -112,7 +125,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
         List<Map<String, dynamic>> staff = [];
         Map<String, double> staffStockTotals = {};
 
-        if (_userRole == 'admin' || _userRole == 'store') {
+        if (_userRole == 'admin' || _userRole == 'store' || _userRole == 'data_entry') {
           staff = await SupabaseService.getAllStaff();
           // Pre-calculate stock totals for each staff member concurrently using Future.wait
           final staffFutures = staff.map((member) async {
@@ -226,7 +239,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
     }
 
     // Wide Layout for Admin/Store
-    if (isWide && (_userRole == 'admin' || _userRole == 'store')) {
+    if (isWide && (_userRole == 'admin' || _userRole == 'store' || _userRole == 'data_entry')) {
       return DefaultTabController(
         length: 3,
         child: Scaffold(
@@ -1358,6 +1371,238 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
     );
   }
 
+  bool _hasAnyFilter() {
+    return _selectedProduct != null ||
+        _selectedStaffId != null ||
+        _selectedDateRange != null;
+  }
+
+  Widget _buildSearchAndFilters() {
+    final bool isWide = MediaQuery.of(context).size.width > 900;
+    
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? (MediaQuery.of(context).size.width - 1100).clamp(16.0, double.infinity) / 2 : 16.0,
+        vertical: 8.0,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search by product, staff, farm, vendor...',
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {});
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: _hasAnyFilter() ? AppColors.primary : AppColors.background,
+                  foregroundColor: _hasAnyFilter() ? Colors.white : AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.all(12),
+                ),
+                icon: Icon(_isFilterExpanded ? Icons.filter_alt_off_rounded : Icons.filter_alt_rounded),
+                onPressed: () {
+                  setState(() {
+                    _isFilterExpanded = !_isFilterExpanded;
+                  });
+                },
+                tooltip: 'Advanced Filters',
+              ),
+            ],
+          ),
+          if (_isFilterExpanded) ...[
+            const SizedBox(height: 12),
+            _buildAdvancedFiltersPanel(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedFiltersPanel() {
+    final bool isWide = MediaQuery.of(context).size.width > 900;
+    
+    final productDropdown = DropdownButtonFormField<String>(
+      value: _selectedProduct,
+      decoration: InputDecoration(
+        labelText: 'Product',
+        filled: true,
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      ),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('All Products')),
+        ..._productOptions.map((prod) {
+          final name = prod['label']?.toString() ?? 'Unknown';
+          return DropdownMenuItem(value: name, child: Text(name));
+        }),
+      ],
+      onChanged: (val) {
+        setState(() {
+          _selectedProduct = val;
+        });
+      },
+    );
+
+    final showStaffFilter = _userRole != 'executive' && _userRole != 'telecaller';
+    final staffDropdown = showStaffFilter
+        ? DropdownButtonFormField<String>(
+            value: _selectedStaffId,
+            decoration: InputDecoration(
+              labelText: 'Staff Member',
+              filled: true,
+              fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Staff')),
+              ..._staffMembers.map((staff) {
+                final name = staff['full_name']?.toString() ?? 'Unknown';
+                final id = staff['id']?.toString() ?? '';
+                return DropdownMenuItem(value: id, child: Text(name));
+              }),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _selectedStaffId = val;
+              });
+            },
+          )
+        : null;
+
+    final dateRangeButton = OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        side: const BorderSide(color: AppColors.primary, width: 1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      icon: const Icon(Icons.date_range_rounded),
+      label: Text(
+        _selectedDateRange == null
+            ? 'Select Date Range'
+            : '${_selectedDateRange!.start.day}/${_selectedDateRange!.start.month} - ${_selectedDateRange!.end.day}/${_selectedDateRange!.end.month}',
+      ),
+      onPressed: () async {
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          initialDateRange: _selectedDateRange,
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(
+                  primary: AppColors.primary,
+                  onPrimary: Colors.white,
+                  surface: Colors.white,
+                  onSurface: AppColors.textBlack,
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) {
+          setState(() {
+            _selectedDateRange = picked;
+          });
+        }
+      },
+    );
+
+    final clearFiltersButton = TextButton.icon(
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.red[700],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: const Icon(Icons.refresh_rounded),
+      label: const Text('Reset Filters'),
+      onPressed: () {
+        setState(() {
+          _selectedProduct = null;
+          _selectedStaffId = null;
+          _selectedDateRange = null;
+          _searchController.clear();
+        });
+      },
+    );
+
+    if (isWide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: productDropdown),
+          if (staffDropdown != null) ...[
+            const SizedBox(width: 12),
+            Expanded(child: staffDropdown),
+          ],
+          const SizedBox(width: 12),
+          dateRangeButton,
+          if (_hasAnyFilter() || _searchController.text.isNotEmpty) ...[
+            const SizedBox(width: 12),
+            clearFiltersButton,
+          ],
+        ],
+      );
+    } else {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: productDropdown),
+              if (staffDropdown != null) ...[
+                const SizedBox(width: 8),
+                Expanded(child: staffDropdown),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: dateRangeButton),
+              if (_hasAnyFilter() || _searchController.text.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                clearFiltersButton,
+              ],
+            ],
+          ),
+        ],
+      );
+    }
+  }
+
   Widget _buildHistoryTab() {
     final bool isWide = MediaQuery.of(context).size.width > 900;
 
@@ -1384,6 +1629,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
               ),
             ),
           ),
+          _buildSearchAndFilters(),
           Expanded(
             child: TabBarView(
               children: [
@@ -1403,8 +1649,99 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
     final bool isWide = MediaQuery.of(context).size.width > 900;
     
     final filtered = transactions.where((tx) {
+      // 1. Filter by transaction type
       final txType = tx['transaction_type']?.toString().toUpperCase() ?? '';
-      return txType == type;
+      if (txType != type) return false;
+
+      // 2. Filter by search query (keyword matching)
+      final queryText = _searchController.text.trim().toLowerCase();
+      if (queryText.isNotEmpty) {
+        final itemName = (tx['item_name'] ?? '').toString().toLowerCase();
+        final vendorName = (tx['vendor_name'] ?? '').toString().toLowerCase();
+        
+        // Resolve entity/farm/staff name
+        String entityName = '';
+        final isField = tx['_source'] == 'field';
+        if (isField) {
+          entityName = (tx['farms']?['name'] ?? '').toString().toLowerCase();
+        } else {
+          if (txType == 'PURCHASE') {
+            entityName = vendorName;
+          } else {
+            final profileName = (tx['profiles']?['full_name'] ?? '').toString().toLowerCase();
+            entityName = profileName.isNotEmpty ? profileName : (vendorName.isNotEmpty ? vendorName : 'direct sale');
+          }
+        }
+
+        // Also resolve staff name via staff id lookup in _staffMembers
+        bool matchesStaff = false;
+        final staffId = tx['executive_id']?.toString();
+        if (staffId != null && _staffMembers.isNotEmpty) {
+          final staff = _staffMembers.firstWhere((s) => s['id']?.toString() == staffId, orElse: () => {});
+          if (staff.isNotEmpty) {
+            final staffName = (staff['full_name'] ?? '').toString().toLowerCase();
+            if (staffName.contains(queryText)) {
+              matchesStaff = true;
+            }
+          }
+        }
+
+        // Check if any of these match the query
+        final matchesItem = itemName.contains(queryText);
+        final matchesEntity = entityName.contains(queryText);
+        
+        // Check date and time text search match (e.g. 21/7/2026 12:15)
+        bool matchesDateTime = false;
+        final txDateStr = tx['created_at']?.toString();
+        if (txDateStr != null) {
+          final txDate = DateTime.tryParse(txDateStr);
+          if (txDate != null) {
+            final formattedDate = '${txDate.day}/${txDate.month}/${txDate.year}';
+            final formattedTime = '${txDate.hour}:${txDate.minute.toString().padLeft(2, '0')}';
+            final formattedFull = '$formattedDate $formattedTime';
+            if (formattedFull.toLowerCase().contains(queryText)) {
+              matchesDateTime = true;
+            }
+          }
+        }
+
+        if (!matchesItem && !matchesEntity && !matchesStaff && !matchesDateTime) {
+          return false;
+        }
+      }
+
+      // 3. Filter by product option
+      if (_selectedProduct != null) {
+        final itemName = (tx['item_name'] ?? '').toString().toLowerCase();
+        if (itemName != _selectedProduct!.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 4. Filter by staff member option
+      if (_selectedStaffId != null) {
+        final txStaffId = tx['executive_id']?.toString();
+        if (txStaffId != _selectedStaffId) {
+          return false;
+        }
+      }
+
+      // 5. Filter by Date range
+      if (_selectedDateRange != null) {
+        final txDateStr = tx['created_at']?.toString();
+        if (txDateStr != null) {
+          final txDate = DateTime.tryParse(txDateStr);
+          if (txDate != null) {
+            final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
+            final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
+            if (txDate.isBefore(start) || txDate.isAfter(end)) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
     }).toList();
 
     Widget content = filtered.isEmpty 

@@ -2065,7 +2065,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     allFarms: _allFarms,
                   ),
             ),
-          );
+          ).then((_) => _loadDashboardData());
         },
         borderRadius: BorderRadius.circular(28),
         child: Stack(
@@ -2295,7 +2295,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           mode: 'SALES',
                         ),
                   ),
-                );
+                ).then((_) => _loadDashboardData());
               },
             ),
           ],
@@ -2323,7 +2323,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           mode: 'OUTSTANDING',
                         ),
                   ),
-                );
+                ).then((_) => _loadDashboardData());
               },
             ),
             const SizedBox(width: 16),
@@ -2347,7 +2347,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           mode: 'COLLECTION',
                         ),
                   ),
-                );
+                ).then((_) => _loadDashboardData());
               },
             ),
           ],

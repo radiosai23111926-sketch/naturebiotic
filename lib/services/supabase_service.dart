@@ -2779,6 +2779,51 @@ class SupabaseService {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> getFarmBills(String farmId) async {
+    try {
+      final profile = await getProfile().catchError((_) => null);
+      final role = profile?['role']?.toString().toLowerCase();
+      final userId = client.auth.currentUser?.id;
+
+      if (await isOffline()) throw 'Offline';
+
+      var query = client.from('bills').select('*, farms(name, landmark, farmers(name, mobile, address))').eq('farm_id', farmId);
+      if ((role == 'executive' || role == 'telecaller') && userId != null) {
+        query = query.eq('executive_id', userId);
+      }
+
+      final response = await query.order('created_at', ascending: false).timeout(const Duration(seconds: 5));
+      final list = List<Map<String, dynamic>>.from(response);
+
+      final roleSuffix = role ?? 'all';
+      if (!kIsWeb) await LocalDatabaseService.saveCache('bills_farm_${farmId}_$roleSuffix', list);
+
+      return list;
+    } catch (e) {
+      debugPrint('Error in getFarmBills: $e');
+      if (!kIsWeb) {
+        final profile = await getProfile().catchError((_) => null);
+        final role = profile?['role']?.toString().toLowerCase();
+        final roleSuffix = role ?? 'all';
+        final cached = await LocalDatabaseService.getCache('bills_farm_${farmId}_$roleSuffix');
+        if (cached != null) return cached;
+        // Fallback to SQLite
+        final localData = await LocalDatabaseService.getData('bills');
+        final farmLocalData = localData.where((b) => b['farm_id']?.toString() == farmId.toString()).toList();
+        return farmLocalData.map((b) {
+          final copy = Map<String, dynamic>.from(b);
+          if (copy['items'] is String) {
+            try {
+              copy['items'] = jsonDecode(copy['items']);
+            } catch (_) {}
+          }
+          return copy;
+        }).toList();
+      }
+      return [];
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getBills() async {
     try {
       final profile = await getProfile().catchError((_) => null);

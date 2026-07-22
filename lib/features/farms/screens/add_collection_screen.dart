@@ -8,6 +8,7 @@ import 'package:nature_biotic/services/sync_manager.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 import 'package:nature_biotic/features/farms/screens/collection_preview_screen.dart';
 import 'package:nature_biotic/core/widgets/data_entry_selector.dart';
@@ -60,12 +61,18 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
 
   Map<String, dynamic>? _farmerDetails;
 
+  double _totalBilled = 0.0;
+  double _totalCollected = 0.0;
+  double _pendingBalance = 0.0;
+  bool _isBalanceLoading = true;
+
   @override
   void initState() {
     super.initState();
     _farmerNameController =
         TextEditingController(text: widget.farmerName ?? '');
     _loadFarmerDetails();
+    _fetchBillingAndCollections();
   }
 
   Future<void> _pickPaymentProof() async {
@@ -129,6 +136,54 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
         }
       }
     } catch (_) {}
+  }
+
+  Future<void> _fetchBillingAndCollections() async {
+    setState(() => _isBalanceLoading = true);
+    try {
+      final results = await Future.wait([
+        SupabaseService.getFarmBills(widget.farmId),
+        SupabaseService.getFarmCollections(widget.farmId),
+      ]);
+      final bills = results[0];
+      final collections = results[1];
+
+      final totalBill = bills.fold<double>(
+        0.0,
+        (sum, b) {
+          if (b['status']?.toString().toUpperCase() == 'REJECTED') {
+            return sum;
+          }
+          return sum + (double.tryParse(b['grand_total']?.toString() ?? '0') ?? 0.0);
+        },
+      );
+
+      final totalColl = collections.fold<double>(
+        0.0,
+        (sum, c) => sum + (double.tryParse(c['amount']?.toString() ?? '0') ?? 0.0),
+      );
+
+      if (mounted) {
+        setState(() {
+          _totalBilled = totalBill;
+          _totalCollected = totalColl;
+          _pendingBalance = totalBill - totalColl;
+          if (_pendingBalance < 0) _pendingBalance = 0;
+          _isBalanceLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching billing balance: $e');
+      if (mounted) {
+        setState(() => _isBalanceLoading = false);
+      }
+    }
+  }
+
+  String _formatAmount(dynamic amount) {
+    final val = double.tryParse(amount.toString()) ?? 0.0;
+    final formatted = NumberFormat('#,##,##0.00', 'en_IN').format(val);
+    return '₹$formatted';
   }
 
   @override
@@ -368,7 +423,130 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+
+                  // Billing Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _isBalanceLoading
+                          ? Colors.grey[100]
+                          : (_totalBilled == 0
+                              ? Colors.red[50]
+                              : (_pendingBalance <= 0
+                                  ? Colors.orange[50]
+                                  : Colors.green[50])),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _isBalanceLoading
+                            ? Colors.grey[200]!
+                            : (_totalBilled == 0
+                                ? Colors.red[200]!
+                                : (_pendingBalance <= 0
+                                    ? Colors.orange[200]!
+                                    : Colors.green[200]!)),
+                      ),
+                    ),
+                    child: _isBalanceLoading
+                        ? const Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                'Loading billing info...',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Icon(
+                                _totalBilled == 0
+                                    ? Icons.error_outline_rounded
+                                    : (_pendingBalance <= 0
+                                        ? Icons.check_circle_outline_rounded
+                                        : Icons.info_outline_rounded),
+                                color: _totalBilled == 0
+                                    ? Colors.red[700]
+                                    : (_pendingBalance <= 0
+                                        ? Colors.orange[700]
+                                        : Colors.green[700]),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (_totalBilled == 0) ...[
+                                      Text(
+                                        'No Billing Found',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Colors.red[900],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Collections cannot be recorded without an existing bill.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.red[700],
+                                        ),
+                                      ),
+                                    ] else if (_pendingBalance <= 0) ...[
+                                      Text(
+                                        'Fully Collected',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Colors.orange[900],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Billed: ${_formatAmount(_totalBilled)} | Collected: ${_formatAmount(_totalCollected)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      Text(
+                                        'Outstanding Balance: ${_formatAmount(_pendingBalance)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Colors.green[900],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Billed: ${_formatAmount(_totalBilled)} | Collected: ${_formatAmount(_totalCollected)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+
+                  const SizedBox(height: 24),
 
                   // Amount field - hero input
                   Container(
@@ -431,8 +609,14 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Please enter the amount collected';
-                            if (double.tryParse(v) == null) return 'Enter a valid number';
-                            if ((double.tryParse(v) ?? 0) <= 0) return 'Amount must be greater than 0';
+                            final amt = double.tryParse(v);
+                            if (amt == null) return 'Enter a valid number';
+                            if (amt <= 0) return 'Amount must be greater than 0';
+                            if (_isBalanceLoading) return 'Still loading billing info. Please wait...';
+                            if (_totalBilled == 0) return 'Cannot record collection: No billing exists for this farm';
+                            if (amt > _pendingBalance) {
+                              return 'Amount exceeds pending balance of ${_formatAmount(_pendingBalance)}';
+                            }
                             return null;
                           },
                         ),
@@ -551,7 +735,7 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _handleSubmit,
+                      onPressed: (_isLoading || _isBalanceLoading || _totalBilled == 0 || _pendingBalance <= 0) ? null : _handleSubmit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
@@ -569,9 +753,17 @@ class _AddCollectionScreenState extends State<AddCollectionScreen> {
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.save_rounded),
+                          : Icon((_totalBilled == 0 || _pendingBalance <= 0) ? Icons.block_rounded : Icons.save_rounded),
                       label: Text(
-                        _isLoading ? 'Saving...' : 'Save Collection',
+                        _isLoading
+                            ? 'Saving...'
+                            : (_isBalanceLoading
+                                ? 'Loading Balance...'
+                                : (_totalBilled == 0
+                                    ? 'No Billing (Cannot Save)'
+                                    : (_pendingBalance <= 0
+                                        ? 'Fully Collected (Cannot Save)'
+                                        : 'Save Collection'))),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
