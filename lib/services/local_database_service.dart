@@ -830,6 +830,21 @@ class LocalDatabaseService {
     return results.map((r) => r['id'] as int).toList();
   }
 
+  /// Returns the record_ids from sync_queue that have status=PENDING (not FAILED)
+  /// for a specific table. Used to identify locally-created records that haven't
+  /// been uploaded to Supabase yet (excluding failed sync attempts).
+  static Future<Set<String>> getPendingSyncRecordIds(String tableName) async {
+    final db = await database;
+    if (db == null) return {};
+    final results = await db.query(
+      'sync_queue',
+      columns: ['record_id'],
+      where: 'table_name = ? AND status = ?',
+      whereArgs: [tableName, 'PENDING'],
+    );
+    return results.map((r) => r['record_id'].toString()).toSet();
+  }
+
   static Future<Map<String, dynamic>?> getSyncItem(int id) async {
     final db = await database;
     if (db == null) return null;

@@ -1642,22 +1642,48 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getUnifiedStoreTransactions() async {
-    // 1. Get remote transactions
-    final remote = await getStoreTransactions();
-    
-    // 2. Get local transactions (if not web)
-    List<Map<String, dynamic>> local = [];
-    if (!kIsWeb) {
-      local = await LocalDatabaseService.getData('store_transactions');
+    // 1. Fetch authoritative remote transactions from Supabase
+    //    (unit normalization is applied here)
+    List<Map<String, dynamic>> remote = [];
+    try {
+      final response = await client.from('store_transactions')
+          .select('*, profiles!store_transactions_executive_id_fkey(full_name)')
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 4));
+      remote = List<Map<String, dynamic>>.from(response);
+      // Normalize unit strings (strip price suffix if present)
+      for (var item in remote) {
+        if (item['unit'] != null && item['unit'].toString().contains('{₹')) {
+          item['unit'] = item['unit'].toString().split('{₹')[0].trim();
+        }
+      }
+    } catch (e) {
+      debugPrint('getUnifiedStoreTransactions: Supabase fetch failed, using cache: $e');
+      // Fallback to cached data on network failure
+      if (!kIsWeb) {
+        final cached = await LocalDatabaseService.getCache('store_transactions');
+        if (cached != null) remote = List<Map<String, dynamic>>.from(cached);
+      }
     }
 
-    // 3. Merge (prefer remote if same ID)
+    // 2. Get ONLY local records that are genuinely pending sync (not FAILED).
+    //    FAILED records never made it to Supabase, so including them would cause
+    //    phantom stock discrepancies (e.g., deliveries deducted locally but not on server).
+    List<Map<String, dynamic>> pendingLocal = [];
+    if (!kIsWeb) {
+      final allLocal = await LocalDatabaseService.getData('store_transactions');
+      if (allLocal.isNotEmpty) {
+        final pendingIds = await LocalDatabaseService.getPendingSyncRecordIds('store_transactions');
+        pendingLocal = allLocal.where((tx) => pendingIds.contains(tx['id'].toString())).toList();
+      }
+    }
+
+    // 3. Merge: start with PENDING local records, then overwrite with Supabase
+    //    (Supabase is the authoritative source — if a record exists in both, trust Supabase)
     final Map<String, Map<String, dynamic>> merged = {};
-    
-    for (var tx in local) {
+    for (var tx in pendingLocal) {
       merged[tx['id'].toString()] = tx;
     }
-    
     for (var tx in remote) {
       merged[tx['id'].toString()] = tx;
     }
@@ -1669,7 +1695,7 @@ class SupabaseService {
     Map<String, Map<String, double>> stock = {};
     if (transactions == null) return stock;
 
-    for (var tx in transactions.where((t) => t['status'] == 'ACCEPTED' || t['transaction_type'] == 'PURCHASE')) {
+    for (var tx in transactions.where((t) => t['status'] == 'ACCEPTED')) {
       final item = (tx['item_name']?.toString() ?? 'Unknown').trim();
       final qty = double.tryParse(tx['quantity']?.toString() ?? '0') ?? 0.0;
       final type = tx['transaction_type']?.toString();
@@ -1691,7 +1717,7 @@ class SupabaseService {
     Map<String, double> stock = {};
     if (transactions == null) return stock;
 
-    for (var tx in transactions.where((t) => t['status'] == 'ACCEPTED' || t['transaction_type'] == 'PURCHASE')) {
+    for (var tx in transactions.where((t) => t['status'] == 'ACCEPTED')) {
       final item = tx['item_name']?.toString() ?? 'Unknown';
       final qty = double.tryParse(tx['quantity']?.toString() ?? '0') ?? 0.0;
       final type = tx['transaction_type']?.toString();
