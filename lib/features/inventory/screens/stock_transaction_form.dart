@@ -798,8 +798,17 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
   }
 
   Widget _buildProductDropdownFor(_StockItem item) {
+    // Resolve by ID so the value always matches an item in the list,
+    // even after a setState rebuild (avoids reference-equality mismatch).
+    final resolvedProduct = item.product == null
+        ? null
+        : _masterProducts.firstWhere(
+            (p) => p['id'] == item.product!['id'],
+            orElse: () => item.product!,
+          );
+
     return DropdownButtonFormField<Map<String, dynamic>>(
-      value: item.product,
+      value: resolvedProduct,
       hint: const Text('Select Product'),
       isExpanded: true,
       decoration: InputDecoration(
@@ -854,8 +863,16 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       item.product?['variants'] ?? [],
     );
 
+    // Resolve by ID so the value always matches an item in the rebuilt list.
+    final resolvedVariant = item.variant == null
+        ? null
+        : variants.firstWhere(
+            (v) => v['id'] == item.variant!['id'],
+            orElse: () => item.variant!,
+          );
+
     return DropdownButtonFormField<Map<String, dynamic>>(
-      value: item.variant,
+      value: resolvedVariant,
       hint: const Text('Select Size'),
       isExpanded: true,
       decoration: InputDecoration(
@@ -887,7 +904,10 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
       builder: (context, constraints) {
         return RawAutocomplete<String>(
           textEditingController: item.vendorController,
-          focusNode: FocusNode(),
+          // Use the stable FocusNode owned by the item — creating a new
+          // FocusNode() on every build breaks RawAutocomplete's focus
+          // tracking and causes it to fire onSelected for the wrong item.
+          focusNode: item.vendorFocusNode,
           optionsBuilder: (TextEditingValue textEditingValue) {
             if (textEditingValue.text.isEmpty) {
               return _allVendors;
@@ -960,6 +980,9 @@ class _StockItem {
   final quantityController = TextEditingController();
   final unitController = TextEditingController(text: 'Units');
   final vendorController = TextEditingController();
+  // Each item owns a stable FocusNode so RawAutocomplete can correctly
+  // track focus across rebuilds without confusing one item with another.
+  final vendorFocusNode = FocusNode();
 
   _StockItem({this.product, String? qty, String? unit, String? vendor}) {
     if (qty != null) quantityController.text = qty;
@@ -971,5 +994,6 @@ class _StockItem {
     quantityController.dispose();
     unitController.dispose();
     vendorController.dispose();
+    vendorFocusNode.dispose();
   }
 }

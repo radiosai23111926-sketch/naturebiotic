@@ -1862,6 +1862,44 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
     );
   }
 
+  /// Returns the store hand-stock for [itemName]/[unit] just BEFORE [tx] was recorded.
+  /// Uses the already-loaded _allTransactions list — no extra network call.
+  double _stockBeforeTransaction(Map<String, dynamic> tx) {
+    final txDate = DateTime.tryParse(tx['created_at']?.toString() ?? '');
+    if (txDate == null) return 0.0;
+
+    final itemName = (tx['item_name']?.toString() ?? '').trim();
+    final rawUnit = tx['unit']?.toString() ?? 'Units';
+    final unit = rawUnit.split(' {₹')[0].trim();
+
+    double stock = 0.0;
+    for (final t in _allTransactions) {
+      // Only count ACCEPTED store transactions that happened strictly before this one
+      if (t['status'] != 'ACCEPTED') continue;
+      if (t['_source'] == 'field') continue; // store stock only
+      final tDate = DateTime.tryParse(t['created_at']?.toString() ?? '');
+      if (tDate == null) continue;
+      // Strictly before — skip the tx itself and anything at the same instant
+      if (!tDate.isBefore(txDate)) continue;
+
+      final tItem = (t['item_name']?.toString() ?? '').trim();
+      if (tItem != itemName) continue;
+
+      final tRawUnit = t['unit']?.toString() ?? 'Units';
+      final tUnit = tRawUnit.split(' {₹')[0].trim();
+      if (tUnit != unit) continue;
+
+      final qty = double.tryParse(t['quantity']?.toString() ?? '0') ?? 0.0;
+      final tType = t['transaction_type']?.toString().toUpperCase() ?? '';
+      if (tType == 'PURCHASE' || tType == 'RETURN') {
+        stock += qty;
+      } else if (tType == 'DELIVERY') {
+        stock -= qty;
+      }
+    }
+    return stock < 0 ? 0.0 : stock;
+  }
+
   Widget _buildTransactionHistoryCard(Map<String, dynamic> tx) {
     final date =
         DateTime.tryParse(tx['created_at']?.toString() ?? '') ?? DateTime.now();
@@ -1998,6 +2036,31 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                       fontSize: 10,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  (() {
+                    // Show hand stock only for store (not field) transactions
+                    if (isField) return const SizedBox.shrink();
+                    final handStock = _stockBeforeTransaction(tx);
+                    final unit = (tx['unit']?.toString() ?? 'Units').split(' {₹')[0].trim();
+                    return Row(
+                      children: [
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 10,
+                          color: AppColors.textGray,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Hand stock: ${handStock % 1 == 0 ? handStock.toInt() : handStock} $unit',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textGray,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    );
+                  })(),
                 ],
               ),
             ),
