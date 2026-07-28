@@ -78,6 +78,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
         final transactions = results[4] as List<Map<String, dynamic>>;
         final pendingDetailed = results[5] as Map<String, Map<String, double>>;
 
+        _calculateRunningStockForTransactions(transactions, detailed, isExecutive: true);
         if (mounted) {
           setState(() {
             _stockInHand = stock;
@@ -142,6 +143,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
           }
         }
 
+        _calculateRunningStockForTransactions(combinedTxs, detailed, isExecutive: false);
         if (mounted) {
           setState(() {
             _pendingCount = pending.length;
@@ -506,13 +508,13 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 ),
               ),
               Text(
-                'Showing ${_stockInHand.length} items',
+                'Showing ${_detailedStock.length} items',
                 style: const TextStyle(color: AppColors.textGray),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          if (_stockInHand.isEmpty)
+          if (_detailedStock.isEmpty)
             const Center(child: Text('No stock recorded yet.'))
           else
             Center(
@@ -521,7 +523,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 child: ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _stockInHand.length,
+                  itemCount: _detailedStock.length,
                   itemBuilder: (context, index) {
                     final productName = _detailedStock.keys.elementAt(index);
                     final variants = _detailedStock[productName]!;
@@ -859,7 +861,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    '${_stockInHand.length ?? 0} Items',
+                    '${_detailedStock.length} Items',
                     style: const TextStyle(
                       color: AppColors.textGray,
                       fontSize: 13,
@@ -1449,8 +1451,13 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   Widget _buildAdvancedFiltersPanel() {
     final bool isWide = MediaQuery.of(context).size.width > 900;
     
+    // Ensure the selected value exists in current options to avoid Flutter assertion crash
+    final bool hasSelectedProduct = _selectedProduct != null &&
+        _productOptions.any((prod) => prod['label']?.toString() == _selectedProduct);
+    final String? effectiveSelectedProduct = hasSelectedProduct ? _selectedProduct : null;
+
     final productDropdown = DropdownButtonFormField<String>(
-      value: _selectedProduct,
+      value: effectiveSelectedProduct,
       decoration: InputDecoration(
         labelText: 'Product',
         filled: true,
@@ -1460,7 +1467,11 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
       ),
       items: [
         const DropdownMenuItem(value: null, child: Text('All Products')),
-        ..._productOptions.map((prod) {
+        ...{
+          // Deduplicate by name to avoid duplicate DropdownMenuItem assertion
+          for (final prod in _productOptions)
+            prod['label']?.toString() ?? 'Unknown': prod,
+        }.values.map((prod) {
           final name = prod['label']?.toString() ?? 'Unknown';
           return DropdownMenuItem(value: name, child: Text(name));
         }),
@@ -1605,9 +1616,10 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
 
   Widget _buildHistoryTab() {
     final bool isWide = MediaQuery.of(context).size.width > 900;
+    final bool isStaff = _userRole == 'executive' || _userRole == 'telecaller';
 
     return DefaultTabController(
-      length: 3,
+      length: isStaff ? 2 : 3,
       child: Column(
         children: [
           Container(
@@ -1621,10 +1633,10 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                 indicatorColor: AppColors.primary,
                 indicatorWeight: 3,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                tabs: const [
-                  Tab(text: 'Purchases'),
-                  Tab(text: 'Deliveries'),
-                  Tab(text: 'Returns'),
+                tabs: [
+                  if (!isStaff) const Tab(text: 'Purchases'),
+                  const Tab(text: 'Deliveries'),
+                  const Tab(text: 'Returns'),
                 ],
               ),
             ),
@@ -1633,7 +1645,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
           Expanded(
             child: TabBarView(
               children: [
-                _buildFilteredHistoryTab('PURCHASE'),
+                if (!isStaff) _buildFilteredHistoryTab('PURCHASE'),
                 _buildFilteredHistoryTab('DELIVERY'),
                 _buildFilteredHistoryTab('RETURN'),
               ],
@@ -1862,42 +1874,58 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
     );
   }
 
-  /// Returns the store hand-stock for [itemName]/[unit] just BEFORE [tx] was recorded.
-  /// Uses the already-loaded _allTransactions list — no extra network call.
-  double _stockBeforeTransaction(Map<String, dynamic> tx) {
-    final txDate = DateTime.tryParse(tx['created_at']?.toString() ?? '');
-    if (txDate == null) return 0.0;
+  void _calculateRunningStockForTransactions(
+    List<Map<String, dynamic>> sortedTxs,
+    Map<String, Map<String, double>> detailedStock, {
+    required bool isExecutive,
+  }) {
+    final Map<String, double> running = {};
+    detailedStock.forEach((product, units) {
+      units.forEach((unit, qty) {
+        final key = "${product.trim().toLowerCase()}_${unit.trim().toLowerCase()}";
+        running[key] = qty;
+      });
+    });
 
-    final itemName = (tx['item_name']?.toString() ?? '').trim();
-    final rawUnit = tx['unit']?.toString() ?? 'Units';
-    final unit = rawUnit.split(' {₹')[0].trim();
+    for (var tx in sortedTxs) {
+      if (tx['status'] != 'ACCEPTED') continue;
 
-    double stock = 0.0;
-    for (final t in _allTransactions) {
-      // Only count ACCEPTED store transactions that happened strictly before this one
-      if (t['status'] != 'ACCEPTED') continue;
-      if (t['_source'] == 'field') continue; // store stock only
-      final tDate = DateTime.tryParse(t['created_at']?.toString() ?? '');
-      if (tDate == null) continue;
-      // Strictly before — skip the tx itself and anything at the same instant
-      if (!tDate.isBefore(txDate)) continue;
+      final product = (tx['item_name']?.toString() ?? '').trim().toLowerCase();
+      final rawUnit = tx['unit']?.toString() ?? 'Units';
+      final unit = rawUnit.split(' {₹')[0].trim().toLowerCase();
+      final key = "${product}_${unit}";
 
-      final tItem = (t['item_name']?.toString() ?? '').trim();
-      if (tItem != itemName) continue;
+      final qty = double.tryParse(tx['quantity']?.toString() ?? '0') ?? 0.0;
+      final type = tx['transaction_type']?.toString().toUpperCase() ?? '';
+      final isField = tx['_source'] == 'field';
 
-      final tRawUnit = t['unit']?.toString() ?? 'Units';
-      final tUnit = tRawUnit.split(' {₹')[0].trim();
-      if (tUnit != unit) continue;
+      final currentStock = running[key] ?? 0.0;
+      tx['_stockAfter'] = currentStock;
 
-      final qty = double.tryParse(t['quantity']?.toString() ?? '0') ?? 0.0;
-      final tType = t['transaction_type']?.toString().toUpperCase() ?? '';
-      if (tType == 'PURCHASE' || tType == 'RETURN') {
-        stock += qty;
-      } else if (tType == 'DELIVERY') {
-        stock -= qty;
+      if (isExecutive) {
+        if (isField) {
+          if (type == 'RECEIVED' || type == 'DELIVERED') {
+            running[key] = currentStock + qty;
+          } else if (type == 'RETURN') {
+            running[key] = currentStock - qty;
+          }
+        } else {
+          if (type == 'DELIVERY') {
+            running[key] = currentStock - qty;
+          } else if (type == 'RETURN') {
+            running[key] = currentStock + qty;
+          }
+        }
+      } else {
+        if (!isField) {
+          if (type == 'PURCHASE' || type == 'RETURN') {
+            running[key] = currentStock - qty;
+          } else if (type == 'DELIVERY') {
+            running[key] = currentStock + qty;
+          }
+        }
       }
     }
-    return stock < 0 ? 0.0 : stock;
   }
 
   Widget _buildTransactionHistoryCard(Map<String, dynamic> tx) {
@@ -2038,29 +2066,38 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
                   ),
                   const SizedBox(height: 4),
                   (() {
-                    // Show hand stock only for store (not field) transactions
-                    if (isField) return const SizedBox.shrink();
-                    final handStock = _stockBeforeTransaction(tx);
-                    final unit = (tx['unit']?.toString() ?? 'Units').split(' {₹')[0].trim();
+                    // Show stock AFTER this transaction (precalculated backwards from current stock)
+                    final stockAfter = tx['_stockAfter'] as double?;
+                    if (stockAfter == null) return const SizedBox.shrink();
+
+                    final unitDisplay = (tx['unit']?.toString() ?? 'Units').split(' {₹')[0].trim();
+                    final bool isDeficit = stockAfter < 0;
+                    final displayQty = stockAfter.abs();
+                    final qtyText = displayQty % 1 == 0
+                        ? displayQty.toInt().toString()
+                        : displayQty.toStringAsFixed(2);
                     return Row(
                       children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
+                        Icon(
+                          isDeficit ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
                           size: 10,
-                          color: AppColors.textGray,
+                          color: isDeficit ? Colors.orange : AppColors.textGray,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Hand stock: ${handStock % 1 == 0 ? handStock.toInt() : handStock} $unit',
-                          style: const TextStyle(
+                          isDeficit
+                              ? 'Stock after: −$qtyText $unitDisplay (deficit)'
+                              : 'Stock after: $qtyText $unitDisplay',
+                          style: TextStyle(
                             fontSize: 10,
-                            color: AppColors.textGray,
+                            color: isDeficit ? Colors.orange : AppColors.textGray,
                             fontStyle: FontStyle.italic,
                           ),
                         ),
                       ],
                     );
                   })(),
+
                 ],
               ),
             ),
@@ -2404,7 +2441,7 @@ class _StoreStockScreenState extends State<StoreStockScreen> {
   }
 
   Widget _buildInventoryList() {
-    if (_stockInHand.isEmpty) {
+    if (_detailedStock.isEmpty) {
       return const SliverFillRemaining(
         child: Center(child: Text('No stock recorded yet.')),
       );

@@ -1,0 +1,427 @@
+Total transactions loaded: 1000
+Chakkra 250ml transactions: 25
+
+==================================================
+Evaluating Tx ID: 394931a6-ab49-4e13-b04a-54336eaf6645 | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-21T12:15:26.693838+00:00
+==================================================
+  MATCHED t ID: 0dd123c4-a861-4be7-a946-24515245887e | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-10T13:32:00+00:00
+  MATCHED t ID: e81c63f1-40d7-4835-9cd0-409f6d281f4f | Type: PURCHASE | Qty: 1.0 | Date: 2026-07-07T17:30:05.711+00:00
+  MATCHED t ID: e8bbe372-0588-4643-877c-2bbc60c0bb6c | Type: PURCHASE | Qty: 40.0 | Date: 2026-07-07T17:18:00+00:00
+  MATCHED t ID: 84703a50-5d78-4c1e-9f1d-948fe0c56e47 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:15:41.695+00:00
+  MATCHED t ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-21T12:15:26.693838+00:00: Stock Before: 218.0 | Qty: 1.0 | Stock After: 217.0
+
+==================================================
+Evaluating Tx ID: 0dd123c4-a861-4be7-a946-24515245887e | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-10T13:32:00+00:00
+==================================================
+  MATCHED t ID: e81c63f1-40d7-4835-9cd0-409f6d281f4f | Type: PURCHASE | Qty: 1.0 | Date: 2026-07-07T17:30:05.711+00:00
+  MATCHED t ID: e8bbe372-0588-4643-877c-2bbc60c0bb6c | Type: PURCHASE | Qty: 40.0 | Date: 2026-07-07T17:18:00+00:00
+  MATCHED t ID: 84703a50-5d78-4c1e-9f1d-948fe0c56e47 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:15:41.695+00:00
+  MATCHED t ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-10T13:32:00+00:00: Stock Before: 219.0 | Qty: 1.0 | Stock After: 218.0
+
+==================================================
+Evaluating Tx ID: e81c63f1-40d7-4835-9cd0-409f6d281f4f | Type: PURCHASE | Qty: 1.0 | Date: 2026-07-07T17:30:05.711+00:00
+==================================================
+  MATCHED t ID: e8bbe372-0588-4643-877c-2bbc60c0bb6c | Type: PURCHASE | Qty: 40.0 | Date: 2026-07-07T17:18:00+00:00
+  MATCHED t ID: 84703a50-5d78-4c1e-9f1d-948fe0c56e47 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:15:41.695+00:00
+  MATCHED t ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-07T17:30:05.711+00:00: Stock Before: 218.0 | Qty: 1.0 | Stock After: 219.0
+
+==================================================
+Evaluating Tx ID: e8bbe372-0588-4643-877c-2bbc60c0bb6c | Type: PURCHASE | Qty: 40.0 | Date: 2026-07-07T17:18:00+00:00
+==================================================
+  MATCHED t ID: 84703a50-5d78-4c1e-9f1d-948fe0c56e47 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:15:41.695+00:00
+  MATCHED t ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-07T17:18:00+00:00: Stock Before: 178.0 | Qty: 40.0 | Stock After: 218.0
+
+==================================================
+Evaluating Tx ID: 84703a50-5d78-4c1e-9f1d-948fe0c56e47 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:15:41.695+00:00
+==================================================
+  MATCHED t ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-07T17:15:41.695+00:00: Stock Before: 176.0 | Qty: 2.0 | Stock After: 178.0
+
+==================================================
+Evaluating Tx ID: dbcba075-eb8b-4188-8d96-aa6deabd3507 | Type: PURCHASE | Qty: 2.0 | Date: 2026-07-07T17:14:47.618+00:00
+==================================================
+  MATCHED t ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-07T17:14:47.618+00:00: Stock Before: 174.0 | Qty: 2.0 | Stock After: 176.0
+
+==================================================
+Evaluating Tx ID: b0f18229-40a0-4adf-afaa-0a62cf7c7beb | Type: DELIVERY | Qty: 1.0 | Date: 2026-07-03T14:36:00+00:00
+==================================================
+  MATCHED t ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-03T14:36:00+00:00: Stock Before: 175.0 | Qty: 1.0 | Stock After: 174.0
+
+==================================================
+Evaluating Tx ID: 90b5e694-f963-43e2-897f-eaaf37f51340 | Type: DELIVERY | Qty: 3.0 | Date: 2026-07-01T10:46:12.639+00:00
+==================================================
+  MATCHED t ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-07-01T10:46:12.639+00:00: Stock Before: 178.0 | Qty: 3.0 | Stock After: 175.0
+
+==================================================
+Evaluating Tx ID: dedbd99d-6ae9-4223-b094-58b0e2214cf4 | Type: DELIVERY | Qty: 2.0 | Date: 2026-06-09T15:14:00+00:00
+==================================================
+  MATCHED t ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-06-09T15:14:00+00:00: Stock Before: 180.0 | Qty: 2.0 | Stock After: 178.0
+
+==================================================
+Evaluating Tx ID: 5c682662-e9c0-4e86-a404-281ac29fc883 | Type: RETURN | Qty: 2.0 | Date: 2026-05-30T12:00:00+00:00
+==================================================
+  MATCHED t ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-30T12:00:00+00:00: Stock Before: 178.0 | Qty: 2.0 | Stock After: 180.0
+
+==================================================
+Evaluating Tx ID: 28a77bc8-cefa-4ec4-8aac-3e5fcf7b9f1e | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-29T16:59:00+00:00
+==================================================
+  MATCHED t ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-29T16:59:00+00:00: Stock Before: 183.0 | Qty: 5.0 | Stock After: 178.0
+
+==================================================
+Evaluating Tx ID: bfecd6b9-f4fd-42c5-b8d5-244ff3cafe6e | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-29T10:57:00+00:00
+==================================================
+  MATCHED t ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-29T10:57:00+00:00: Stock Before: 185.0 | Qty: 2.0 | Stock After: 183.0
+
+==================================================
+Evaluating Tx ID: c7085254-5efc-4d69-ac21-03cec093a6ef | Type: DELIVERY | Qty: 5.0 | Date: 2026-05-12T16:37:00+00:00
+==================================================
+  MATCHED t ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-12T16:37:00+00:00: Stock Before: 190.0 | Qty: 5.0 | Stock After: 185.0
+
+==================================================
+Evaluating Tx ID: 250fc3a3-ee4e-4561-9368-81821f06ae82 | Type: PURCHASE | Qty: 30.0 | Date: 2026-05-11T18:11:00+00:00
+==================================================
+  MATCHED t ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-11T18:11:00+00:00: Stock Before: 160.0 | Qty: 30.0 | Stock After: 190.0
+
+==================================================
+Evaluating Tx ID: 9c266dc2-a76a-4c8b-b3a8-3b9cb97dc2a5 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-09T11:37:00+00:00
+==================================================
+  MATCHED t ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-09T11:37:00+00:00: Stock Before: 162.0 | Qty: 2.0 | Stock After: 160.0
+
+==================================================
+Evaluating Tx ID: 4ccbd2b4-3ddd-4747-8471-9ba0a228191e | Type: PURCHASE | Qty: 50.0 | Date: 2026-05-05T18:07:00+00:00
+==================================================
+  MATCHED t ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-05T18:07:00+00:00: Stock Before: 112.0 | Qty: 50.0 | Stock After: 162.0
+
+==================================================
+Evaluating Tx ID: 29148220-24a0-47b2-8ea4-32b9b503f7ca | Type: DELIVERY | Qty: 4.0 | Date: 2026-05-04T11:34:00+00:00
+==================================================
+  MATCHED t ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-04T11:34:00+00:00: Stock Before: 116.0 | Qty: 4.0 | Stock After: 112.0
+
+==================================================
+Evaluating Tx ID: e871cb16-91f7-4c80-94b4-cbe659b86551 | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-02T15:58:00+00:00
+==================================================
+  MATCHED t ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-02T15:58:00+00:00: Stock Before: 118.0 | Qty: 2.0 | Stock After: 116.0
+
+==================================================
+Evaluating Tx ID: f62492d2-c41b-4d26-92a5-9c35a10d6cbb | Type: DELIVERY | Qty: 2.0 | Date: 2026-05-01T11:19:00+00:00
+==================================================
+  MATCHED t ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-05-01T11:19:00+00:00: Stock Before: 120.0 | Qty: 2.0 | Stock After: 118.0
+
+==================================================
+Evaluating Tx ID: 8d809b3c-e3b8-4570-96ce-f95074d2bc95 | Type: PURCHASE | Qty: 39.0 | Date: 2026-04-28T17:53:00+00:00
+==================================================
+  MATCHED t ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-04-28T17:53:00+00:00: Stock Before: 81.0 | Qty: 39.0 | Stock After: 120.0
+
+==================================================
+Evaluating Tx ID: ba1e72b5-f34b-4be2-875a-02b3d3e4789d | Type: DELIVERY | Qty: 1.0 | Date: 2026-04-24T10:49:00+00:00
+==================================================
+  MATCHED t ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-04-24T10:49:00+00:00: Stock Before: 82.0 | Qty: 1.0 | Stock After: 81.0
+
+==================================================
+Evaluating Tx ID: 6fa9fe06-4837-4961-9d16-c1945bdcec3a | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-22T17:08:00+00:00
+==================================================
+  MATCHED t ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-04-22T17:08:00+00:00: Stock Before: 81.0 | Qty: 1.0 | Stock After: 82.0
+
+==================================================
+Evaluating Tx ID: f8128741-9e31-4438-b435-4b4b1122484d | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-20T18:04:00+00:00
+==================================================
+  MATCHED t ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-04-20T18:04:00+00:00: Stock Before: 41.0 | Qty: 40.0 | Stock After: 81.0
+
+==================================================
+Evaluating Tx ID: d0efe03a-674a-4cc7-bc3d-484906d16836 | Type: PURCHASE | Qty: 1.0 | Date: 2026-04-10T16:19:00+00:00
+==================================================
+  MATCHED t ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+SUMMARY for 2026-04-10T16:19:00+00:00: Stock Before: 40.0 | Qty: 1.0 | Stock After: 41.0
+
+==================================================
+Evaluating Tx ID: 7fe0c5cb-a9e1-4c9b-b459-8fa79b9f0a03 | Type: PURCHASE | Qty: 40.0 | Date: 2026-04-01T15:59:00+00:00
+==================================================
+SUMMARY for 2026-04-01T15:59:00+00:00: Stock Before: 0.0 | Qty: 40.0 | Stock After: 40.0

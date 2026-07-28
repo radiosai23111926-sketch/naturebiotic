@@ -685,52 +685,56 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
           children: [
             Expanded(
               flex: 4,
-              child: DropdownButtonFormField<String>(
-                value: row.selectedItem,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Item Name',
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                items:
-                    _allProducts
-                        .map(
-                          (e) {
-                            final imgUrl = e['image_url']?.toString();
-                            final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
-                            return DropdownMenuItem(
-                              value: e['label'].toString(),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: AppColors.secondary.withOpacity(0.5),
-                                    backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
-                                    child: hasImg
-                                        ? null
-                                        : const Icon(
-                                            Icons.inventory_2_rounded,
-                                            color: AppColors.primary,
-                                            size: 12,
-                                          ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      e['label'].toString(),
-                                      style: const TextStyle(fontSize: 12),
-                                      overflow: TextOverflow.ellipsis,
+              child: Builder(
+                builder: (context) {
+                  final bool hasSelectedItem = row.selectedItem != null &&
+                      _allProducts.any((e) => e['label']?.toString() == row.selectedItem);
+                  final String? effectiveSelectedItem = hasSelectedItem ? row.selectedItem : null;
+
+                  return DropdownButtonFormField<String>(
+                    value: effectiveSelectedItem,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Item Name',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    items: {
+                      for (final e in _allProducts)
+                        e['label']?.toString() ?? '': e,
+                    }.values.map((e) {
+                      final imgUrl = e['image_url']?.toString();
+                      final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+                      return DropdownMenuItem(
+                        value: e['label'].toString(),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: AppColors.secondary.withOpacity(0.5),
+                              backgroundImage: hasImg ? NetworkImage(imgUrl) : null,
+                              child: hasImg
+                                  ? null
+                                  : const Icon(
+                                      Icons.inventory_2_rounded,
+                                      color: AppColors.primary,
+                                      size: 12,
                                     ),
-                                  ),
-                                ],
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                e['label'].toString(),
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            );
-                          }
-                        )
-                        .toList(),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (v) {
                   setState(() {
                     row.selectedItem = v;
@@ -740,8 +744,10 @@ class _AddStockEntryScreenState extends State<AddStockEntryScreen> {
                   });
                 },
                 validator: (v) => v == null ? 'Req' : null,
-              ),
-            ),
+              );
+            },
+          ),
+        ),
             const SizedBox(width: 8),
             Expanded(
               flex: 3,

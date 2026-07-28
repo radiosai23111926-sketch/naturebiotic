@@ -25,6 +25,7 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
   bool _isLoadingData = true;
+  bool _markAsAccepted = false;
 
   final _itemNameController = TextEditingController();
   final _buyerNameController = TextEditingController();
@@ -298,10 +299,15 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                   : (isDirectPurchase
                       ? _buyerNameController.text.trim()
                       : item.vendorController.text.trim()),
-          'status':
-              (widget.transactionType == 'PURCHASE' || isDirectPurchase || _userRole == 'data_entry')
-                  ? 'ACCEPTED'
-                  : 'PENDING',
+          'status': (widget.transactionType == 'PURCHASE' ||
+                  isDirectPurchase ||
+                  (_userRole == 'data_entry' &&
+                      (widget.transactionType == 'DELIVERY' ||
+                              widget.transactionType == 'RETURN'
+                          ? _markAsAccepted
+                          : true)))
+              ? 'ACCEPTED'
+              : 'PENDING',
           'created_by': user?.id,
           'created_at':
               widget.initialData?['created_at'] ??
@@ -311,7 +317,12 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
           'updated_at': (_userRole == 'data_entry')
               ? _overrideDate.toIso8601String()
               : DateTime.now().toIso8601String(),
-          if (isDirectPurchase || _userRole == 'data_entry')
+          if (isDirectPurchase ||
+              (_userRole == 'data_entry' &&
+                  (widget.transactionType == 'DELIVERY' ||
+                          widget.transactionType == 'RETURN'
+                      ? _markAsAccepted
+                      : true)))
             'accepted_at': (_userRole == 'data_entry')
                 ? _overrideDate.toIso8601String()
                 : DateTime.now().toIso8601String(),
@@ -478,6 +489,41 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
                         ),
                       ),
                     ),
+                    if (_userRole == 'data_entry' &&
+                        (widget.transactionType == 'DELIVERY' ||
+                            widget.transactionType == 'RETURN')) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                        ),
+                        child: SwitchListTile(
+                          title: const Text(
+                            'Mark as already accepted',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'Bypass executive/store acceptance verification (Historical/Offline Record)',
+                            style: TextStyle(fontSize: 11, color: AppColors.textGray),
+                          ),
+                          value: _markAsAccepted,
+                          onChanged: (val) {
+                            setState(() {
+                              _markAsAccepted = val;
+                            });
+                          },
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 48),
                     ElevatedButton(
@@ -804,11 +850,13 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         ? null
         : _masterProducts.firstWhere(
             (p) => p['id'] == item.product!['id'],
-            orElse: () => item.product!,
+            orElse: () => {},
           );
 
+    final Map<String, dynamic>? effectiveProduct = resolvedProduct == null || resolvedProduct.isEmpty ? null : resolvedProduct;
+
     return DropdownButtonFormField<Map<String, dynamic>>(
-      value: resolvedProduct,
+      value: effectiveProduct,
       hint: const Text('Select Product'),
       isExpanded: true,
       decoration: InputDecoration(
@@ -816,12 +864,14 @@ class _StockTransactionFormState extends State<StockTransactionForm> {
         prefixIcon: const Icon(Icons.shopping_bag_rounded, size: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      items:
-          _masterProducts.map((p) {
-            final imgUrl = p['image_url']?.toString();
-            final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
-            return DropdownMenuItem<Map<String, dynamic>>(
-              value: p,
+      items: {
+        for (final p in _masterProducts)
+          p['id']?.toString() ?? '': p,
+      }.values.map((p) {
+        final imgUrl = p['image_url']?.toString();
+        final hasImg = imgUrl != null && imgUrl.isNotEmpty && imgUrl != 'null';
+        return DropdownMenuItem<Map<String, dynamic>>(
+          value: p,
               child: Row(
                 children: [
                   CircleAvatar(
