@@ -898,6 +898,7 @@ class SupabaseService {
 
       final response = await query
           .order('created_at', ascending: false)
+          .range(0, 4999)
           .timeout(const Duration(seconds: 4));
       
       final data = List<Map<String, dynamic>>.from(response);
@@ -944,6 +945,7 @@ class SupabaseService {
       final response = await client.from('store_transactions')
           .select('*, profiles!store_transactions_executive_id_fkey(full_name)')
           .order('created_at', ascending: false)
+          .range(0, 4999)
           .timeout(const Duration(seconds: 4));
       
       if (response == null) return [];
