@@ -1710,6 +1710,14 @@ class SupabaseService {
         stock[item]![unit] = (stock[item]![unit] ?? 0.0) - qty;
       }
     }
+    // Clamp to 0.0 to prevent negative stock values
+    stock.forEach((item, units) {
+      units.forEach((unit, qty) {
+        if (qty < 0.0) {
+          units[unit] = 0.0;
+        }
+      });
+    });
     return stock;
   }
 
@@ -1728,6 +1736,12 @@ class SupabaseService {
         stock[item] = (stock[item] ?? 0.0) - qty;
       }
     }
+    // Clamp to 0.0 to prevent negative stock values
+    stock.forEach((item, qty) {
+      if (qty < 0.0) {
+        stock[item] = 0.0;
+      }
+    });
     return stock;
   }
 
@@ -2373,6 +2387,14 @@ class SupabaseService {
           );
         }
       }
+      // Clamp to 0.0 to prevent negative stock values
+      stock.forEach((item, units) {
+        units.forEach((unit, qty) {
+          if (qty < 0.0) {
+            units[unit] = 0.0;
+          }
+        });
+      });
 
       return stock;
     } catch (e) {
@@ -2452,13 +2474,18 @@ class SupabaseService {
         final type = u['transaction_type']?.toString().toUpperCase();
         final itemName = u['item_name']?.toString() ?? 'Unknown';
         final qty = double.tryParse(u['quantity']?.toString() ?? '0') ?? 0.0;
-
         if (type == 'RECEIVED' || type == 'DELIVERED') {
           stock[itemName] = (stock[itemName] ?? 0.0) - qty;
         } else if (type == 'RETURN') {
           stock[itemName] = (stock[itemName] ?? 0.0) + qty;
         }
       }
+      // Clamp to 0.0 to prevent negative stock values
+      stock.forEach((item, qty) {
+        if (qty < 0.0) {
+          stock[item] = 0.0;
+        }
+      });
 
       return stock;
     } catch (e) {
