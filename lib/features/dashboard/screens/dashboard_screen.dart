@@ -10,6 +10,7 @@ import 'package:nature_biotic/features/auth/screens/executive_list_screen.dart';
 import 'package:nature_biotic/features/attendance/screens/attendance_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:nature_biotic/features/reports/screens/reports_list_screen.dart';
+import 'package:nature_biotic/features/reports/screens/admin_work_report_screen.dart';
 import 'package:nature_biotic/features/dashboard/screens/farm_sales_list_screen.dart';
 import 'package:nature_biotic/features/auth/screens/login_logs_screen.dart';
 import 'package:nature_biotic/features/profile/screens/profile_screen.dart';
@@ -779,7 +780,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 40),
               _buildStatsGrid(isWide: false),
               const SizedBox(height: 32),
-              if (_isAdmin) ..._buildAdminSections(isWide: false),
+              if (_isAdmin || _isManager) ..._buildAdminSections(isWide: false),
             ],
           ),
         ),
@@ -847,11 +848,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 44),
                 if (!_isAdmin) _buildRemindersSection(),
                 const SizedBox(height: 40),
-                if (_isAdmin) ...[
+                if (_isAdmin || _isManager) ...[
                   const Divider(),
                   const SizedBox(height: 30),
                   const Text(
-                    'Admin Management',
+                    'Management Console',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
@@ -1049,6 +1050,26 @@ class _DashboardScreenState extends State<DashboardScreen>
                 context,
                 MaterialPageRoute(
                   builder: (context) => const LoginLogsScreen(),
+                ),
+              ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _actionWrapper(
+        isWide,
+        delay: 1100,
+        child: _workActionCard(
+          context,
+          title: 'Employee Work Reports',
+          subtitle: 'Track employee attendance, visits, registrations & calls',
+          icon: Icons.assignment_turned_in_rounded,
+          color: AppColors.primary,
+          fullWidth: true,
+          onTap:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminWorkReportScreen(),
                 ),
               ),
         ),

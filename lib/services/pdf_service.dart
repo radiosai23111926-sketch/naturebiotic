@@ -2921,4 +2921,134 @@ class PdfService {
     }
     return null;
   }
+
+  static Future<void> generateAndPrintWorkReport({
+    required Map<String, dynamic> employee,
+    required DateTimeRange? dateRange,
+    required Map<String, int> stats,
+    required List<Map<String, dynamic>> activities,
+  }) async {
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.robotoRegular();
+    final boldFont = await PdfGoogleFonts.robotoBold();
+
+    final dateStr = DateFormat('dd MMM yyyy').format(DateTime.now());
+    final periodStr = dateRange != null
+        ? '${DateFormat('dd MMM yyyy').format(dateRange.start)} - ${DateFormat('dd MMM yyyy').format(dateRange.end)}'
+        : 'All Time';
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        build: (context) => [
+          // Header
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('NATURE BIOTIC', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColor.fromHex('#1B5E20'))),
+                  pw.Text('Employee Work Activity Report', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey)),
+                ],
+              ),
+              pw.Text(dateStr, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey)),
+            ],
+          ),
+          pw.Divider(thickness: 1, color: PdfColors.grey300),
+          pw.SizedBox(height: 15),
+
+          // Employee Details
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('EMPLOYEE DETAILS', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey600)),
+                    pw.SizedBox(height: 4),
+                    pw.Text(employee['full_name'] ?? 'N/A', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('Role: ${(employee['role'] ?? 'N/A').toString().toUpperCase()}', style: const pw.TextStyle(fontSize: 10)),
+                    pw.Text('Username: @${employee['username'] ?? 'N/A'}', style: const pw.TextStyle(fontSize: 10)),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('REPORT PERIOD', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey600)),
+                    pw.SizedBox(height: 4),
+                    pw.Text(periodStr, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 20),
+
+          // Summary Stats
+          pw.Text('SUMMARY METRICS', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey600)),
+          pw.SizedBox(height: 8),
+          pw.TableHelper.fromTextArray(
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+            headers: ['Metric Type', 'Completed Count'],
+            data: [
+              ['Attendance Days (Present)', '${stats['attendance'] ?? 0}'],
+              ['Farmers Registered', '${stats['farmers'] ?? 0}'],
+              ['Farms Registered/Assigned', '${stats['farms'] ?? 0}'],
+              ['Analysis Reports Generated', '${stats['reports'] ?? 0}'],
+              ['Call Logs Recorded', '${stats['calls'] ?? 0}'],
+            ],
+          ),
+          pw.SizedBox(height: 25),
+
+          // Activity Timeline
+          pw.Text('CHRONOLOGICAL ACTIVITY TIMELINE', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey600)),
+          pw.SizedBox(height: 8),
+          if (activities.isEmpty)
+            pw.Text('No work activities recorded in this period.', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey))
+          else
+            ...activities.map((act) {
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 10),
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey200, width: 0.5),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          (act['type'] as String).toUpperCase(),
+                          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromHex('#1B5E20')),
+                        ),
+                        pw.Text(
+                          act['time'] ?? '',
+                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(act['description'] ?? '', style: const pw.TextStyle(fontSize: 10)),
+                  ],
+                ),
+              );
+            }).toList(),
+        ],
+      ),
+    );
+
+    final bytes = await pdf.save();
+    final formattedName = (employee['full_name'] as String).replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    final filename = 'WorkReport_${formattedName}_${DateFormat('ddMMMyy').format(DateTime.now())}.pdf';
+    await _shareOrPrintPdf(bytes: bytes, filename: filename);
+  }
 }

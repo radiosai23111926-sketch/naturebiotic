@@ -2312,6 +2312,76 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  static Future<Map<String, List<Map<String, dynamic>>>> getEmployeeWorkReportData({
+    required String employeeId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final startOfDay = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
+    final endOfDay = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+    final startIso = startOfDay.toIso8601String();
+    final endIso = endOfDay.toIso8601String();
+
+    try {
+      // 1. Fetch attendance
+      final attendanceResponse = await client
+          .from('attendance')
+          .select()
+          .eq('user_id', employeeId)
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
+          .order('created_at', ascending: false);
+
+      // 2. Fetch farmers
+      final farmersResponse = await client
+          .from('farmers')
+          .select()
+          .eq('created_by', employeeId)
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
+          .order('created_at', ascending: false);
+
+      // 3. Fetch farms (assigned to employee or created by employee)
+      final farmsResponse = await client
+          .from('farms')
+          .select('*, farmers(name)')
+          .or('assigned_to.eq.$employeeId,created_by.eq.$employeeId')
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
+          .order('created_at', ascending: false);
+
+      // 4. Fetch analysis reports
+      final reportsResponse = await client
+          .from('reports')
+          .select('*, farms(name, farmers(name)), crops(name)')
+          .eq('created_by', employeeId)
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
+          .order('created_at', ascending: false);
+
+      // 5. Fetch call logs
+      final callsResponse = await client
+          .from('call_logs')
+          .select('*, farmers(name)')
+          .eq('executive_id', employeeId)
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
+          .order('created_at', ascending: false);
+
+      return {
+        'attendance': List<Map<String, dynamic>>.from(attendanceResponse ?? []),
+        'farmers': List<Map<String, dynamic>>.from(farmersResponse ?? []),
+        'farms': List<Map<String, dynamic>>.from(farmsResponse ?? []),
+        'reports': List<Map<String, dynamic>>.from(reportsResponse ?? []),
+        'calls': List<Map<String, dynamic>>.from(callsResponse ?? []),
+      };
+    } catch (e) {
+      debugPrint('Error fetching employee work report data: $e');
+      rethrow;
+    }
+  }
+
   // Sign out
   static Future<void> signOut() async {
     _cachedProfile = null; // Clear cached profile on sign out

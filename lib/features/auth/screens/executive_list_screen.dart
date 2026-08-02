@@ -4,6 +4,7 @@ import 'package:nature_biotic/services/supabase_service.dart';
 import 'package:nature_biotic/features/auth/screens/executive_assignment_screen.dart';
 import 'package:nature_biotic/features/attendance/screens/attendance_history_screen.dart';
 import 'package:nature_biotic/core/widgets/animations.dart';
+import 'package:nature_biotic/features/reports/screens/admin_work_report_screen.dart';
 
 class ExecutiveListScreen extends StatefulWidget {
   const ExecutiveListScreen({super.key});
@@ -360,6 +361,24 @@ class _ExecutiveListScreenState extends State<ExecutiveListScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                _optionItem(
+                  Icons.assessment_rounded,
+                  'View Work Report',
+                  'Analyze employee work activity timeline and stats',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => AdminWorkReportScreen(
+                              initialEmployee: member,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
                 _optionItem(
                   Icons.history_rounded,
                   'Attendance & Leaves',
